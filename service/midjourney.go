@@ -27,6 +27,122 @@ func CovertMjpActionToModelName(mjAction string) string {
 	return modelName
 }
 
+func NormalizeMjMode(mode string) string {
+	return strings.ToUpper(strings.TrimSpace(mode))
+}
+
+func GetMjImagineModeFromModel(modelName string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(modelName)) {
+	case "mj_relax_imagine":
+		return "RELAX", true
+	case "mj_fast_imagine":
+		return "FAST", true
+	case "mj_turbo_imagine":
+		return "TURBO", true
+	default:
+		return "", false
+	}
+}
+
+func IsMjImagineSpeedModel(modelName string) bool {
+	_, ok := GetMjImagineModeFromModel(modelName)
+	return ok
+}
+
+func GetMjImagineModelFromMode(mode string) (string, bool) {
+	switch NormalizeMjMode(mode) {
+	case "RELAX", "":
+		return "mj_relax_imagine", true
+	case "FAST":
+		return "mj_fast_imagine", true
+	case "TURBO":
+		return "mj_turbo_imagine", true
+	default:
+		return "", false
+	}
+}
+
+func getMjImagineRequestModel(midjRequest *dto.MidjourneyRequest) (string, *dto.MidjourneyResponse, bool) {
+	modelName := strings.ToLower(strings.TrimSpace(midjRequest.Model))
+	if modelName != "" {
+		if modelName == "mj_imagine" || IsMjImagineSpeedModel(modelName) {
+			return modelName, nil, true
+		}
+		return "", MidjourneyErrorWrapper(constant.MjRequestError, "invalid_imagine_model"), false
+	}
+
+	modelName, ok := GetMjImagineModelFromMode(midjRequest.Mode)
+	if !ok {
+		return "", MidjourneyErrorWrapper(constant.MjRequestError, "invalid_imagine_mode"), false
+	}
+	return modelName, nil, true
+}
+
+func GetMjSpeedModelName(action string, mode string) string {
+	base := strings.ToLower(action)
+	speed := strings.ToLower(NormalizeMjMode(mode))
+	if speed == "" {
+		speed = "relax"
+	}
+	if action == constant.MjActionSwapFace {
+		return "swap_face_" + speed
+	}
+	return "mj_" + speed + "_" + base
+}
+
+func IsMjSpeedModel(modelName string) bool {
+	lower := strings.ToLower(strings.TrimSpace(modelName))
+	for _, prefix := range []string{"_relax_", "_fast_", "_turbo_"} {
+		if strings.Contains(lower, prefix) {
+			return true
+		}
+	}
+	for _, suffix := range []string{"_relax", "_fast", "_turbo"} {
+		if strings.HasSuffix(lower, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+func GetMjModeFromSpeedModel(modelName string) (string, bool) {
+	lower := strings.ToLower(strings.TrimSpace(modelName))
+	for _, s := range []string{"_relax_", "_relax"} {
+		if strings.Contains(lower, s) || strings.HasSuffix(lower, s) {
+			return "RELAX", true
+		}
+	}
+	for _, s := range []string{"_fast_", "_fast"} {
+		if strings.Contains(lower, s) || strings.HasSuffix(lower, s) {
+			return "FAST", true
+		}
+	}
+	for _, s := range []string{"_turbo_", "_turbo"} {
+		if strings.Contains(lower, s) || strings.HasSuffix(lower, s) {
+			return "TURBO", true
+		}
+	}
+	return "", false
+}
+
+func getMjSpeedRequestModel(midjRequest *dto.MidjourneyRequest, action string) (string, *dto.MidjourneyResponse, bool) {
+	modelName := strings.ToLower(strings.TrimSpace(midjRequest.Model))
+	if modelName != "" {
+		if _, exists := constant.MidjourneyModel2Action[modelName]; exists {
+			return modelName, nil, true
+		}
+		return "", MidjourneyErrorWrapper(constant.MjRequestError, "invalid_model"), false
+	}
+	mode := NormalizeMjMode(midjRequest.Mode)
+	if mode == "" {
+		mode = "RELAX"
+	}
+	if mode != "RELAX" && mode != "FAST" && mode != "TURBO" {
+		return "", MidjourneyErrorWrapper(constant.MjRequestError, "invalid_mode"), false
+	}
+	return GetMjSpeedModelName(action, mode), nil, true
+}
+
 func GetMjRequestModel(relayMode int, midjRequest *dto.MidjourneyRequest) (string, *dto.MidjourneyResponse, bool) {
 	action := ""
 	if relayMode == relayconstant.RelayModeMidjourneyAction {
@@ -39,31 +155,31 @@ func GetMjRequestModel(relayMode int, midjRequest *dto.MidjourneyRequest) (strin
 	} else {
 		switch relayMode {
 		case relayconstant.RelayModeMidjourneyImagine:
-			action = constant.MjActionImagine
+			return getMjImagineRequestModel(midjRequest)
 		case relayconstant.RelayModeMidjourneyVideo:
-			action = constant.MjActionVideo
+			return getMjSpeedRequestModel(midjRequest, constant.MjActionVideo)
 		case relayconstant.RelayModeMidjourneyEdits:
-			action = constant.MjActionEdits
+			return getMjSpeedRequestModel(midjRequest, constant.MjActionEdits)
 		case relayconstant.RelayModeMidjourneyDescribe:
-			action = constant.MjActionDescribe
+			return getMjSpeedRequestModel(midjRequest, constant.MjActionDescribe)
 		case relayconstant.RelayModeMidjourneyBlend:
-			action = constant.MjActionBlend
+			return getMjSpeedRequestModel(midjRequest, constant.MjActionBlend)
 		case relayconstant.RelayModeMidjourneyShorten:
-			action = constant.MjActionShorten
+			return getMjSpeedRequestModel(midjRequest, constant.MjActionShorten)
 		case relayconstant.RelayModeMidjourneyChange:
-			action = midjRequest.Action
+			return getMjSpeedRequestModel(midjRequest, midjRequest.Action)
 		case relayconstant.RelayModeMidjourneyModal:
 			action = constant.MjActionModal
 		case relayconstant.RelayModeSwapFace:
-			action = constant.MjActionSwapFace
+			return getMjSpeedRequestModel(midjRequest, constant.MjActionSwapFace)
 		case relayconstant.RelayModeMidjourneyUpload:
-			action = constant.MjActionUpload
+			return getMjSpeedRequestModel(midjRequest, constant.MjActionUpload)
 		case relayconstant.RelayModeMidjourneySimpleChange:
 			params := ConvertSimpleChangeParams(midjRequest.Content)
 			if params == nil {
 				return "", MidjourneyErrorWrapper(constant.MjRequestError, "invalid_request"), false
 			}
-			action = params.Action
+			return getMjSpeedRequestModel(midjRequest, params.Action)
 		case relayconstant.RelayModeMidjourneyTaskFetch, relayconstant.RelayModeMidjourneyTaskFetchByCondition, relayconstant.RelayModeMidjourneyNotify:
 			return "", nil, true
 		default:
@@ -72,6 +188,38 @@ func GetMjRequestModel(relayMode int, midjRequest *dto.MidjourneyRequest) (strin
 	}
 	modelName := CovertMjpActionToModelName(action)
 	return modelName, nil, true
+}
+
+func normalizeMidjourneyForwardRequest(c *gin.Context, body map[string]interface{}) {
+	if body == nil {
+		return
+	}
+
+	modelName := c.GetString("original_model")
+	if modelName == "" {
+		if modelValue, ok := body["model"].(string); ok {
+			modelName = modelValue
+		}
+	}
+	if modelName == "" {
+		return
+	}
+
+	mode, ok := GetMjModeFromSpeedModel(modelName)
+	if !ok {
+		mode, ok = GetMjImagineModeFromModel(modelName)
+	}
+	if !ok {
+		if modeValue, ok := body["mode"].(string); ok {
+			mode = NormalizeMjMode(modeValue)
+		}
+	}
+	if mode == "" {
+		return
+	}
+
+	body["mode"] = mode
+	delete(body, "model")
 }
 
 func CoverPlusActionToNormalAction(midjRequest *dto.MidjourneyRequest) *dto.MidjourneyResponse {
@@ -174,6 +322,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 		if err != nil {
 			return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "read_request_body_failed", http.StatusInternalServerError), nullBytes, err
 		}
+		normalizeMidjourneyForwardRequest(c, mapResult)
 		if !setting.MjAccountFilterEnabled {
 			delete(mapResult, "accountFilter")
 		}

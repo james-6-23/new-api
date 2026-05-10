@@ -191,7 +191,21 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 	if swapFaceRequest.SourceBase64 == "" || swapFaceRequest.TargetBase64 == "" {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "sour_base64_and_target_base64_is_required")
 	}
-	modelName := service.CovertMjpActionToModelName(constant.MjActionSwapFace)
+
+	modelName := info.OriginModelName
+	if modelName == "" {
+		midjReq := &dto.MidjourneyRequest{Model: swapFaceRequest.Model, Mode: swapFaceRequest.Mode}
+		var mjErr *dto.MidjourneyResponse
+		var ok bool
+		modelName, mjErr, ok = service.GetMjRequestModel(relayconstant.RelayModeSwapFace, midjReq)
+		if mjErr != nil {
+			return mjErr
+		}
+		if !ok || modelName == "" {
+			modelName = service.CovertMjpActionToModelName(constant.MjActionSwapFace)
+		}
+		info.OriginModelName = modelName
+	}
 
 	priceData, err := helper.ModelPriceHelperPerCall(c, info)
 	if err != nil {
@@ -498,7 +512,19 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 
 	fullRequestURL := fmt.Sprintf("%s%s", baseURL, requestURL)
 
-	modelName := service.CovertMjpActionToModelName(midjRequest.Action)
+	modelName := relayInfo.OriginModelName
+	if modelName == "" {
+		var mjErr *dto.MidjourneyResponse
+		var ok bool
+		modelName, mjErr, ok = service.GetMjRequestModel(relayInfo.RelayMode, &midjRequest)
+		if mjErr != nil {
+			return mjErr
+		}
+		if !ok || modelName == "" {
+			modelName = service.CovertMjpActionToModelName(midjRequest.Action)
+		}
+		relayInfo.OriginModelName = modelName
+	}
 
 	priceData, err := helper.ModelPriceHelperPerCall(c, relayInfo)
 	if err != nil {

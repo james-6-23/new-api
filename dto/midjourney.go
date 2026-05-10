@@ -8,11 +8,15 @@ package dto
 //}
 
 type SwapFaceRequest struct {
+	Model        string `json:"model"`
+	Mode         string `json:"mode"`
 	SourceBase64 string `json:"sourceBase64"`
 	TargetBase64 string `json:"targetBase64"`
 }
 
 type MidjourneyRequest struct {
+	Model       string   `json:"model"`
+	Mode        string   `json:"mode"`
 	Prompt      string   `json:"prompt"`
 	CustomId    string   `json:"customId"`
 	BotType     string   `json:"botType"`

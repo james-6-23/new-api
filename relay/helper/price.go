@@ -2,6 +2,7 @@ package helper
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -164,6 +165,9 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 	var modelRatio float64
 
 	if !success {
+		if isMjSpeedModel(info.OriginModelName) {
+			return types.PriceData{}, modelPriceNotConfiguredError(info.OriginModelName, info.UserId)
+		}
 		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[info.OriginModelName]
 		if ok {
 			modelPrice = defaultPrice
@@ -224,6 +228,20 @@ func ContainPriceOrRatio(modelName string) bool {
 	_, ok, _ = ratio_setting.GetModelRatio(modelName)
 	if ok {
 		return true
+	}
+	return false
+}
+
+func isMjSpeedModel(modelName string) bool {
+	for _, part := range []string{"_relax_", "_fast_", "_turbo_"} {
+		if strings.Contains(modelName, part) {
+			return true
+		}
+	}
+	for _, suffix := range []string{"_relax", "_fast", "_turbo"} {
+		if strings.HasSuffix(modelName, suffix) {
+			return true
+		}
 	}
 	return false
 }
