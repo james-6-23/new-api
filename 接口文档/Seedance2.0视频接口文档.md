@@ -348,4 +348,116 @@ while True:
 | 素材 | 嵌套在 `metadata.content[]` 中 | 顶层 `content[]` 数组 |
 | 生成参数 | 嵌套在 `metadata` 中（ratio, duration 等） | 顶层字段 |
 
-> 详细的火山引擎原生格式文档请参阅 `接口文档/seedance_docs/` 目录。
+> 详细的火山引擎原生格式文档请参阅 `接口文档/提克seedance2视频文档/` 目录。
+
+---
+
+## 兼容性分析与实现记录
+
+> 更新日期：2026-05-12
+
+### 兼容性总览
+
+系统对 Seedance 2.0 接口的兼容度为 **90%+**，核心功能均已实现。
+
+### 已兼容部分（无需修改）
+
+| 能力 | 说明 |
+|------|------|
+| 路由 `POST /v1/videos` | `video-router.go` 已注册 |
+| 路由 `GET /v1/videos/:task_id` | `video-router.go` 已注册 |
+| 路由 `GET /v1/videos/:task_id/content` | 视频代理下载 |
+| 模型列表（6 个） | `doubao-seedance-1-0-pro-250528`、`1-0-lite-t2v`、`1-0-lite-i2v`、`1-5-pro-251215`、`2-0-260128`、`2-0-fast-260128` |
+| 上游调用 | 正确转换到火山引擎原生 `/api/v3/contents/generations/tasks` |
+| 鉴权 Bearer Token | 适配器自动附加 |
+| content 数组结构 | `ContentItem` 支持 `image_url` / `video_url` / `audio_url` + `role` |
+| 素材角色 role 透传 | `first_frame` / `last_frame` / `reference_image` / `reference_video` / `reference_audio` |
+| 文生视频 | 仅 prompt + 参数 |
+| 首帧图生视频 | content 中传 `first_frame` |
+| 首尾帧模式 | content 中传 `first_frame` + `last_frame` |
+| 多图参考 | content 中传多个 `reference_image` |
+| 多模态模式 | content 中混合 `reference_image` / `reference_video` / `reference_audio` |
+| 核心生成参数 | `resolution`、`ratio`、`duration`、`generate_audio`、`watermark`、`seed`、`camera_fixed`、`return_last_frame` |
+| 高级参数 | `service_tier`、`execution_expires_after`、`callback_url`、`draft`、`tools` |
+| 两种传参方式 | 顶层直接传参（方式1）和 `metadata` 嵌套传参（方式2）均支持 |
+| 视频输入计费折扣 | `2-0-260128`: 28/46 ≈ 0.6087, `2-0-fast-260128`: 22/37 ≈ 0.5946 |
+| 任务状态轮询 | 15 秒周期，`ParseTaskResult` 映射上游 status |
+| Usage 解析 | `completion_tokens` / `total_tokens` 从上游响应解析，用于按量计费 |
+
+### 本次新增/修复内容
+
+#### 1. 查询响应补充丰富 metadata 字段
+
+**文件**：`relay/channel/task/doubao/adaptor.go` — `ConvertToOpenAIVideo()`
+
+**变更前**：查询响应 `GET /v1/videos/{task_id}` 的 `metadata` 仅包含 `url`（视频地址）。
+
+**变更后**：metadata 中新增以下上游返回的字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `url` | string | 生成的视频地址（已有） |
+| `seed` | int | 使用的种子值（非零时返回） |
+| `duration` | int | 实际视频时长秒数（大于 0 时返回） |
+| `ratio` | string | 宽高比，如 `16:9`（非空时返回） |
+| `resolution` | string | 分辨率，如 `720p`（非空时返回） |
+| `framespersecond` | int | 帧率（大于 0 时返回） |
+| `service_tier` | string | 推理模式 `default` / `flex`（非空时返回） |
+| `generate_audio` | bool | 是否生成了有声视频（始终返回） |
+| `draft` | bool | 是否为样片模式（始终返回） |
+| `usage` | object | `{completion_tokens, total_tokens}`（有值时返回） |
+
+**变更后查询响应示例**：
+
+```json
+{
+  "id": "task_brid81VeF1emGAQjL5cAp73fFSDymUyI",
+  "task_id": "task_brid81VeF1emGAQjL5cAp73fFSDymUyI",
+  "object": "video",
+  "model": "doubao-seedance-2-0-260128",
+  "status": "completed",
+  "progress": 100,
+  "created_at": 1777347208,
+  "completed_at": 1777347613,
+  "metadata": {
+    "url": "https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/...",
+    "seed": 33608,
+    "duration": 11,
+    "ratio": "16:9",
+    "resolution": "720p",
+    "framespersecond": 24,
+    "service_tier": "default",
+    "generate_audio": true,
+    "draft": false,
+    "usage": {
+      "completion_tokens": 411300,
+      "total_tokens": 411300
+    }
+  }
+}
+```
+
+#### 2. 新增 `expired` 状态映射
+
+**文件**：`relay/channel/task/doubao/adaptor.go` — `ParseTaskResult()`
+
+**变更前**：上游返回 `expired` 状态时走 default 分支，被误判为 `in_progress`。
+
+**变更后**：`expired` 正确映射为 `TaskStatusFailure`，reason 设为 `"task expired"`，对外返回 `status: "failed"`。
+
+**完整状态映射表**：
+
+| 上游状态 | 内部状态 | 对外 Video Status | Progress |
+|----------|----------|-------------------|----------|
+| `pending` / `queued` | `queued` | `queued` | 10% |
+| `processing` / `running` | `in_progress` | `in_progress` | 50% |
+| `succeeded` | `success` | `completed` | 100% |
+| `failed` | `failure` | `failed` | 100% |
+| `expired` | `failure` | `failed` | 100% |
+| 其他未知 | `in_progress` | `in_progress` | 30% |
+
+#### 3. `responseTask` 结构体补全
+
+**文件**：`relay/channel/task/doubao/adaptor.go` — `responseTask` struct
+
+新增 `GenerateAudio bool` 和 `Draft bool` 字段，对齐火山引擎上游完整响应结构。
