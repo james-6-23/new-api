@@ -455,6 +455,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		} else {
 			// No URL from adaptor — construct proxy URL using public task ID
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+			logger.LogWarn(ctx, fmt.Sprintf("Task %s (platform: %s) succeeded with empty URL, using proxy URL",
+				task.TaskID, task.Platform))
 		}
 		shouldSettle = true
 	case model.TaskStatusFailure:

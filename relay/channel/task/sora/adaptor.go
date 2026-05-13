@@ -304,7 +304,16 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusInProgress
 	case "completed":
 		taskResult.Status = model.TaskStatusSuccess
-		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
+		// 尝试从 metadata.url 提取视频 URL（级联 new-api 或兼容接口场景）
+		// 当 URL 为空时，调用方会使用 BuildProxyURL 生成代理 URL（原生 Sora 场景）
+		var metaResp struct {
+			Metadata map[string]interface{} `json:"metadata"`
+		}
+		if err := common.Unmarshal(respBody, &metaResp); err == nil && metaResp.Metadata != nil {
+			if u, ok := metaResp.Metadata["url"].(string); ok && u != "" {
+				taskResult.Url = u
+			}
+		}
 	case "failed", "cancelled":
 		taskResult.Status = model.TaskStatusFailure
 		if resTask.Error != nil {
@@ -313,6 +322,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 			taskResult.Reason = "task failed"
 		}
 	default:
+		if resTask.Status != "" {
+			taskResult.Status = model.TaskStatusQueued
+		}
 	}
 	if resTask.Progress > 0 && resTask.Progress < 100 {
 		taskResult.Progress = fmt.Sprintf("%d%%", resTask.Progress)
