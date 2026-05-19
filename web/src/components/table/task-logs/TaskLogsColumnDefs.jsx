@@ -147,7 +147,20 @@ const renderType = (type, t) => {
   }
 };
 
-const renderPlatform = (platform, t) => {
+const SEEDANCE2_MODEL_PREFIX = 'doubao-seedance-2-0';
+
+const renderPlatform = (platform, t, record) => {
+  const modelName = record?.properties?.origin_model_name || '';
+  if (modelName.startsWith(SEEDANCE2_MODEL_PREFIX)) {
+    const volcOption = CHANNEL_OPTIONS.find((opt) => opt.value === 45);
+    if (volcOption) {
+      return (
+        <Tag color={volcOption.color} shape='circle'>
+          {volcOption.label}
+        </Tag>
+      );
+    }
+  }
   let option = CHANNEL_OPTIONS.find(
     (opt) => String(opt.value) === String(platform),
   );
@@ -360,7 +373,7 @@ export const getTaskLogsColumns = ({
       title: t('平台'),
       dataIndex: 'platform',
       render: (text, record, index) => {
-        return <div>{renderPlatform(text, t)}</div>;
+        return <div>{renderPlatform(text, t, record)}</div>;
       },
     },
     {

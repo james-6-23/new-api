@@ -91,7 +91,19 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if info.Action == constant.TaskActionRemix {
 		return validateRemixRequest(c)
 	}
-	return relaycommon.ValidateMultipartDirect(c, info)
+	if taskErr = relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
+		return taskErr
+	}
+	// Seedance 2.0：图片以 OpenAI content[] 形式（type=image_url）传入，
+	// TaskSubmitReq.HasImage() 检测不到，需要从已解析的 ctx 请求或 raw body 兜底，
+	// 命中时把 action 修正为图生视频，保证日志「类型」列展示正确。
+	if IsSeedance2Model(info.OriginModelName) && info.Action == constant.TaskActionTextGenerate {
+		req, _ := relaycommon.GetTaskRequest(c)
+		if HasImageInRequest(c, &req) {
+			info.Action = constant.TaskActionGenerate
+		}
+	}
+	return nil
 }
 
 // EstimateBilling 根据用户请求的 seconds 和 size 计算 OtherRatios。
@@ -99,6 +111,11 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// remix 路径的 OtherRatios 已在 ResolveOriginTask 中设置
 	if info.Action == constant.TaskActionRemix {
 		return nil
+	}
+
+	// Seedance 2.0：按 token 计费，附加 video_input / 1080p 折扣倍率
+	if IsSeedance2Model(info.OriginModelName) {
+		return estimateSeedance2Ratios(c, info)
 	}
 
 	req, err := relaycommon.GetTaskRequest(c)
@@ -313,6 +330,12 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 			if u, ok := metaResp.Metadata["url"].(string); ok && u != "" {
 				taskResult.Url = u
 			}
+			if t := readIntFromMetadata(metaResp.Metadata, "total_tokens"); t > 0 {
+				taskResult.TotalTokens = t
+			}
+			if ct := readIntFromMetadata(metaResp.Metadata, "completion_tokens"); ct > 0 {
+				taskResult.CompletionTokens = ct
+			}
 		}
 	case "failed", "cancelled":
 		taskResult.Status = model.TaskStatusFailure
@@ -340,4 +363,25 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 		return nil, errors.Wrap(err, "set id failed")
 	}
 	return data, nil
+}
+
+// readIntFromMetadata 从 metadata map 中读取整数值，
+// 兼容 JSON number（float64）、原生 int/int64 与字符串三种形态。
+func readIntFromMetadata(m map[string]interface{}, key string) int {
+	v, ok := m[key]
+	if !ok {
+		return 0
+	}
+	switch x := v.(type) {
+	case float64:
+		return int(x)
+	case int:
+		return x
+	case int64:
+		return int(x)
+	case string:
+		n, _ := strconv.Atoi(x)
+		return n
+	}
+	return 0
 }
