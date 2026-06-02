@@ -178,6 +178,12 @@ const renderPlatform = (platform, t, record) => {
           Suno
         </Tag>
       );
+    case 'openai_image':
+      return (
+        <Tag color='light-blue' shape='circle'>
+          OpenAI {t('生图')}
+        </Tag>
+      );
     default:
       return (
         <Tag color='white' shape='circle'>

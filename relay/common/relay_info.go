@@ -156,6 +156,10 @@ type RelayInfo struct {
 
 	Request dto.Request
 
+	// 同步生图响应解析结果：handler 解析响应后填充，供 ImageHelper 写入 tasks 表
+	ImageResultURLs      []string
+	ImageResultB64Count  int
+
 	// RequestConversionChain records request format conversions in order, e.g.
 	// ["openai", "openai_responses"] or ["openai", "claude"].
 	RequestConversionChain []types.RelayFormat

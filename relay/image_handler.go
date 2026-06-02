@@ -6,12 +6,15 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -151,5 +154,60 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	}
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
+
+	if common.RecordSyncImageTaskEnabled {
+		insertSyncImageTask(c, info, request, quality, imageN)
+	}
 	return nil
+}
+
+// insertSyncImageTask 将同步生图调用合成一条 task 记录写入 tasks 表，
+// 让其在「绘图日志」中可见。任何错误仅记录日志，不影响响应。
+func insertSyncImageTask(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ImageRequest, quality string, imageN uint) {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("insertSyncImageTask panic: %v", r))
+		}
+	}()
+
+	task := model.InitTask(constant.TaskPlatformOpenAIImage, info)
+	now := time.Now().Unix()
+	task.Status = model.TaskStatusSuccess
+	task.Progress = "100%"
+	task.StartTime = now
+	task.FinishTime = now
+	task.Quota = info.PriceData.Quota
+
+	if info.RelayMode == relayconstant.RelayModeImagesEdits {
+		task.Action = constant.TaskActionEdit
+	} else {
+		task.Action = constant.TaskActionGenerate
+	}
+
+	task.PrivateData.BillingSource = info.BillingSource
+	task.PrivateData.SubscriptionId = info.SubscriptionId
+	task.PrivateData.TokenId = info.TokenId
+	if len(info.ImageResultURLs) > 0 {
+		task.PrivateData.ResultURL = info.ImageResultURLs[0]
+	}
+
+	prompt := request.Prompt
+	if len(prompt) > 300 {
+		prompt = prompt[:300]
+	}
+	taskData := map[string]any{
+		"prompt":          prompt,
+		"size":            request.Size,
+		"quality":         quality,
+		"n":               imageN,
+		"response_format": request.ResponseFormat,
+		"model":           request.Model,
+		"urls":            info.ImageResultURLs,
+		"b64_count":       info.ImageResultB64Count,
+	}
+	task.SetData(taskData)
+
+	if err := task.Insert(); err != nil {
+		common.SysError("insert sync image task error: " + err.Error())
+	}
 }

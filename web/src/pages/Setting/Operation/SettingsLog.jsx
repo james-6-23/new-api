@@ -47,6 +47,7 @@ export default function SettingsLog(props) {
   const [inputs, setInputs] = useState({
     LogConsumeEnabled: false,
     LogExportEnabled: true,
+    RecordSyncImageTaskEnabled: true,
     historyTimestamp: dayjs().subtract(1, 'month').toDate(),
   });
   const refForm = useRef();
@@ -237,6 +238,28 @@ export default function SettingsLog(props) {
                   style={{ display: 'block', marginTop: 4 }}
                 >
                   {t('关闭后普通用户日志页面将不显示导出按钮，管理员不受影响')}
+                </Text>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'RecordSyncImageTaskEnabled'}
+                  label={t('同步生图记入绘图日志')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) => {
+                    setInputs({
+                      ...inputs,
+                      RecordSyncImageTaskEnabled: value,
+                    });
+                  }}
+                />
+                <Text
+                  type='tertiary'
+                  size='small'
+                  style={{ display: 'block', marginTop: 4 }}
+                >
+                  {t('开启后 OpenAI 等同步生图调用将额外写入绘图日志，使用日志不受影响')}
                 </Text>
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>

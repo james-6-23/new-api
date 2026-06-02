@@ -74,6 +74,7 @@ var MemoryCacheEnabled bool
 
 var LogConsumeEnabled = true
 var LogExportEnabled = true
+var RecordSyncImageTaskEnabled = true
 
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
