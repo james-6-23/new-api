@@ -44,6 +44,7 @@ import {
   TASK_ACTION_REFERENCE_GENERATE,
   TASK_ACTION_TEXT_GENERATE,
   TASK_ACTION_REMIX_GENERATE,
+  TASK_ACTION_EDIT,
 } from '../../../constants/common.constant';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 import { stringToColor } from '../../../helpers/render';
@@ -94,7 +95,23 @@ function renderDuration(submit_time, finishTime) {
   );
 }
 
-const renderType = (type, t) => {
+const renderType = (type, t, record) => {
+  // OpenAI 同步生图任务：按平台前置分流，避免被 video action 误归类为「图生视频」
+  if (record?.platform === 'openai_image') {
+    if (type === TASK_ACTION_EDIT) {
+      return (
+        <Tag color='light-blue' shape='circle' prefixIcon={<Image size={14} />}>
+          {t('图片编辑')}
+        </Tag>
+      );
+    }
+    return (
+      <Tag color='light-blue' shape='circle' prefixIcon={<Image size={14} />}>
+        {t('图片生成')}
+      </Tag>
+    );
+  }
+
   switch (type) {
     case 'MUSIC':
       return (
@@ -387,7 +404,7 @@ export const getTaskLogsColumns = ({
       title: t('类型'),
       dataIndex: 'action',
       render: (text, record, index) => {
-        return <div>{renderType(text, t)}</div>;
+        return <div>{renderType(text, t, record)}</div>;
       },
     },
     {
@@ -468,7 +485,11 @@ export const getTaskLogsColumns = ({
         }
 
         const metadata = record.metadata || {};
-        const isVideoTask = VIDEO_ACTIONS.includes(record.action);
+        // OpenAI 同步生图（platform=openai_image）的 action 也是 'generate'，
+        // 必须排除掉，否则会走视频预览（<video> 加载图片 URL 失败）
+        const isVideoTask =
+          VIDEO_ACTIONS.includes(record.action) &&
+          record.platform !== 'openai_image';
         const isSuccess = record.status === 'SUCCESS';
 
         // 媒体预览：优先使用 metadata.url，兆底 result_url

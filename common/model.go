@@ -12,7 +12,8 @@ var (
 	ImageGenerationModels = []string{
 		"dall-e-3",
 		"dall-e-2",
-		"gpt-image-1",
+		"gpt-image-",    // 覆盖 gpt-image-1 / gpt-image-1-mini / gpt-image-1.5 / gpt-image-2 / gpt-image-2-mini 等所有 gpt-image-* 变体
+		"chatgpt-image-", // 覆盖 chatgpt-image-latest 等
 		"prefix:imagen-",
 		"flux-",
 		"flux.1-",

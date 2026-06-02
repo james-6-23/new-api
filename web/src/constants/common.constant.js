@@ -44,3 +44,5 @@ export const TASK_ACTION_TEXT_GENERATE = 'textGenerate';
 export const TASK_ACTION_FIRST_TAIL_GENERATE = 'firstTailGenerate';
 export const TASK_ACTION_REFERENCE_GENERATE = 'referenceGenerate';
 export const TASK_ACTION_REMIX_GENERATE = 'remixGenerate';
+// OpenAI 同步生图任务（platform = openai_image）的编辑动作
+export const TASK_ACTION_EDIT = 'edits';
