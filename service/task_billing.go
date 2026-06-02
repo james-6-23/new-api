@@ -247,45 +247,63 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。
 // 当任务成功且返回了 totalTokens 时，根据模型倍率和分组倍率重新计算实际扣费额度，
 // 与预扣费的差额进行补扣或退还。支持钱包和订阅计费来源。
+//
+// 倍率取值优先级：
+//  1. 预扣费阶段持久化在 task.PrivateData.BillingContext 中的 ModelRatio / GroupRatio
+//     —— 保证预扣费 ↔ 异步结算两阶段使用完全相同的倍率，
+//     不会被预扣后管理员调整分组倍率配置影响，也避免丢失 UserGroup → UsingGroup 的特殊倍率映射。
+//  2. 兜底（兼容旧任务）：从 ratio_setting 实时查表。
+//     此时按 HandleGroupRatio 语义优先查 GetGroupGroupRatio(UserGroup, UsingGroup)，
+//     未命中再回退到 GetGroupRatio(UsingGroup)。
 func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTokens int) {
 	if totalTokens <= 0 {
 		return
 	}
 
-	modelName := taskModelName(task)
+	bc := task.PrivateData.BillingContext
 
-	// 获取模型价格和倍率
-	modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
-	// 只有配置了倍率(非固定价格)时才按 token 重新计费
-	if !hasRatioSetting || modelRatio <= 0 {
-		return
-	}
-
-	// 获取用户和组的倍率信息
-	group := task.Group
-	if group == "" {
-		user, err := model.GetUserById(task.UserId, false)
-		if err == nil {
-			group = user.Group
+	// 1. 模型倍率：优先复用预扣费阶段持久化的值
+	var modelRatio float64
+	if bc != nil && bc.ModelRatio > 0 {
+		modelRatio = bc.ModelRatio
+	} else {
+		modelName := taskModelName(task)
+		var hasRatioSetting bool
+		modelRatio, hasRatioSetting, _ = ratio_setting.GetModelRatio(modelName)
+		// 只有配置了倍率(非固定价格)时才按 token 重新计费
+		if !hasRatioSetting || modelRatio <= 0 {
+			return
 		}
 	}
-	if group == "" {
-		return
-	}
 
-	groupRatio := ratio_setting.GetGroupRatio(group)
-	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
-
+	// 2. 分组倍率：优先复用预扣费阶段持久化的值
 	var finalGroupRatio float64
-	if hasUserGroupRatio {
-		finalGroupRatio = userGroupRatio
+	if bc != nil && bc.GroupRatio > 0 {
+		finalGroupRatio = bc.GroupRatio
 	} else {
-		finalGroupRatio = groupRatio
+		// 兜底：还原 HandleGroupRatio 的查表语义 —— 用 (UserGroup, UsingGroup) 两个独立维度
+		// task.Group 存的是 UsingGroup；UserGroup 需要从 user 表获取
+		usingGroup := task.Group
+		userGroup := ""
+		if user, err := model.GetUserById(task.UserId, false); err == nil {
+			userGroup = user.Group
+		}
+		if usingGroup == "" {
+			usingGroup = userGroup
+		}
+		if usingGroup == "" {
+			return
+		}
+		if r, ok := ratio_setting.GetGroupGroupRatio(userGroup, usingGroup); ok {
+			finalGroupRatio = r
+		} else {
+			finalGroupRatio = ratio_setting.GetGroupRatio(usingGroup)
+		}
 	}
 
-	// 计算 OtherRatios 乘积（视频折扣、时长等）
+	// 3. 计算 OtherRatios 乘积（视频折扣、时长等）
 	otherMultiplier := 1.0
-	if bc := task.PrivateData.BillingContext; bc != nil {
+	if bc != nil {
 		for _, r := range bc.OtherRatios {
 			if r != 1.0 && r > 0 {
 				otherMultiplier *= r
