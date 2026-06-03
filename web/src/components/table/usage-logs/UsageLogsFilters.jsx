@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext } from 'react';
-import { Button, Form } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Form } from '@douyinfe/semi-ui';
 import { IconSearch, IconDownload } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
@@ -193,16 +193,30 @@ const LogsFilters = ({
               {t('列设置')}
             </Button>
             {exportVisible && (
-              <Button
-                type='primary'
-                theme='solid'
-                icon={<IconDownload />}
-                onClick={handleExport}
-                loading={exporting}
-                size='small'
+              <Dropdown
+                trigger='click'
+                position='bottomRight'
+                render={
+                  <Dropdown.Menu>
+                    <Dropdown.Item onClick={() => handleExport('xlsx')}>
+                      {t('导出 Excel')}
+                    </Dropdown.Item>
+                    <Dropdown.Item onClick={() => handleExport('csv')}>
+                      {t('导出 CSV')}
+                    </Dropdown.Item>
+                  </Dropdown.Menu>
+                }
               >
-                {t('导出账单')}
-              </Button>
+                <Button
+                  type='primary'
+                  theme='solid'
+                  icon={<IconDownload />}
+                  loading={exporting}
+                  size='small'
+                >
+                  {t('导出账单')}
+                </Button>
+              </Dropdown>
             )}
           </div>
         </div>

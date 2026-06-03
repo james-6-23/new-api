@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -17,9 +18,14 @@ import (
 )
 
 type Log struct {
-	Id               int    `json:"id" gorm:"index:idx_created_at_id,priority:1;index:idx_user_id_id,priority:2"`
+	// idx_logs_keyset is a dedicated (created_at, id) composite index used by the
+	// bill-export keyset pagination in streamLogsForExport. The pre-existing
+	// idx_created_at_id has (id, created_at) column order (priority:1 on Id) and
+	// can't serve a "WHERE created_at < ? OR (created_at = ? AND id < ?)" scan,
+	// so we add this one explicitly. AutoMigrate creates it on next startup.
+	Id               int    `json:"id" gorm:"index:idx_created_at_id,priority:1;index:idx_user_id_id,priority:2;index:idx_logs_keyset,priority:2"`
 	UserId           int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
-	CreatedAt        int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type"`
+	CreatedAt        int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type;index:idx_logs_keyset,priority:1"`
 	Type             int    `json:"type" gorm:"index:idx_created_at_type"`
 	Content          string `json:"content"`
 	Username         string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
@@ -532,113 +538,190 @@ func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64,
 	return total, nil
 }
 
-// logExportMaxRows caps the number of rows a single export can produce, both to
-// protect the DB from runaway queries and to keep generated xlsx files
-// reasonable in size. Callers should treat any return >= this value as
+// logExportMaxRowsExcel / logExportMaxRowsCSV cap the number of rows a single
+// export can produce. Excel is capped lower because xlsx file size scales
+// poorly past ~1M rows; CSV streams plain text and can handle several million.
+// Both are overridable via env vars LOG_EXPORT_MAX_ROWS_EXCEL /
+// LOG_EXPORT_MAX_ROWS_CSV. Callers should treat any return >= the cap as
 // "truncated" and surface that to the user so they can narrow filters.
-const logExportMaxRows = 100000
+var (
+	logExportMaxRowsExcel = common.GetEnvOrDefault("LOG_EXPORT_MAX_ROWS_EXCEL", 1000000)
+	logExportMaxRowsCSV   = common.GetEnvOrDefault("LOG_EXPORT_MAX_ROWS_CSV", 5000000)
+)
 
-// LogExportMaxRows exposes the cap to controller/UI layers without leaking the
-// internal constant.
-func LogExportMaxRows() int { return logExportMaxRows }
+// logExportBatchSize controls keyset-pagination batch size for streamLogsForExport.
+// Tuned for a balance between query overhead (smaller = more round-trips) and
+// memory pressure per batch (larger = bigger slice held during writer callback).
+const logExportBatchSize = 5000
 
-// GetAllLogsForExport runs the same filter chain as GetAllLogs but without
-// pagination. It fetches up to logExportMaxRows+1 rows and reports whether the
-// extra row was present (truncated == true). Channel names are populated the
-// same way as GetAllLogs so callers can reuse the data shape, but exporters
-// are expected to drop channel information before writing the bill file.
-func GetAllLogsForExport(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string) (logs []*Log, truncated bool, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB
-	} else {
-		tx = LOG_DB.Where("logs.type = ?", logType)
+// LogExportMaxRows exposes the per-format cap to controller/UI layers without
+// leaking the internal variables. Unknown format falls back to the Excel cap.
+func LogExportMaxRows(format string) int {
+	if format == "csv" {
+		return logExportMaxRowsCSV
 	}
-
-	if modelName != "" {
-		tx = tx.Where("logs.model_name like ?", modelName)
-	}
-	if username != "" {
-		tx = tx.Where("logs.username = ?", username)
-	}
-	if tokenName != "" {
-		tx = tx.Where("logs.token_name = ?", tokenName)
-	}
-	if requestId != "" {
-		tx = tx.Where("logs.request_id = ?", requestId)
-	}
-	if startTimestamp != 0 {
-		tx = tx.Where("logs.created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("logs.created_at <= ?", endTimestamp)
-	}
-	if channel != 0 {
-		tx = tx.Where("logs.channel_id = ?", channel)
-	}
-	if group != "" {
-		tx = tx.Where("logs."+logGroupCol+" = ?", group)
-	}
-
-	err = tx.Order("logs.id desc").Limit(logExportMaxRows + 1).Find(&logs).Error
-	if err != nil {
-		return nil, false, err
-	}
-	if len(logs) > logExportMaxRows {
-		logs = logs[:logExportMaxRows]
-		truncated = true
-	}
-
-	populateLogChannelNames(logs)
-	return logs, truncated, nil
+	return logExportMaxRowsExcel
 }
 
-// GetUserLogsForExport mirrors GetUserLogs without pagination. It also strips
-// admin-only fields from Other via formatUserLogs, matching what the user
-// already sees on the log page.
-func GetUserLogsForExport(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, group string, requestId string) (logs []*Log, truncated bool, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
-	} else {
-		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
-	}
+// streamLogsForExport iterates rows matching the predicates set by buildBase()
+// using keyset pagination on (created_at DESC, id DESC). It yields rows in
+// batches of logExportBatchSize via consume(), and stops when emitted hits
+// maxRows or the result set is exhausted. truncated is true iff there were more
+// matching rows than maxRows allowed.
+//
+// buildBase must return a fresh *gorm.DB with all WHERE filters applied but no
+// Order/Limit/cursor — a builder rather than a value, because re-applying
+// cursor predicates against the same chained *gorm.DB would accumulate Where
+// clauses across iterations.
+//
+// The keyset predicate is written in OR form rather than row-value
+// "(created_at, id) < (?, ?)" because MySQL <8.0 has inconsistent row-value
+// comparison support; the OR form executes the same plan on all three DBs.
+func streamLogsForExport(buildBase func() *gorm.DB, maxRows int, consume func([]*Log) error) (truncated bool, err error) {
+	curCreated := int64(math.MaxInt64)
+	curId := int64(math.MaxInt64)
+	emitted := 0
 
-	if modelName != "" {
-		modelNamePattern, err := sanitizeLikePattern(modelName)
-		if err != nil {
-			return nil, false, err
+	for emitted < maxRows {
+		take := logExportBatchSize
+		if maxRows-emitted < take {
+			take = maxRows - emitted
 		}
-		tx = tx.Where("logs.model_name LIKE ? ESCAPE '!'", modelNamePattern)
-	}
-	if tokenName != "" {
-		tx = tx.Where("logs.token_name = ?", tokenName)
-	}
-	if requestId != "" {
-		tx = tx.Where("logs.request_id = ?", requestId)
-	}
-	if startTimestamp != 0 {
-		tx = tx.Where("logs.created_at >= ?", startTimestamp)
-	}
-	if endTimestamp != 0 {
-		tx = tx.Where("logs.created_at <= ?", endTimestamp)
-	}
-	if group != "" {
-		tx = tx.Where("logs."+logGroupCol+" = ?", group)
+		var rows []*Log
+		err = buildBase().
+			Where("logs.created_at < ? OR (logs.created_at = ? AND logs.id < ?)",
+				curCreated, curCreated, curId).
+			Order("logs.created_at DESC, logs.id DESC").
+			Limit(take).
+			Find(&rows).Error
+		if err != nil {
+			return false, err
+		}
+		if len(rows) == 0 {
+			return false, nil
+		}
+		if err = consume(rows); err != nil {
+			return false, err
+		}
+		emitted += len(rows)
+		last := rows[len(rows)-1]
+		curCreated = last.CreatedAt
+		curId = int64(last.Id)
+		if len(rows) < take {
+			// short read = result set exhausted before hitting maxRows
+			return false, nil
+		}
 	}
 
-	err = tx.Order("logs.id desc").Limit(logExportMaxRows + 1).Find(&logs).Error
+	// Hit maxRows. Probe one more row to know whether to set truncated.
+	var probe []*Log
+	err = buildBase().
+		Where("logs.created_at < ? OR (logs.created_at = ? AND logs.id < ?)",
+			curCreated, curCreated, curId).
+		Order("logs.created_at DESC, logs.id DESC").
+		Limit(1).
+		Find(&probe).Error
+	if err != nil {
+		return false, err
+	}
+	return len(probe) > 0, nil
+}
+
+// GetAllLogsForExport runs the same filter chain as GetAllLogs but streams the
+// matching rows through consume() in batches via keyset pagination. Channel
+// names are populated per batch so writer callbacks see fully-shaped rows.
+// truncated == true means there were more matching rows than maxRows allowed.
+func GetAllLogsForExport(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, requestId string, maxRows int, consume func([]*Log) error) (truncated bool, err error) {
+	buildBase := func() *gorm.DB {
+		var tx *gorm.DB
+		if logType == LogTypeUnknown {
+			tx = LOG_DB
+		} else {
+			tx = LOG_DB.Where("logs.type = ?", logType)
+		}
+		if modelName != "" {
+			tx = tx.Where("logs.model_name like ?", modelName)
+		}
+		if username != "" {
+			tx = tx.Where("logs.username = ?", username)
+		}
+		if tokenName != "" {
+			tx = tx.Where("logs.token_name = ?", tokenName)
+		}
+		if requestId != "" {
+			tx = tx.Where("logs.request_id = ?", requestId)
+		}
+		if startTimestamp != 0 {
+			tx = tx.Where("logs.created_at >= ?", startTimestamp)
+		}
+		if endTimestamp != 0 {
+			tx = tx.Where("logs.created_at <= ?", endTimestamp)
+		}
+		if channel != 0 {
+			tx = tx.Where("logs.channel_id = ?", channel)
+		}
+		if group != "" {
+			tx = tx.Where("logs."+logGroupCol+" = ?", group)
+		}
+		return tx
+	}
+
+	return streamLogsForExport(buildBase, maxRows, func(batch []*Log) error {
+		populateLogChannelNames(batch)
+		return consume(batch)
+	})
+}
+
+// GetUserLogsForExport mirrors GetUserLogs but streams matching rows via
+// keyset pagination through consume(). Admin-only fields are stripped from
+// Other per batch via formatUserLogs, matching what the user already sees on
+// the log page.
+func GetUserLogsForExport(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, group string, requestId string, maxRows int, consume func([]*Log) error) (truncated bool, err error) {
+	var modelNamePattern string
+	if modelName != "" {
+		modelNamePattern, err = sanitizeLikePattern(modelName)
+		if err != nil {
+			return false, err
+		}
+	}
+
+	buildBase := func() *gorm.DB {
+		var tx *gorm.DB
+		if logType == LogTypeUnknown {
+			tx = LOG_DB.Where("logs.user_id = ?", userId)
+		} else {
+			tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
+		}
+		if modelNamePattern != "" {
+			tx = tx.Where("logs.model_name LIKE ? ESCAPE '!'", modelNamePattern)
+		}
+		if tokenName != "" {
+			tx = tx.Where("logs.token_name = ?", tokenName)
+		}
+		if requestId != "" {
+			tx = tx.Where("logs.request_id = ?", requestId)
+		}
+		if startTimestamp != 0 {
+			tx = tx.Where("logs.created_at >= ?", startTimestamp)
+		}
+		if endTimestamp != 0 {
+			tx = tx.Where("logs.created_at <= ?", endTimestamp)
+		}
+		if group != "" {
+			tx = tx.Where("logs."+logGroupCol+" = ?", group)
+		}
+		return tx
+	}
+
+	truncated, err = streamLogsForExport(buildBase, maxRows, func(batch []*Log) error {
+		formatUserLogs(batch, 0)
+		return consume(batch)
+	})
 	if err != nil {
 		common.SysError("failed to search user logs for export: " + err.Error())
-		return nil, false, errors.New("查询日志失败")
+		return false, errors.New("查询日志失败")
 	}
-	if len(logs) > logExportMaxRows {
-		logs = logs[:logExportMaxRows]
-		truncated = true
-	}
-
-	formatUserLogs(logs, 0)
-	return logs, truncated, nil
+	return truncated, nil
 }
 
 // populateLogChannelNames mirrors the channel-name backfill GetAllLogs performs

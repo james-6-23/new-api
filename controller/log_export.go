@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/csv"
 	"fmt"
 	"math"
 	"net/http"
@@ -353,20 +354,141 @@ func cellValue(col logExportColumn, log *model.Log) any {
 	}
 }
 
-// writeBillExcel streams the rows into an xlsx and writes the result to the
-// HTTP response. truncated == true triggers an X-Export-Truncated header so
-// the frontend can warn the user that filters need to be narrowed.
-func writeBillExcel(c *gin.Context, logs []*model.Log, columns []logExportColumn, truncated bool) {
+// excelSingleSheetSoftCap caps rows-per-sheet below Excel's 1,048,576 hard
+// limit. When same-day data exceeds this, the sheet rolls to "<day> (2)",
+// "<day> (3)", and so on. Lower than the hard cap so a small accounting buffer
+// remains and total-row counters never trip the platform limit.
+const excelSingleSheetSoftCap = 1000000
+
+// excelSheetWriter accumulates log rows into an in-progress xlsx, rolling to
+// a new sheet whenever the calendar day of the next log differs from the
+// current sheet, or when the current sheet hits excelSingleSheetSoftCap.
+// Sheets are named by the date ("2026-06-01") with a "(2)", "(3)", ... suffix
+// for same-day overflow. Rows MUST arrive ordered by created_at DESC, id DESC
+// (the order streamLogsForExport yields) — otherwise a day's sheets will be
+// split into discontiguous fragments. At any moment only ONE StreamWriter is
+// active: previous sheets are Flush()ed before the next NewStreamWriter call,
+// which is what keeps excelize memory flat across many sheets.
+type excelSheetWriter struct {
+	f             *excelize.File
+	columns       []logExportColumn
+	headerRow     []any // pre-built header cells reused across sheets
+	billingColIdx int
+	wrapStyleID   int
+
+	sw          *excelize.StreamWriter
+	curDay      string
+	daySuffix   int
+	rowInSheet  int // 1-indexed; header occupies row 1, data starts at row 2
+	totalSheets int
+	totalRows   int
+}
+
+func newExcelSheetWriter(f *excelize.File, columns []logExportColumn, headerStyleID, wrapStyleID int) *excelSheetWriter {
+	billingIdx := -1
+	headerRow := make([]any, len(columns))
+	for i, col := range columns {
+		headerRow[i] = excelize.Cell{Value: col.header, StyleID: headerStyleID}
+		if col.key == "billing" {
+			billingIdx = i
+		}
+	}
+	return &excelSheetWriter{
+		f:             f,
+		columns:       columns,
+		headerRow:     headerRow,
+		billingColIdx: billingIdx,
+		wrapStyleID:   wrapStyleID,
+	}
+}
+
+func (w *excelSheetWriter) writeBatch(logs []*model.Log) error {
+	for _, log := range logs {
+		day := time.Unix(log.CreatedAt, 0).Format("2006-01-02")
+		needRoll := w.sw == nil || day != w.curDay || w.rowInSheet >= excelSingleSheetSoftCap
+		if needRoll {
+			if err := w.rollSheet(day); err != nil {
+				return err
+			}
+		}
+		row := make([]any, len(w.columns))
+		for i, col := range w.columns {
+			val := cellValue(col, log)
+			if i == w.billingColIdx {
+				row[i] = excelize.Cell{Value: val, StyleID: w.wrapStyleID}
+			} else {
+				row[i] = val
+			}
+		}
+		cellName, err := excelize.CoordinatesToCellName(1, w.rowInSheet+1)
+		if err != nil {
+			return err
+		}
+		if err = w.sw.SetRow(cellName, row); err != nil {
+			return err
+		}
+		w.rowInSheet++
+		w.totalRows++
+	}
+	return nil
+}
+
+func (w *excelSheetWriter) rollSheet(day string) error {
+	if w.sw != nil {
+		if err := w.sw.Flush(); err != nil {
+			return err
+		}
+	}
+	suffix := 1
+	if day == w.curDay {
+		suffix = w.daySuffix + 1
+	}
+	name := day
+	if suffix > 1 {
+		name = fmt.Sprintf("%s (%d)", day, suffix)
+	}
+	idx, err := w.f.NewSheet(name)
+	if err != nil {
+		return err
+	}
+	if w.totalSheets == 0 {
+		w.f.SetActiveSheet(idx)
+	}
+	sw, err := w.f.NewStreamWriter(name)
+	if err != nil {
+		return err
+	}
+	for i, col := range w.columns {
+		if err = sw.SetColWidth(i+1, i+1, col.width); err != nil {
+			return err
+		}
+	}
+	if err = sw.SetRow("A1", w.headerRow); err != nil {
+		return err
+	}
+	w.sw = sw
+	w.curDay = day
+	w.daySuffix = suffix
+	w.rowInSheet = 1 // header occupies row 1
+	w.totalSheets++
+	return nil
+}
+
+func (w *excelSheetWriter) finish() error {
+	if w.sw == nil {
+		return nil
+	}
+	return w.sw.Flush()
+}
+
+// writeBillExcelStream consumes log rows from run() via a callback, writing
+// them into a multi-sheet xlsx (one sheet per calendar day). truncated == true
+// triggers an X-Export-Truncated header so the frontend can warn the user.
+// Empty result sets still produce a valid xlsx (single "账单" sheet, headers
+// only) to avoid Excel "no sheet" errors.
+func writeBillExcelStream(c *gin.Context, columns []logExportColumn, run func(consume func([]*model.Log) error) (bool, error)) {
 	f := excelize.NewFile()
 	defer func() { _ = f.Close() }()
-	sheet := "账单"
-	idx, err := f.NewSheet(sheet)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	f.SetActiveSheet(idx)
-	_ = f.DeleteSheet("Sheet1")
 
 	headerStyle, err := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Bold: true},
@@ -384,55 +506,55 @@ func writeBillExcel(c *gin.Context, logs []*model.Log, columns []logExportColumn
 		return
 	}
 
-	sw, err := f.NewStreamWriter(sheet)
+	writer := newExcelSheetWriter(f, columns, headerStyle, wrapStyle)
+
+	truncated, err := run(func(batch []*model.Log) error {
+		return writer.writeBatch(batch)
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-
-	// Column widths and header row.
-	billingColIdx := -1
-	headerRow := make([]any, len(columns))
-	for i, col := range columns {
-		if err = sw.SetColWidth(i+1, i+1, col.width); err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		headerRow[i] = excelize.Cell{Value: col.header, StyleID: headerStyle}
-		if col.key == "billing" {
-			billingColIdx = i
-		}
-	}
-	if err = sw.SetRow("A1", headerRow); err != nil {
+	if err = writer.finish(); err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	for rowIdx, log := range logs {
-		row := make([]any, len(columns))
+	// Empty result — emit a single placeholder sheet with just headers so the
+	// downloaded file isn't an empty xlsx (which Excel rejects on open).
+	if writer.totalSheets == 0 {
+		idx, err := f.NewSheet("账单")
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		f.SetActiveSheet(idx)
+		sw, err := f.NewStreamWriter("账单")
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		for i, col := range columns {
-			val := cellValue(col, log)
-			if i == billingColIdx {
-				row[i] = excelize.Cell{Value: val, StyleID: wrapStyle}
-			} else {
-				row[i] = val
+			if err = sw.SetColWidth(i+1, i+1, col.width); err != nil {
+				common.ApiError(c, err)
+				return
 			}
 		}
-		cell, _ := excelize.CoordinatesToCellName(1, rowIdx+2)
-		if err = sw.SetRow(cell, row); err != nil {
+		if err = sw.SetRow("A1", writer.headerRow); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if err = sw.Flush(); err != nil {
 			common.ApiError(c, err)
 			return
 		}
 	}
 
-	if err = sw.Flush(); err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	_ = f.DeleteSheet("Sheet1")
 
 	if truncated {
 		c.Writer.Header().Set("X-Export-Truncated", "1")
-		c.Writer.Header().Set("X-Export-Max-Rows", strconv.Itoa(model.LogExportMaxRows()))
+		c.Writer.Header().Set("X-Export-Max-Rows", strconv.Itoa(model.LogExportMaxRows("xlsx")))
 	}
 	filename := "bill-" + time.Now().Format("20060102-150405") + ".xlsx"
 	c.Writer.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -445,9 +567,139 @@ func writeBillExcel(c *gin.Context, logs []*model.Log, columns []logExportColumn
 	}
 }
 
+// writeBillCSVStream streams log rows as a single UTF-8 CSV with BOM. Unlike
+// the Excel writer, this path commits the HTTP response headers BEFORE row
+// data is known, so X-Export-Truncated can't be set after the fact. Plan B:
+// always send X-Export-Max-Rows up front (so the frontend always knows the
+// cap), and append a trailer line "# truncated_at=N" at file end when the cap
+// is hit. The frontend reads both: header for the cap, trailer for the flag.
+func writeBillCSVStream(c *gin.Context, columns []logExportColumn, run func(consume func([]*model.Log) error) (bool, error)) {
+	maxRows := model.LogExportMaxRows("csv")
+	filename := "bill-" + time.Now().Format("20060102-150405") + ".csv"
+	c.Writer.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	c.Writer.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("X-Export-Max-Rows", strconv.Itoa(maxRows))
+	c.Writer.WriteHeader(http.StatusOK)
+
+	// UTF-8 BOM so Excel auto-detects encoding when double-clicking the CSV.
+	if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		common.SysError("failed to write csv BOM: " + err.Error())
+		return
+	}
+
+	w := csv.NewWriter(c.Writer)
+	flusher, _ := c.Writer.(http.Flusher)
+
+	headerRow := make([]string, len(columns))
+	for i, col := range columns {
+		headerRow[i] = col.header
+	}
+	if err := w.Write(headerRow); err != nil {
+		common.SysError("failed to write csv header: " + err.Error())
+		return
+	}
+
+	truncated, err := run(func(batch []*model.Log) error {
+		for _, log := range batch {
+			row := make([]string, len(columns))
+			for i, col := range columns {
+				row[i] = csvCellString(cellValue(col, log))
+			}
+			if werr := w.Write(row); werr != nil {
+				return werr
+			}
+		}
+		w.Flush()
+		if werr := w.Error(); werr != nil {
+			return werr
+		}
+		if flusher != nil {
+			flusher.Flush()
+		}
+		return nil
+	})
+
+	w.Flush()
+
+	if err != nil {
+		// Headers already sent — best-effort trailer. Frontend treats lines
+		// starting with "# " as control comments rather than data rows.
+		common.SysError("failed to write export csv: " + err.Error())
+		_, _ = c.Writer.Write([]byte("# error=" + sanitizeTrailerValue(err.Error()) + "\n"))
+		return
+	}
+
+	if truncated {
+		// Trailer comment lets clients that can't read response headers (e.g.
+		// reopened from disk) still discover that the file was truncated.
+		_, _ = c.Writer.Write([]byte(fmt.Sprintf("# truncated_at=%d\n", maxRows)))
+	}
+	if flusher != nil {
+		flusher.Flush()
+	}
+}
+
+// csvCellString renders an exported cell value as the string the CSV writer
+// should encode. cellValue() returns either string or int (and Excel writes
+// ints as numbers); CSV doesn't care about typing, so we stringify uniformly.
+func csvCellString(v any) string {
+	switch n := v.(type) {
+	case string:
+		return n
+	case int:
+		return strconv.Itoa(n)
+	case int64:
+		return strconv.FormatInt(n, 10)
+	case float64:
+		if math.IsNaN(n) || math.IsInf(n, 0) {
+			return ""
+		}
+		return strconv.FormatFloat(n, 'f', -1, 64)
+	case nil:
+		return ""
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+// sanitizeTrailerValue scrubs newlines from an error message so it can be
+// embedded in a single trailer line without confusing CSV parsers.
+func sanitizeTrailerValue(s string) string {
+	s = strings.ReplaceAll(s, "\r", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	return s
+}
+
+// resolveExportFormat normalizes the ?format= query param to either "csv" or
+// "xlsx" (default). Unknown values fall back to xlsx for backward compat with
+// older frontends that don't send the param.
+func resolveExportFormat(c *gin.Context) string {
+	format := strings.ToLower(strings.TrimSpace(c.Query("format")))
+	if format == "csv" {
+		return "csv"
+	}
+	return "xlsx"
+}
+
+// dispatchExport picks the writer for the requested format and invokes run()
+// with the per-format row cap. run() is a closure that the caller wraps around
+// the model-layer streaming function (GetAllLogsForExport / GetUserLogsForExport).
+func dispatchExport(c *gin.Context, columns []logExportColumn, format string, run func(maxRows int, consume func([]*model.Log) error) (bool, error)) {
+	maxRows := model.LogExportMaxRows(format)
+	wrappedRun := func(consume func([]*model.Log) error) (bool, error) {
+		return run(maxRows, consume)
+	}
+	if format == "csv" {
+		writeBillCSVStream(c, columns, wrappedRun)
+	} else {
+		writeBillExcelStream(c, columns, wrappedRun)
+	}
+}
+
 // ExportAllLogs handles the admin bill export. Filter query params match
 // /api/log/ exactly so the frontend can reuse its existing form-values
-// serializer without translation.
+// serializer without translation. format=xlsx (default) or format=csv.
 func ExportAllLogs(c *gin.Context) {
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
@@ -458,15 +710,12 @@ func ExportAllLogs(c *gin.Context) {
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
 	requestId := c.Query("request_id")
-
-	logs, truncated, err := model.GetAllLogsForExport(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
+	format := resolveExportFormat(c)
 	columns := resolveExportColumns(c.Query("columns"))
-	writeBillExcel(c, logs, columns, truncated)
+
+	dispatchExport(c, columns, format, func(maxRows int, consume func([]*model.Log) error) (bool, error) {
+		return model.GetAllLogsForExport(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, maxRows, consume)
+	})
 }
 
 // ExportUserLogs handles the self-service bill export. It is gated by the
@@ -484,13 +733,10 @@ func ExportUserLogs(c *gin.Context) {
 	modelName := c.Query("model_name")
 	group := c.Query("group")
 	requestId := c.Query("request_id")
-
-	logs, truncated, err := model.GetUserLogsForExport(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, group, requestId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
+	format := resolveExportFormat(c)
 	columns := resolveExportColumns(c.Query("columns"))
-	writeBillExcel(c, logs, columns, truncated)
+
+	dispatchExport(c, columns, format, func(maxRows int, consume func([]*model.Log) error) (bool, error) {
+		return model.GetUserLogsForExport(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, group, requestId, maxRows, consume)
+	})
 }

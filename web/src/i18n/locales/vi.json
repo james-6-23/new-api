@@ -1291,6 +1291,8 @@
     "导出": "Xuất",
     "导出日志失败": "Failed to export logs",
     "导出账单": "Export Bill",
+    "导出 Excel": "Export Excel",
+    "导出 CSV": "Export CSV",
     "导出账单失败": "Failed to export bill",
     "账单导出成功": "Bill exported successfully",
     "导出条数超出上限，请先收窄筛选条件": "Export row count exceeds the limit, please narrow your filters first",

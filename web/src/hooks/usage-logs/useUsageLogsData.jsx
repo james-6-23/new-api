@@ -846,11 +846,12 @@ export const useLogsData = () => {
     setLoading(false);
   };
 
-  // Export current filter results as an xlsx bill. Only forwards columns the
-  // user has ticked in 列设置 — the backend then enforces its own allow-list,
-  // so any sensitive keys we send (channel/retry/ip/details) are dropped on
-  // the server side regardless.
-  const handleExport = async () => {
+  // Export current filter results as an xlsx or csv bill. format defaults to
+  // 'xlsx' for backward compat. Only forwards columns the user has ticked in
+  // 列设置 — the backend then enforces its own allow-list, so any sensitive
+  // keys we send (channel/retry/ip/details) are dropped on the server side
+  // regardless.
+  const handleExport = async (format = 'xlsx') => {
     if (exporting) return;
     setExporting(true);
     try {
@@ -873,10 +874,12 @@ export const useLogsData = () => {
         .map(([k]) => k)
         .join(',');
 
+      const fmt = format === 'csv' ? 'csv' : 'xlsx';
       const params = new URLSearchParams();
       params.set('type', String(currentLogType));
       params.set('start_timestamp', String(localStart));
       params.set('end_timestamp', String(localEnd));
+      params.set('format', fmt);
       if (token_name) params.set('token_name', token_name);
       if (model_name) params.set('model_name', model_name);
       if (group) params.set('group', group);
@@ -894,9 +897,34 @@ export const useLogsData = () => {
       });
 
       const blob = res.data;
-      const truncated = res.headers['x-export-truncated'] === '1';
-      const filename = `bill-${timestamp2string(Date.now() / 1000).replace(/[: ]/g, '-')}.xlsx`;
-      downloadBlobAsFile(blob, filename);
+      const ext = fmt === 'csv' ? 'csv' : 'xlsx';
+      const filename = `bill-${timestamp2string(Date.now() / 1000).replace(/[: ]/g, '-')}.${ext}`;
+
+      // Truncation detection differs between formats:
+      //  - xlsx: backend sets X-Export-Truncated header before body is sent.
+      //  - csv: backend can't set that header after streaming starts, so it
+      //    pre-writes X-Export-Max-Rows and appends "# truncated_at=N" as the
+      //    last line of the file. We read both signals here.
+      let truncated = res.headers['x-export-truncated'] === '1';
+      let truncatedBlob = blob;
+      if (!truncated && fmt === 'csv') {
+        try {
+          // Only need to look at the tail; truncation marker is the final line.
+          const tailSize = Math.min(blob.size, 256);
+          const tail = await blob.slice(blob.size - tailSize).text();
+          if (/(^|\n)#\s*truncated_at=\d+\s*\n?$/.test(tail)) {
+            truncated = true;
+            // Strip the trailer line so the saved file is clean CSV.
+            const cleanedTail = tail.replace(/(^|\n)#\s*truncated_at=\d+\s*\n?$/, '$1');
+            const head = blob.slice(0, blob.size - tailSize);
+            truncatedBlob = new Blob([head, cleanedTail], { type: blob.type });
+          }
+        } catch (_) {
+          // Defensive: trailer parsing failure shouldn't break the download.
+        }
+      }
+
+      downloadBlobAsFile(truncatedBlob, filename);
 
       if (truncated) {
         showError(t('导出条数超出上限，请先收窄筛选条件'));
