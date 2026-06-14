@@ -419,8 +419,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				// 其他错误认为是任务失败，记录错误信息并更新任务状态
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
 			} else {
-				// unknown error format, log original response
-				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
+				// 未识别的上游响应格式：各 adaptor.ParseTaskResult 的 default 分支
+				// 已确保未识别状态被映射为 InProgress 而不是空字符串，
+				// 因此走到这里通常表示上游真的返回了无法解析的内容。
+				// 降级为 Warn：任务仍会被标记 FAILURE 触发退款，但避免误报日志噪音。
+				logger.LogWarn(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
 				taskResult = relaycommon.FailTaskInfo("upstream returned unrecognized message")
 			}
 		}

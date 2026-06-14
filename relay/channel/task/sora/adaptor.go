@@ -345,9 +345,11 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 			taskResult.Reason = "task failed"
 		}
 	default:
-		if resTask.Status != "" {
-			taskResult.Status = model.TaskStatusQueued
-		}
+		// 上游返回未识别状态（如 "unknown"）或空状态时，统一视为进行中：
+		//   1. 任务已被上游受理，更接近 in_progress 而非 queued；
+		//   2. 避免把空 Status 透出给 task_polling.go 触发
+		//      "returned empty status with unrecognized error format" 误报。
+		taskResult.Status = model.TaskStatusInProgress
 	}
 	if resTask.Progress > 0 && resTask.Progress < 100 {
 		taskResult.Progress = fmt.Sprintf("%d%%", resTask.Progress)

@@ -461,9 +461,15 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.ID = originTask.TaskID
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
-	openAIVideo.SetMetadata("url", jimengResp.Data.VideoUrl)
+	// url 仅在上游真实返回非空视频地址时写入，避免未完成任务输出 "url":""。
+	if jimengResp.Data.VideoUrl != "" {
+		openAIVideo.SetMetadata("url", jimengResp.Data.VideoUrl)
+	}
 	openAIVideo.CreatedAt = originTask.CreatedAt
-	openAIVideo.CompletedAt = originTask.UpdatedAt
+	// CompletedAt 仅在终态写入，避免未完成任务暴露 completed_at == created_at。
+	if openAIVideo.IsTerminal() {
+		openAIVideo.CompletedAt = originTask.UpdatedAt
+	}
 
 	if jimengResp.Code != 10000 {
 		openAIVideo.Error = &dto.OpenAIVideoError{

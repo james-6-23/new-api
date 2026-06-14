@@ -358,9 +358,17 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.TaskID = originTask.TaskID
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
-	openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	// url 仅在上游真实返回非空视频地址时写入，避免任务未完成时
+	// 在 metadata 中输出 "url":"" 这种容易让客户端误判已完成的脏字段。
+	if dResp.Content.VideoURL != "" {
+		openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	}
 	openAIVideo.CreatedAt = originTask.CreatedAt
-	openAIVideo.CompletedAt = originTask.UpdatedAt
+	// CompletedAt 只在终态写入；未完成任务的 UpdatedAt 接近 CreatedAt，
+	// 直接赋值会让客户端误以为任务已完成。
+	if openAIVideo.IsTerminal() {
+		openAIVideo.CompletedAt = originTask.UpdatedAt
+	}
 	openAIVideo.Model = originTask.Properties.OriginModelName
 
 	if dResp.Seed != 0 {

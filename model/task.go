@@ -14,21 +14,33 @@ import (
 
 type TaskStatus string
 
+// ToVideoStatus 将内部 TaskStatus 枚举映射为对外的 OpenAI Video API 标准状态字符串。
+//
+// 对外只输出 4 个值：queued / in_progress / completed / failed。
+// 绝不返回 "unknown"——任何未识别/中间态都按"排队中"或"进行中"兜底，
+// 避免客户端 SDK 因为不认识 "unknown" 字符串而报错。
+//
+// 映射约定：
+//   - NOT_START / SUBMITTED / QUEUED → queued    （任务已收单但尚未真正开始执行）
+//   - IN_PROGRESS / UNKNOWN          → in_progress（任务执行中；UNKNOWN 视作中间态继续轮询）
+//   - SUCCESS                        → completed
+//   - FAILURE                        → failed
+//   - 其他未来新增的未知枚举值        → queued    （防御性兜底）
 func (t TaskStatus) ToVideoStatus() string {
-	var status string
 	switch t {
-	case TaskStatusQueued, TaskStatusSubmitted:
-		status = dto.VideoStatusQueued
-	case TaskStatusInProgress:
-		status = dto.VideoStatusInProgress
+	case TaskStatusNotStart, TaskStatusSubmitted, TaskStatusQueued:
+		return dto.VideoStatusQueued
+	case TaskStatusInProgress, TaskStatusUnknown:
+		return dto.VideoStatusInProgress
 	case TaskStatusSuccess:
-		status = dto.VideoStatusCompleted
+		return dto.VideoStatusCompleted
 	case TaskStatusFailure:
-		status = dto.VideoStatusFailed
+		return dto.VideoStatusFailed
 	default:
-		status = dto.VideoStatusUnknown // Default fallback
+		// 防御性兜底：任何未来新增/未识别的枚举值都按"排队中"对外，
+		// 绝不向客户端泄露 "unknown"。
+		return dto.VideoStatusQueued
 	}
-	return status
 }
 
 const (
@@ -572,7 +584,11 @@ func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	openAIVideo.Model = t.Properties.OriginModelName
 	openAIVideo.SetProgressStr(t.Progress)
 	openAIVideo.CreatedAt = t.CreatedAt
-	openAIVideo.CompletedAt = t.UpdatedAt
+	// CompletedAt 只在任务真正终态时才写入，避免任务刚创建（UpdatedAt ≈ CreatedAt）
+	// 时把 completed_at 与 created_at 设为同一时间戳，误导客户端任务已完成。
+	if openAIVideo.IsTerminal() {
+		openAIVideo.CompletedAt = t.UpdatedAt
+	}
 	// 优先使用转存 URL，兜底 ResultURL
 	accessURL := t.GetAccessURL()
 	if accessURL != "" {

@@ -498,10 +498,15 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	openAIResp.Model = task.Properties.OriginModelName
 	openAIResp.SetProgressStr(task.Progress)
 	openAIResp.CreatedAt = task.CreatedAt
-	openAIResp.CompletedAt = task.UpdatedAt
+	// CompletedAt 仅在终态写入，避免未完成任务暴露 completed_at == created_at。
+	if openAIResp.IsTerminal() {
+		openAIResp.CompletedAt = task.UpdatedAt
+	}
 
-	// 设置视频URL（核心字段）
-	openAIResp.SetMetadata("url", aliResp.Output.VideoURL)
+	// 视频URL：仅在上游真实返回时写入，避免未完成任务输出 "url":""。
+	if aliResp.Output.VideoURL != "" {
+		openAIResp.SetMetadata("url", aliResp.Output.VideoURL)
+	}
 
 	// 错误处理
 	if aliResp.Code != "" {

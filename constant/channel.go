@@ -176,9 +176,8 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeDoubaoVideo:    "DoubaoVideo",
 	ChannelTypeSora:           "Sora",
 	ChannelTypeReplicate:      "Replicate",
-	ChannelTypeCodex:          "Codex",
-	ChannelTypeAIGCVideo:      "OpenAI Video",
 	ChannelTypeCodex:          "ChatGPT Subscription (Codex)",
+	ChannelTypeAIGCVideo:      "OpenAI Video",
 }
 
 func GetChannelTypeName(channelType int) string {

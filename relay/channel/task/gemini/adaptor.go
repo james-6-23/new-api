@@ -260,10 +260,14 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	video.Status = task.Status.ToVideoStatus()
 	video.SetProgressStr(task.Progress)
 	video.CreatedAt = task.CreatedAt
-	if task.FinishTime > 0 {
-		video.CompletedAt = task.FinishTime
-	} else if task.UpdatedAt > 0 {
-		video.CompletedAt = task.UpdatedAt
+	// CompletedAt 仅在终态写入，避免未完成任务（UpdatedAt 接近 CreatedAt）
+	// 暴露 completed_at == created_at。
+	if video.IsTerminal() {
+		if task.FinishTime > 0 {
+			video.CompletedAt = task.FinishTime
+		} else if task.UpdatedAt > 0 {
+			video.CompletedAt = task.UpdatedAt
+		}
 	}
 
 	return common.Marshal(video)

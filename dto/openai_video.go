@@ -6,6 +6,9 @@ import (
 )
 
 const (
+	// VideoStatusUnknown 仅供内部日志/兜底判断使用，禁止作为对外响应 status 值返回客户端。
+	// 对外响应 status 必须是 queued / in_progress / completed / failed 四个标准枚举之一，
+	// 详见 model.TaskStatus.ToVideoStatus()。
 	VideoStatusUnknown    = "unknown"
 	VideoStatusQueued     = "queued"
 	VideoStatusInProgress = "in_progress"
@@ -30,6 +33,13 @@ type OpenAIVideo struct {
 	RemixedFromVideoID string            `json:"remixed_from_video_id,omitempty"`
 	Error              *OpenAIVideoError `json:"error,omitempty"`
 	Metadata           map[string]any    `json:"metadata,omitempty"`
+}
+
+// IsTerminal 报告响应状态是否处于终态（completed 或 failed）。
+// 用于在适配器/序列化层判断是否应当写入 CompletedAt、视频 URL 等仅终态有效的字段，
+// 避免任务刚创建（NOT_START / QUEUED）时把零值时间戳错误地暴露为 completed_at。
+func (m *OpenAIVideo) IsTerminal() bool {
+	return m.Status == VideoStatusCompleted || m.Status == VideoStatusFailed
 }
 
 func (m *OpenAIVideo) SetProgressStr(progress string) {

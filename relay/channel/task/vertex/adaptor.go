@@ -366,7 +366,10 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	v.Status = task.Status.ToVideoStatus()
 	v.SetProgressStr(task.Progress)
 	v.CreatedAt = task.CreatedAt
-	v.CompletedAt = task.UpdatedAt
+	// CompletedAt 仅在终态写入，避免未完成任务暴露 completed_at == created_at。
+	if v.IsTerminal() {
+		v.CompletedAt = task.UpdatedAt
+	}
 	if resultURL := task.GetResultURL(); strings.HasPrefix(resultURL, "data:") && len(resultURL) > 0 {
 		v.SetMetadata("url", resultURL)
 	}
