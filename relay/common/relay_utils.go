@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -238,6 +239,41 @@ func isKnownTaskField(field string) bool {
 	return knownFields[field]
 }
 
+// promoteUnknownFieldsToMetadata 实现 Doubao Seedance 2.0 等上游文档承诺的契约:
+// "顶层参数与 metadata 同时传时,metadata 中已有的同名字段优先,顶层字段用于补全"。
+//
+// 在此之前,JSON 路径只调 UnmarshalBodyReusable(c, &req),TaskSubmitReq 没有声明的顶层字段
+// (例如 Seedance 的 ratio / resolution / generate_audio / watermark / seed / camera_fixed /
+// safety_identifier / return_last_frame / service_tier / execution_expires_after / content)
+// 会被 Go encoding/json 静默丢弃。multipart 路径在 validateMultipartTaskRequest 里已经做了
+// 等价合并(见 134-144 行),这里把 JSON 路径补齐到同一行为。
+//
+// 注意:isKnownTaskField 白名单内的字段(如 duration)不会被升级到 metadata,
+// 因为它们已经在 TaskSubmitReq 的对应字段里解出,适配器应直接读 req.Duration 等。
+func promoteUnknownFieldsToMetadata(c *gin.Context, req *TaskSubmitReq) {
+	var raw map[string]json.RawMessage
+	if err := common.UnmarshalBodyReusable(c, &raw); err != nil {
+		return
+	}
+	if req.Metadata == nil {
+		req.Metadata = make(map[string]interface{})
+	}
+	for k, v := range raw {
+		// 跳过 TaskSubmitReq 直接识别的顶层字段与 metadata 本身
+		if isKnownTaskField(k) || k == "metadata" {
+			continue
+		}
+		// 文档契约:metadata 中已有的同名字段优先,顶层只用于补全
+		if _, exists := req.Metadata[k]; exists {
+			continue
+		}
+		var val interface{}
+		if err := common.Unmarshal(v, &val); err == nil {
+			req.Metadata[k] = val
+		}
+	}
+}
+
 func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *dto.TaskError {
 	var err error
 	contentType := c.GetHeader("Content-Type")
@@ -261,6 +297,11 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 		// 兼容单图上传
 		req.Images = []string{req.Image}
 	}
+
+	// 文档契约:顶层未知字段补全到 metadata(metadata 已有同名字段优先)。
+	// 修复 Doubao Seedance 2.0 等模型在 JSON 路径下顶层 ratio/resolution/duration/
+	// generate_audio/watermark/seed/content 等字段被 Go 默认行为静默丢弃的问题。
+	promoteUnknownFieldsToMetadata(c, &req)
 
 	storeTaskRequest(c, info, action, req)
 	return nil

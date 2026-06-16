@@ -592,6 +592,17 @@ func RelayTask(c *gin.Context) {
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
+		// 持久化上游请求体到 Properties.Input,供异步 GET 任务时回显输入参数。
+		// 32 KB 上限保护:避免有人把 base64 内联图(reference_image)直接塞进 task 行;
+		// 超出时只记录长度做审计,不写大 blob。URL 形式的 reference 远小于此阈值。
+		if len(relayInfo.UpstreamRequestBody) > 0 {
+			const maxInputBytes = 32 * 1024
+			if len(relayInfo.UpstreamRequestBody) > maxInputBytes {
+				task.Properties.Input = fmt.Sprintf(`{"_truncated": true, "size": %d}`, len(relayInfo.UpstreamRequestBody))
+			} else {
+				task.Properties.Input = string(relayInfo.UpstreamRequestBody)
+			}
+		}
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
 		}

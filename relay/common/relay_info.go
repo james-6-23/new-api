@@ -161,6 +161,13 @@ type RelayInfo struct {
 	// *bytes.Reader/Buffer/strings.Reader). 0 means "let net/http decide".
 	UpstreamRequestBodySize int64
 
+	// UpstreamRequestBody holds the JSON-marshaled upstream request body for
+	// async task submissions, so the controller can persist it into
+	// task.Properties.Input for later audit / fetch回显. Runtime-only, never
+	// persisted to DB. Populated by task adaptors' BuildRequestBody when they
+	// want their submitted payload to be visible in the task fetch response.
+	UpstreamRequestBody []byte
+
 	PriceData types.PriceData
 
 	// TieredBillingSnapshot is a frozen snapshot of tiered billing rules

@@ -44,6 +44,7 @@ type requestPayload struct {
 	Model                 string         `json:"model"`
 	Content               []ContentItem  `json:"content,omitempty"`
 	CallbackURL           string         `json:"callback_url,omitempty"`
+	SafetyIdentifier      string         `json:"safety_identifier,omitempty"`
 	ReturnLastFrame       *dto.BoolValue `json:"return_last_frame,omitempty"`
 	ServiceTier           string         `json:"service_tier,omitempty"`
 	ExecutionExpiresAfter *dto.IntValue  `json:"execution_expires_after,omitempty"`
@@ -197,6 +198,10 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	// 保存上游请求体,供 controller 写入 task.Properties.Input 用作审计与回显。
+	if info != nil {
+		info.UpstreamRequestBody = data
+	}
 	return bytes.NewReader(data), nil
 }
 
@@ -275,6 +280,20 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		Content: []ContentItem{},
 	}
 
+	// 关键:在 JSON 反序列化前先把 metadata.content 抽出来,避免覆盖 req.Images。
+	// Go encoding/json 解码 JSON 数组到已有 slice 字段是整体替换而非追加,
+	// 若不先抽出来,req.Images 填充的 image_url 条目会被冲掉。
+	var metaContent []ContentItem
+	metadata := req.Metadata
+	if metadata != nil {
+		if raw, ok := metadata["content"]; ok {
+			if b, err := common.Marshal(raw); err == nil {
+				_ = common.Unmarshal(b, &metaContent)
+			}
+			delete(metadata, "content")
+		}
+	}
+
 	// Add images if present
 	if req.HasImage() {
 		for _, imgURL := range req.Images {
@@ -287,15 +306,26 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		}
 	}
 
-	metadata := req.Metadata
 	if err := taskcommon.UnmarshalMetadata(metadata, &r); err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
-	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
-		r.Duration = lo.ToPtr(dto.IntValue(sec))
+	if len(metaContent) > 0 {
+		r.Content = append(r.Content, metaContent...)
 	}
 
+	// duration 优先级:req.Seconds > metadata.duration (已由 UnmarshalMetadata 写入 r.Duration) > req.Duration
+	// req.Duration 回退是必需的:即便 promoteUnknownFieldsToMetadata 让顶层未知字段进 metadata,
+	// duration 在 isKnownTaskField 白名单里,会被解到 req.Duration 而不会进 req.Metadata,
+	// 所以 Doubao 必须显式读 req.Duration。
+	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
+		r.Duration = lo.ToPtr(dto.IntValue(sec))
+	} else if r.Duration == nil && req.Duration > 0 {
+		r.Duration = lo.ToPtr(dto.IntValue(req.Duration))
+	}
+
+	// Seedance 实际只用顶层 prompt 作为文本输入(文档示例中 content 数组没有 text 项)。
+	// 剔除任何 text 项,用 req.Prompt 重建为最后一项 text。
 	r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
 	r.Content = append(r.Content, ContentItem{
 		Type: "text",
@@ -402,6 +432,61 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		openAIVideo.Error = &dto.OpenAIVideoError{
 			Message: dResp.Error.Message,
 			Code:    dResp.Error.Code,
+		}
+	}
+
+	// 从 Properties.Input 反推用户原始请求,在异步 GET 时回显 reference 计数与
+	// "requested_*" 字段。上游响应不带 content 输入,这里补齐审计信息。
+	if originTask.Properties.Input != "" {
+		var origReq requestPayload
+		if err := common.Unmarshal([]byte(originTask.Properties.Input), &origReq); err == nil {
+			var refImg, refAudio, refVideo, firstFrame, lastFrame int
+			for _, c := range origReq.Content {
+				switch c.Type {
+				case "image_url":
+					switch c.Role {
+					case "reference_image":
+						refImg++
+					case "first_frame":
+						firstFrame++
+					case "last_frame":
+						lastFrame++
+					}
+				case "video_url":
+					if c.Role == "reference_video" {
+						refVideo++
+					}
+				case "audio_url":
+					if c.Role == "reference_audio" {
+						refAudio++
+					}
+				}
+			}
+			if refImg > 0 {
+				openAIVideo.SetMetadata("reference_image_count", refImg)
+			}
+			if refVideo > 0 {
+				openAIVideo.SetMetadata("reference_video_count", refVideo)
+			}
+			if refAudio > 0 {
+				openAIVideo.SetMetadata("reference_audio_count", refAudio)
+			}
+			if firstFrame > 0 {
+				openAIVideo.SetMetadata("first_frame_count", firstFrame)
+			}
+			if lastFrame > 0 {
+				openAIVideo.SetMetadata("last_frame_count", lastFrame)
+			}
+			// 上游回带的字段保持原样;若上游没回带,暴露用户提交值便于排查
+			if dResp.Ratio == "" && origReq.Ratio != "" {
+				openAIVideo.SetMetadata("requested_ratio", origReq.Ratio)
+			}
+			if dResp.Duration == 0 && origReq.Duration != nil {
+				openAIVideo.SetMetadata("requested_duration", int(*origReq.Duration))
+			}
+			if dResp.Resolution == "" && origReq.Resolution != "" {
+				openAIVideo.SetMetadata("requested_resolution", origReq.Resolution)
+			}
 		}
 	}
 
