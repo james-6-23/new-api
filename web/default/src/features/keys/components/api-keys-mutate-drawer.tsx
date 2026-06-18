@@ -147,19 +147,17 @@ export function ApiKeysMutateDrawer({
     }
   }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, backendHasAuto])
 
-  // Correct group after groups load: if the form value is not in available groups, fall back
+  // Correct groups after groups load: filter out invalid groups, fall back if all invalid
   useEffect(() => {
     if (groups.length === 0) return
-    const currentGroup = form.getValues('group')
-    if (currentGroup && !groups.some((g) => g.value === currentGroup)) {
+    const current = form.getValues('groups') ?? []
+    const valid = current.filter((g) => groups.some((o) => o.value === g))
+    if (valid.length !== current.length) {
       const fallback =
         groups.find((g) => g.value === 'default')?.value ??
         groups[0]?.value ??
         ''
-      form.setValue('group', fallback)
-      if (currentGroup === 'auto') {
-        form.setValue('cross_group_retry', false)
-      }
+      form.setValue('groups', valid.length > 0 ? valid : [fallback])
     }
   }, [groups, form])
 
@@ -243,7 +241,9 @@ export function ApiKeysMutateDrawer({
   const quotaPlaceholder = tokensOnly
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
-  const selectedGroup = form.watch('group')
+  const selectedGroups = form.watch('groups')
+  const isAutoGroup = (selectedGroups ?? []).includes('auto')
+  const isMultiGroup = (selectedGroups ?? []).length >= 2
   const unlimitedQuota = form.watch('unlimited_quota')
 
   return (
@@ -297,16 +297,16 @@ export function ApiKeysMutateDrawer({
 
               <FormField
                 control={form.control}
-                name='group'
+                name='groups'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Group')}</FormLabel>
+                    <FormLabel>{t('Groups')}</FormLabel>
                     <FormControl>
                       <ApiKeyGroupCombobox
                         options={groups}
                         value={field.value}
                         onValueChange={field.onChange}
-                        placeholder={t('Select a group')}
+                        placeholder={t('Select groups')}
                       />
                     </FormControl>
                     <FormMessage />
@@ -314,7 +314,7 @@ export function ApiKeysMutateDrawer({
                 )}
               />
 
-              {selectedGroup === 'auto' && (
+              {isAutoGroup && (
                 <FormField
                   control={form.control}
                   name='cross_group_retry'
@@ -339,6 +339,13 @@ export function ApiKeysMutateDrawer({
                     </FormItem>
                   )}
                 />
+              )}
+              {isMultiGroup && (
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'Multiple groups selected: cross-group retry is enabled automatically.'
+                  )}
+                </p>
               )}
 
               <FormField
