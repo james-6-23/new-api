@@ -87,9 +87,12 @@
 重构：
 
 1. 抽出一个内部"按有序分组列表遍历选渠道"的逻辑（输入：有序分组列表）。
-2. 让两种模式复用它，只是**分组列表来源不同**：
-   - `auto` 模式 → 列表 = `GetUserAutoGroup(userGroup)`
-   - 多分组模式 → 列表 = `ContextKeyTokenGroups` 中的 token 绑定分组列表
+2. **模式判定（触发条件）**：在 `CacheGetRandomSatisfiedChannel` 入口处先读取
+   `ContextKeyTokenGroups`：
+   - 若存在且元素 ≥2 → 走**多分组遍历分支**（列表 = 该 context 值）。
+   - 否则若 `param.TokenGroup == "auto"` → 走 **auto 遍历分支**（列表 = `GetUserAutoGroup(userGroup)`）。
+   - 否则 → 走原**单分组分支**（直接用 `param.TokenGroup`）。
+   - 两个遍历分支复用同一内部函数，仅分组列表来源不同。
 3. 遍历语义沿用 auto：
    - 按序找第一个"该模型存在可用渠道"的分组并选渠道。
    - 该分组渠道失败时，`ContextKeyAutoGroupIndex` 前进到下一个分组重试。
