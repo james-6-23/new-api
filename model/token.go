@@ -35,6 +35,19 @@ func (token *Token) Clean() {
 	token.Key = ""
 }
 
+// GetGroups 解析 token.Group（逗号分隔）为有序、去空格、去空项的分组名列表。
+// 空字符串返回空切片；单分组/auto 返回单元素切片，保证向后兼容。
+func (token *Token) GetGroups() []string {
+	groups := make([]string, 0)
+	for _, g := range strings.Split(token.Group, ",") {
+		g = strings.TrimSpace(g)
+		if g != "" {
+			groups = append(groups, g)
+		}
+	}
+	return groups
+}
+
 func MaskTokenKey(key string) string {
 	if key == "" {
 		return ""
