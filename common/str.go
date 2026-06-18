@@ -45,6 +45,33 @@ func GetRandomString(length int) string {
 	return lo.RandomString(length, lo.AlphanumericCharset)
 }
 
+// GetRandomStringWithCharset returns a length-N random string drawn from the
+// requested character set. Recognized charsets:
+//
+//   - "alphanumeric" (default): A-Z, a-z, 0-9
+//   - "digits": 0-9
+//   - "letters": A-Z, a-z
+//
+// Any other charset value (including the empty string) falls back to alphanumeric,
+// which is the safest superset and matches the legacy GetRandomString contract.
+// A non-positive length returns "" without invoking the underlying RNG.
+//
+// Used by the auto-create-user feature to honor admin-configurable username
+// suffix charsets; the alphanumeric branch is also the random-password charset.
+func GetRandomStringWithCharset(length int, charset string) string {
+	if length <= 0 {
+		return ""
+	}
+	switch charset {
+	case "digits":
+		return lo.RandomString(length, lo.NumbersCharset)
+	case "letters":
+		return lo.RandomString(length, lo.LettersCharset)
+	default:
+		return lo.RandomString(length, lo.AlphanumericCharset)
+	}
+}
+
 func MapToJsonStr(m map[string]interface{}) string {
 	bytes, err := json.Marshal(m)
 	if err != nil {

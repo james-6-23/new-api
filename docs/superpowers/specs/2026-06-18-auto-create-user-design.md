@@ -1,0 +1,545 @@
+# Auto-Create User — Design
+
+- **Date**: 2026-06-18
+- **Project**: new-api
+- **Status**: Approved (brainstorming phase complete; implementation plan pending)
+- **Authoring environment**: Claude Code via `/prompts:superpowers` (superpowers v6.0.2 plugin); design produced under the `superpowers:brainstorming` skill.
+
+## 1. Problem & scope
+
+Admins of a new-api deployment need to onboard end-users quickly without inventing a unique username and password each time. Today the only way to create a user from the admin UI is the "Add User" button, which opens a blank form that the admin must fill in by hand.
+
+This feature adds a second button — **"自动创建" / "Auto Create"** — sitting next to the existing "Add User" button. Clicking it pre-fills a modal with a randomly generated username, a derived password, and the configured default group/quota. The admin can edit any field before confirming. After successful creation, a second modal renders a configurable, copy-friendly summary block (site URL, username, password, plus any extra rows the admin defined — e.g. a docs link).
+
+All generation rules and the post-create copy template are configurable from the **super-admin system settings** page.
+
+### In scope
+
+- Backend: new generator settings struct, new preview endpoint, small refactor of `controller.CreateUser` to honor optional `group` and `quota` request fields (Rule 6 pointer types).
+- Frontend: button + Modal A (auto-create form) + Modal B (copy popup) in **both** themes (`web/default` and `web/classic`), plus new settings section in both.
+- Unit tests on all new backend pure-logic surfaces.
+
+### Out of scope
+
+- Server-side email sending of the generated credentials (potential follow-up; design leaves room for it but does not build it).
+- Bulk create / CSV import.
+- Modifying the existing "Add User" flow beyond accepting two new optional fields.
+- Frontend unit tests — the project has essentially no frontend test infrastructure (only one file using `node:test`) and no CI test runner; matching the project style means backend-only.
+
+## 2. User-facing flow
+
+```
+Admin clicks "自动创建" next to "Add User"
+  ↓
+Modal A opens, fetches GET /api/user/auto/preview
+  Pre-filled fields (all editable):
+    - 用户名 / Username
+    - 密码 / Password
+    - 默认分组 / Default group
+    - 默认金额 / Default quota
+  Buttons:
+    - [Refresh suggestion] → re-fetch preview, overwrite fields
+    - [Confirm and create] → POST /api/user/
+  ↓
+On success: Modal A closes, Modal B opens.
+Modal B renders rows from settings.copy_templates with placeholders substituted.
+  Per-row [Copy] + global [Copy all] buttons.
+```
+
+## 3. Settings model
+
+A new hierarchical config struct registered with `config.GlobalConfig.Register("auto_create_user_setting", &s)`, following the modern pattern used by `general_setting`, `quota_setting`, etc.
+
+### 3.1 Go struct
+
+```go
+// setting/operation_setting/auto_create_user_setting.go
+package operation_setting
+
+import "github.com/QuantumNous/new-api/setting/config"
+
+const (
+    AutoCreateUserCharsetAlphanumeric = "alphanumeric"
+    AutoCreateUserCharsetDigits       = "digits"
+    AutoCreateUserCharsetLetters      = "letters"
+
+    AutoCreateUserPasswordSameAsUsername = "same_as_username"
+    AutoCreateUserPasswordRandom         = "random"
+)
+
+type AutoCreateUserCopyItem struct {
+    Label    string `json:"label"`
+    Template string `json:"template"`
+}
+
+type AutoCreateUserSetting struct {
+    UsernamePrefix        string                   `json:"username_prefix"`
+    UsernameSuffixLength  int                      `json:"username_suffix_length"`
+    UsernameSuffixCharset string                   `json:"username_suffix_charset"`
+    PasswordMode          string                   `json:"password_mode"`
+    RandomPasswordLength  int                      `json:"random_password_length"`
+    DefaultQuota          int                      `json:"default_quota"`
+    DefaultGroup          string                   `json:"default_group"`
+    SiteURL               string                   `json:"site_url"`
+    CopyTemplates         []AutoCreateUserCopyItem `json:"copy_templates"`
+}
+
+var autoCreateUserSetting = AutoCreateUserSetting{
+    UsernamePrefix:        "User-",
+    UsernameSuffixLength:  4,
+    UsernameSuffixCharset: AutoCreateUserCharsetAlphanumeric,
+    PasswordMode:          AutoCreateUserPasswordSameAsUsername,
+    RandomPasswordLength:  12,
+    DefaultQuota:          0,
+    DefaultGroup:          "default",
+    SiteURL:               "",
+    CopyTemplates: []AutoCreateUserCopyItem{
+        {Label: "站点", Template: "{{site}}"},
+        {Label: "用户名", Template: "{{username}}"},
+        {Label: "密码", Template: "{{password}}"},
+    },
+}
+
+func init() {
+    config.GlobalConfig.Register("auto_create_user_setting", &autoCreateUserSetting)
+}
+
+func GetAutoCreateUserSetting() AutoCreateUserSetting {
+    return autoCreateUserSetting
+}
+```
+
+### 3.2 DB representation (auto-generated by `config.GlobalConfig`)
+
+| key | type | default |
+|---|---|---|
+| `auto_create_user_setting.username_prefix` | string | `User-` |
+| `auto_create_user_setting.username_suffix_length` | int | `4` |
+| `auto_create_user_setting.username_suffix_charset` | string | `alphanumeric` |
+| `auto_create_user_setting.password_mode` | string | `same_as_username` |
+| `auto_create_user_setting.random_password_length` | int | `12` |
+| `auto_create_user_setting.default_quota` | int | `0` (see §3.3) |
+| `auto_create_user_setting.default_group` | string | `default` |
+| `auto_create_user_setting.site_url` | string | empty |
+| `auto_create_user_setting.copy_templates` | JSON string | 3-row default (站点/用户名/密码) |
+
+### 3.3 `DefaultQuota = 0` semantics
+
+`DefaultQuota = 0` is treated as **"unset; fall back to `common.QuotaForNewUser` at preview time"**. The fallback runs in the preview service, not in the User Insert. This means:
+
+- Admin leaves the field at 0 in settings → preview returns whatever the system-wide new-user quota is currently configured to.
+- Admin sets a positive number → preview returns that number.
+- Admin who genuinely wants the created user to start with quota 0 can simply *edit the quota field in Modal A to 0* and confirm. (Modal A's quota field is a pointer-typed payload, so `0` is sent explicitly and honored by the server.)
+
+This decision matches what an admin would expect ("just create one with the usual amount") while still allowing explicit overrides per-create.
+
+### 3.4 Copy templates
+
+A list of `{label, template}` rows. Placeholders recognized:
+
+- `{{username}}` → the (possibly edited) username from Modal A
+- `{{password}}` → the (possibly edited) password from Modal A
+- `{{site}}` → `auto_create_user_setting.site_url`
+
+Unknown placeholders pass through literally. Empty `site_url` substitutes to empty string. Empty `copy_templates` list shows a placeholder message in Modal B with a deep-link to settings.
+
+The frontend renders/substitutes at display time (so the admin sees live preview while editing settings); the backend has a `RenderCopyItem` helper used only by tests and as the source of truth for the contract.
+
+## 4. Backend changes
+
+### 4.1 New file: `setting/operation_setting/auto_create_user_setting.go`
+
+The struct + accessor in §3.1, plus two methods used by the preview service:
+
+```go
+func (s AutoCreateUserSetting) BuildUsername(randomFn func(n int, charset string) string) string {
+    n := s.UsernameSuffixLength
+    if n <= 0 {
+        n = 1
+    }
+    return s.UsernamePrefix + randomFn(n, s.UsernameSuffixCharset)
+}
+
+func (s AutoCreateUserSetting) BuildPassword(username string, randomFn func(n int, charset string) string) string {
+    if s.PasswordMode == AutoCreateUserPasswordRandom {
+        return randomFn(s.RandomPasswordLength, AutoCreateUserCharsetAlphanumeric)
+    }
+    return username
+}
+```
+
+The injected `randomFn` parameter exists for testability — production callers pass `common.GetRandomStringWithCharset`; tests pass a deterministic fake.
+
+### 4.2 Extend `common/str.go`
+
+```go
+func GetRandomStringWithCharset(length int, charset string) string {
+    if length <= 0 {
+        return ""
+    }
+    switch charset {
+    case "digits":
+        return lo.RandomString(length, lo.NumbersCharset)
+    case "letters":
+        return lo.RandomString(length, lo.LettersCharset)
+    default:
+        return lo.RandomString(length, lo.AlphanumericCharset)
+    }
+}
+```
+
+(Exact `lo` constant names will be verified against the vendored `samber/lo` version during implementation. If they differ, the function signature stays as designed and the body adapts.)
+
+### 4.3 New file: `service/auto_create_user.go`
+
+```go
+package service
+
+import (
+    "errors"
+    "strings"
+
+    "github.com/QuantumNous/new-api/common"
+    "github.com/QuantumNous/new-api/dto"
+    "github.com/QuantumNous/new-api/setting/operation_setting"
+)
+
+var ErrUsernameCollisionExhausted = errors.New("auto-create username collided 5 times")
+
+type UsernameExistsFunc func(username string) (bool, error)
+
+func PreviewAutoCreateUser(
+    s operation_setting.AutoCreateUserSetting,
+    randomFn func(int, string) string,
+    exists UsernameExistsFunc,
+) (dto.AutoCreateUserPreviewResponse, error) {
+    quota := s.DefaultQuota
+    if quota == 0 {
+        quota = common.QuotaForNewUser
+    }
+    group := s.DefaultGroup
+    if group == "" {
+        group = "default"
+    }
+    var username string
+    for attempt := 0; attempt < 5; attempt++ {
+        candidate := s.BuildUsername(randomFn)
+        taken, err := exists(candidate)
+        if err != nil {
+            return dto.AutoCreateUserPreviewResponse{}, err
+        }
+        if !taken {
+            username = candidate
+            break
+        }
+    }
+    if username == "" {
+        return dto.AutoCreateUserPreviewResponse{}, ErrUsernameCollisionExhausted
+    }
+    password := s.BuildPassword(username, randomFn)
+    return dto.AutoCreateUserPreviewResponse{
+        Username: username, Password: password, Group: group, Quota: quota,
+    }, nil
+}
+
+func RenderCopyItem(tmpl, username, password, siteURL string) string {
+    out := tmpl
+    out = strings.ReplaceAll(out, "{{username}}", username)
+    out = strings.ReplaceAll(out, "{{password}}", password)
+    out = strings.ReplaceAll(out, "{{site}}", siteURL)
+    return out
+}
+```
+
+### 4.4 New file: `dto/auto_create_user.go`
+
+```go
+package dto
+
+type AutoCreateUserPreviewResponse struct {
+    Username string `json:"username"`
+    Password string `json:"password"`
+    Group    string `json:"group"`
+    Quota    int    `json:"quota"`
+}
+```
+
+### 4.5 New file: `dto/user_create.go`
+
+Per **Rule 6**, optional scalar fields are pointer types so explicit zero values survive marshal.
+
+```go
+package dto
+
+type CreateUserRequest struct {
+    Username    string  `json:"username"`
+    Password    string  `json:"password"`
+    DisplayName string  `json:"display_name"`
+    Role        int     `json:"role"`
+    Group       *string `json:"group,omitempty"`
+    Quota       *int    `json:"quota,omitempty"`
+    Remark      string  `json:"remark,omitempty"`
+}
+```
+
+### 4.6 Edit `controller/user.go`
+
+Add `GetAutoCreateUserPreview` handler:
+
+```go
+func GetAutoCreateUserPreview(c *gin.Context) {
+    s := operation_setting.GetAutoCreateUserSetting()
+    resp, err := service.PreviewAutoCreateUser(
+        s,
+        common.GetRandomStringWithCharset,
+        func(name string) (bool, error) {
+            return model.CheckUserExistOrDeleted(name, "")
+        },
+    )
+    if errors.Is(err, service.ErrUsernameCollisionExhausted) {
+        common.ApiErrorI18n(c, i18n.MsgAutoCreateUsernameCollision)
+        return
+    }
+    if err != nil {
+        common.ApiError(c, err)
+        return
+    }
+    c.JSON(http.StatusOK, gin.H{"success": true, "data": resp})
+}
+```
+
+Refactor `CreateUser` to decode through `dto.CreateUserRequest` and apply pointers:
+
+```go
+func CreateUser(c *gin.Context) {
+    var req dto.CreateUserRequest
+    if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+        common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+        return
+    }
+    cleanUser, code, ok := applyCreateUserRequest(req, c.GetInt("role"))
+    if !ok {
+        common.ApiErrorI18n(c, code)
+        return
+    }
+    if err := cleanUser.Insert(0); err != nil {
+        common.ApiError(c, err)
+        return
+    }
+    recordManageAuditFor(c, cleanUser.Id, "user.create", map[string]interface{}{
+        "username": cleanUser.Username,
+        "role":     cleanUser.Role,
+    })
+    c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+}
+```
+
+Where `applyCreateUserRequest` is a small extracted pure helper (so unit tests can target it directly without DB):
+
+```go
+func applyCreateUserRequest(req dto.CreateUserRequest, callerRole int) (model.User, i18n.Code, bool) {
+    req.Username = strings.TrimSpace(req.Username)
+    if req.Username == "" || req.Password == "" {
+        return model.User{}, i18n.MsgInvalidParams, false
+    }
+    if req.Role >= callerRole {
+        return model.User{}, i18n.MsgUserCannotCreateHigherLevel, false
+    }
+    if req.Quota != nil && *req.Quota < 0 {
+        return model.User{}, i18n.MsgInvalidParams, false
+    }
+    u := model.User{
+        Username:    req.Username,
+        Password:    req.Password,
+        DisplayName: req.DisplayName,
+        Role:        req.Role,
+    }
+    if u.DisplayName == "" {
+        u.DisplayName = u.Username
+    }
+    if req.Group != nil {
+        u.Group = *req.Group
+    }
+    if req.Quota != nil {
+        u.Quota = *req.Quota
+    }
+    // Preserve the existing validation contract (max-length on Username/DisplayName,
+    // min/max-length on Password) that today's CreateUser runs against model.User.
+    if err := common.Validate.Struct(&u); err != nil {
+        // Caller logs via MsgUserInputInvalid + Error param, same as today.
+        return model.User{}, i18n.MsgUserInputInvalid, false
+    }
+    return u, "", true
+}
+```
+
+(`applyCreateUserRequest` returns `MsgUserInputInvalid` when the struct validator rejects the assembled `model.User`, exactly matching today's `CreateUser` behavior. The outer handler is responsible for surfacing the validator's error message — the helper returns the i18n key, and the handler passes the same `map[string]any{"Error": err.Error()}` payload as today. The plan's implementation step will route the validator error through the existing handler path so the wire format is byte-identical.)
+
+### 4.7 Edit `router/api-router.go`
+
+```go
+adminRoute.GET("/auto/preview", controller.GetAutoCreateUserPreview)
+```
+
+Mounted on the same admin-authenticated group that the existing `POST /api/user/` lives on.
+
+### 4.8 New i18n constant
+
+`i18n.MsgAutoCreateUsernameCollision`:
+
+- en: `"Auto-generated username collided 5 times; please refresh and try again."`
+- zh: `"自动生成的用户名连续 5 次重复，请刷新后重试"`
+
+## 5. Frontend changes
+
+### 5.1 `web/default` (React 19, Base UI, react-hook-form + Zod, English-keyed i18n)
+
+**Files:**
+
+- `src/features/users/components/users-primary-buttons.tsx` — add second `<Button>` "Auto Create" with `Sparkles` lucide icon; opens drawer via `setOpen('auto-create')`.
+- `src/features/users/users-context.tsx` (or wherever `useUsers`'s `open` union is) — widen the union to include `'auto-create'` and `'credentials'`.
+- `src/features/users/components/users-auto-create-drawer.tsx` (**new**) — Base UI `Sheet`; on open, calls `getAutoCreatePreview()` and pre-fills react-hook-form; fields:
+  - Username (text)
+  - Password (text)
+  - Default group (text + datalist from `auto_groups`)
+  - Default quota (number)
+  - Buttons: "Refresh suggestion" → re-call preview, overwrite form; "Confirm and create" → call `createUser({...form, role: 1, group, quota})` then on success store the response payload in context and open `'credentials'`.
+- `src/features/users/components/users-credentials-dialog.tsx` (**new**) — Base UI `Dialog`; props: created user's `{username, password}`; reads `auto_create_user_setting.site_url` and `auto_create_user_setting.copy_templates` from the settings cache; renders rows with substitution; per-row Copy + global "Copy all" using `navigator.clipboard.writeText`.
+- `src/features/users/api.ts` — add `getAutoCreatePreview()`.
+- `src/features/users/index.tsx` — mount the two new components inside the `<UsersProvider>` block.
+- `src/features/system-settings/operations/auto-create-user-section.tsx` (**new**):
+  - Zod schema mirroring §3.1.
+  - Inputs for the scalar fields.
+  - Charset/password-mode rendered as radio groups.
+  - `random_password_length` shown only when password_mode === 'random' (conditional render).
+  - Copy templates rendered as an editable list with row-level inputs (label / template) + add / remove / move-up / move-down. Submitted as JSON string under `auto_create_user_setting.copy_templates`.
+  - Live preview block at the bottom: rendered with a sample username `User-AB12` and current settings.
+- `src/features/system-settings/operations/section-registry.tsx` — register `{ id: 'auto-create-user', titleKey: 'Auto Create User', build: (s) => <AutoCreateUserSection defaultValues={…} /> }`.
+- `src/i18n/locales/{en,zh,fr,ru,ja,vi}.json` — add new keys (see §6).
+
+### 5.2 `web/classic` (React 18, Semi Design, Chinese-keyed i18n)
+
+**Files:**
+
+- `src/components/table/users/UsersActions.jsx` — add second Semi `<Button>` "自动创建" next to the existing one; new state setter `setShowAutoCreate`.
+- `src/components/table/users/useUsersData.js` (or wherever the page's state hook lives) — add `showAutoCreate`, `showCredentials`, `credentialsPayload` state.
+- `src/components/table/users/modals/AutoCreateUserModal.jsx` (**new**) — Semi `SideSheet` + `Form`; on open `useEffect` calls `API.get('/api/user/auto/preview')` and `formApi.setValues`; "重新生成" button re-fetches; "确认创建" calls `API.post('/api/user/', {...values, role: 1})` and on success closes itself and opens `CredentialsCopyModal` with `credentialsPayload`.
+- `src/components/table/users/modals/CredentialsCopyModal.jsx` (**new**) — Semi `Modal`; props mirror default theme; renders rows.
+- `src/components/settings/OperationSetting/AutoCreateUserSetting.jsx` (**new**) — Semi `Form`; copy-template list editor (using Semi `Table` + `Modal` for row edit, matching how `Announcements`-like list editors look in classic). The implementation step will confirm the exact filename/folder by checking how sibling subsections like `GeneralSetting` are organized inside `OperationSetting`.
+- `src/components/settings/OperationSetting.jsx` — mount the subsection.
+- `src/i18n/locales/{zh,en}.json` — Chinese-keyed entries.
+
+### 5.3 i18n keys (`web/default`)
+
+| Key | zh.json |
+|---|---|
+| `Auto Create` | `自动创建` |
+| `Auto Create User` | `自动创建用户` |
+| `Refresh suggestion` | `重新生成` |
+| `Confirm and create` | `确认创建` |
+| `User created` | `用户已创建` |
+| `Copy` | `复制` |
+| `Copy all` | `全部复制` |
+| `Copied` | `已复制` |
+| `Username prefix` | `用户名前缀` |
+| `Username suffix length` | `后缀长度` |
+| `Username suffix charset` | `后缀字符集` |
+| `Alphanumeric` | `数字与字母` |
+| `Digits only` | `仅数字` |
+| `Letters only` | `仅字母` |
+| `Password mode` | `密码模式` |
+| `Same as username` | `与用户名相同` |
+| `Random` | `随机生成` |
+| `Random password length` | `随机密码长度` |
+| `Default quota` | `默认额度` |
+| `Default group` | `默认分组` |
+| `Site URL` | `站点 URL` |
+| `Copy templates` | `复制模板` |
+| `Add copy item` | `新增复制项` |
+| `Label` | `名称` |
+| `Template` | `模板` |
+| `Placeholders: {{username}}, {{password}}, {{site}}` | `可用占位符：{{username}}、{{password}}、{{site}}` |
+
+`web/classic` mirrors the same labels with Chinese as the key (per the theme's existing convention).
+
+## 6. Error handling
+
+| Condition | Behavior |
+|---|---|
+| Caller not admin | `middleware.AdminAuth` returns 401 (existing) |
+| Preview: 5 username collisions in a row | 200 with `success: false, message: <i18n MsgAutoCreateUsernameCollision>`; frontend shows toast, user clicks "Refresh suggestion" to retry |
+| Preview: `UsernameSuffixLength <= 0` | Treat as 1; warn via `common.SysLog` |
+| Preview: unknown charset | Fall back to alphanumeric silently |
+| Confirm: empty username/password | Existing `MsgInvalidParams` (no change) |
+| Confirm: caller role <= requested role | Existing `MsgUserCannotCreateHigherLevel` (no change) |
+| Confirm: `Quota < 0` | New `MsgInvalidParams` |
+| Confirm: username collision at Insert time (rare race) | GORM error surfaces via `common.ApiError`; frontend keeps Modal A open with current values |
+| Confirm: arbitrary group not in `AutoGroups` | Allowed — matches today's CreateUser behavior (it does not validate group) |
+| Settings save | Goes through the existing hierarchical `UpdateOption` path; no new validator needed |
+
+## 7. Testing strategy
+
+Backend uses stdlib `testing` + `testify/require`, table-driven, no `TestMain`, no DB fixtures. Tests are run locally (`go test ./...`) — CI does not gate on them. Frontend has essentially no test infra (one file using `node:test`); we add no frontend tests, matching project style.
+
+### 7.1 New test files
+
+- `common/str_test.go` (extend if exists, else new):
+  - `TestGetRandomStringWithCharset_LengthZeroReturnsEmpty`
+  - `TestGetRandomStringWithCharset_Alphanumeric` (chars ⊂ `[A-Za-z0-9]`, 1000 iterations)
+  - `TestGetRandomStringWithCharset_DigitsOnly`
+  - `TestGetRandomStringWithCharset_LettersOnly`
+  - `TestGetRandomStringWithCharset_UnknownFallsBackToAlphanumeric`
+- `setting/operation_setting/auto_create_user_setting_test.go` (new):
+  - `TestBuildUsername_PrefixAndLength`
+  - `TestBuildUsername_SuffixLengthZeroPromotesToOne`
+  - `TestBuildPassword_SameAsUsername`
+  - `TestBuildPassword_Random` (asserts the random charset is alphanumeric regardless of username-suffix charset)
+  - `TestDefaultCopyTemplates_HaveExpectedRows`
+- `service/auto_create_user_test.go` (new):
+  - `TestPreviewAutoCreateUser_GeneratesFromSettings` (fake `exists` returns false; asserts username = prefix + fake suffix)
+  - `TestPreviewAutoCreateUser_RetriesOnCollision` (fake `exists` returns true twice then false; asserts 3 candidate generations)
+  - `TestPreviewAutoCreateUser_ErrorsAfterFiveCollisions` (`exists` always true; asserts `ErrUsernameCollisionExhausted`)
+  - `TestPreviewAutoCreateUser_FallsBackToCommonQuotaForNewUserWhenZero` (saves and restores `common.QuotaForNewUser` via `defer`)
+  - `TestRenderCopyItem_AllPlaceholders`
+  - `TestRenderCopyItem_PartialPlaceholders`
+  - `TestRenderCopyItem_UnknownPlaceholderPreserved`
+- `controller/user_auto_create_test.go` (new):
+  - `TestGetAutoCreateUserPreview_HappyPath` — uses `gin.CreateTestContext(httptest.NewRecorder())`, swaps the package-level `autoCreateUserSetting` via a new exported `SetAutoCreateUserSettingForTest(s)` (and a paired `ResetAutoCreateUserSettingForTest()`) that lives in the `setting/operation_setting` package and is only meant for tests, restored with `defer`. To inject the `usernameExists` callback without touching the DB, the implementation introduces a small handler-factory: `BuildAutoCreatePreviewHandler(exists UsernameExistsFunc, randomFn ...) gin.HandlerFunc`; `controller.GetAutoCreateUserPreview` is the production wiring that calls the factory with real dependencies, and the test calls the factory directly with fakes.
+  - `TestGetAutoCreateUserPreview_CollisionReturnsApiError`
+- `controller/user_test.go` (new):
+  - `TestApplyCreateUserRequest_RejectsEmptyUsername`
+  - `TestApplyCreateUserRequest_HonorsGroupPointer`
+  - `TestApplyCreateUserRequest_HonorsQuotaPointerExplicitZero` (Rule 6)
+  - `TestApplyCreateUserRequest_NilGroupKeepsZeroValue`
+  - `TestApplyCreateUserRequest_RejectsNegativeQuota`
+  - `TestApplyCreateUserRequest_RejectsRoleAtOrAboveCaller`
+  - `TestApplyCreateUserRequest_DisplayNameFallsBackToUsername`
+
+### 7.2 What is not tested
+
+- End-to-end HTTP→DB→response loop for `POST /api/user/`. Project has no DB-bootstrapped test harness; matching existing project test patterns means trusting the helper-unit tests + manual smoke testing.
+- bcrypt round-trip (untested today; out of scope).
+- Frontend modals (no test infra; out of scope).
+
+## 8. Migration & compatibility
+
+- **DB**: no migrations needed. New settings keys are auto-created with defaults the first time the server starts after the upgrade, via the `config.GlobalConfig` hierarchical path.
+- **Existing `POST /api/user/` callers**: backward-compatible — `Group` and `Quota` are pointer-typed *new* fields; omitting them yields exactly today's behavior.
+- **Existing `CreateUser` consumers (e.g. e2e tests, scripts)**: unchanged. The refactor of `CreateUser` to decode through `CreateUserRequest` is a pure-internal change; the wire format is identical.
+
+## 9. Rollout
+
+Single PR against `prod` (project's release branch) covering:
+
+1. Backend struct, helper, DTOs, controller, router, i18n constant, tests.
+2. Frontend changes for `web/default` (button + 2 modals + 1 settings section + i18n).
+3. Frontend changes for `web/classic` (button + 2 modals + 1 settings section + i18n).
+
+The PR body will note Rule 8 (AI-generated contribution disclosure) per `CLAUDE.md`, since this work was produced via Claude Code.
+
+## 10. Open follow-ups (deliberately deferred)
+
+- Server-side email of credentials on create — easy to layer on top, but no user demand yet.
+- Bulk auto-create (e.g. "create 50 users now") — straightforward extension of the preview endpoint to return N candidates.
+- Server-side render of the copy template (e.g. for inclusion in emails) — `RenderCopyItem` is already extracted in §4.3.
+- Force-rotate password on first login — not requested.

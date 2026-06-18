@@ -26,6 +26,7 @@ import type {
   ManageUserAction,
   ManageUserQuotaPayload,
   ApiResponse,
+  AutoCreateUserPreview,
 } from './types'
 
 // ============================================================================
@@ -83,6 +84,19 @@ export async function createUser(
   data: UserFormData
 ): Promise<ApiResponse<User>> {
   const res = await api.post('/api/user/', data)
+  return res.data
+}
+
+/**
+ * Fetch a server-generated suggestion for the auto-create-user modal.
+ * Returns {username, password, group, quota} per the current
+ * auto_create_user_setting configuration. The admin may edit any field
+ * before confirming via createUser().
+ */
+export async function getAutoCreatePreview(): Promise<
+  ApiResponse<AutoCreateUserPreview>
+> {
+  const res = await api.get('/api/user/auto/preview')
   return res.data
 }
 

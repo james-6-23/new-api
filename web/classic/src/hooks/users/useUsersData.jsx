@@ -38,6 +38,9 @@ export const useUsersData = () => {
 
   // Modal states
   const [showAddUser, setShowAddUser] = useState(false);
+  const [showAutoCreateUser, setShowAutoCreateUser] = useState(false);
+  /** Snapshot of the just-created user shown by CredentialsCopyModal. */
+  const [autoCreateCredentials, setAutoCreateCredentials] = useState(null);
   const [showEditUser, setShowEditUser] = useState(false);
   const [editingUser, setEditingUser] = useState({
     id: undefined,
@@ -257,6 +260,18 @@ export const useUsersData = () => {
     setShowAddUser(false);
   };
 
+  const closeAutoCreateUser = () => {
+    setShowAutoCreateUser(false);
+  };
+
+  const openCredentials = (payload) => {
+    setAutoCreateCredentials(payload);
+  };
+
+  const closeCredentials = () => {
+    setAutoCreateCredentials(null);
+  };
+
   const closeEditUser = () => {
     setShowEditUser(false);
     setEditingUser({
@@ -286,9 +301,12 @@ export const useUsersData = () => {
 
     // Modal state
     showAddUser,
+    showAutoCreateUser,
+    autoCreateCredentials,
     showEditUser,
     editingUser,
     setShowAddUser,
+    setShowAutoCreateUser,
     setShowEditUser,
     setEditingUser,
 
@@ -312,6 +330,9 @@ export const useUsersData = () => {
     handleRow,
     refresh,
     closeAddUser,
+    closeAutoCreateUser,
+    openCredentials,
+    closeCredentials,
     closeEditUser,
     getFormValues,
 

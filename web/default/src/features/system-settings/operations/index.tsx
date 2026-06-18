@@ -63,6 +63,18 @@ const defaultOperationsSettings: OperationsSettings = {
   'perf_metrics_setting.flush_interval': 5,
   'perf_metrics_setting.bucket_time': 'hour',
   'perf_metrics_setting.retention_days': 0,
+  'auto_create_user_setting.username_prefix': 'User-',
+  'auto_create_user_setting.username_suffix_length': 4,
+  'auto_create_user_setting.username_suffix_charset': 'alphanumeric',
+  'auto_create_user_setting.password_mode': 'same_as_username',
+  'auto_create_user_setting.random_password_length': 12,
+  'auto_create_user_setting.default_quota': 0,
+  'auto_create_user_setting.default_group': 'default',
+  'auto_create_user_setting.site_url': '',
+  // The default JSON mirrors operation_setting.defaultAutoCreateUserSetting().
+  // Keep these two in sync if either changes.
+  'auto_create_user_setting.copy_templates':
+    '[{"label":"站点","template":"{{site}}"},{"label":"用户名","template":"{{username}}"},{"label":"密码","template":"{{password}}"}]',
 }
 
 export function OperationsSettings() {

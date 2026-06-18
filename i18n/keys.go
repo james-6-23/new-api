@@ -114,6 +114,9 @@ const (
 	MsgUserTelegramNotBound          = "user.telegram_not_bound"
 	MsgUserLinuxDOIdEmpty            = "user.linux_do_id_empty"
 	MsgUserQuotaChangeZero           = "user.quota_change_zero"
+
+	// Auto-create-user feature messages
+	MsgAutoCreateUsernameCollision = "user.auto_create_username_collision"
 )
 
 // Quota related messages

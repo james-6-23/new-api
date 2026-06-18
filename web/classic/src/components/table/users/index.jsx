@@ -24,6 +24,8 @@ import UsersActions from './UsersActions';
 import UsersFilters from './UsersFilters';
 import UsersDescription from './UsersDescription';
 import AddUserModal from './modals/AddUserModal';
+import AutoCreateUserModal from './modals/AutoCreateUserModal';
+import CredentialsCopyModal from './modals/CredentialsCopyModal';
 import EditUserModal from './modals/EditUserModal';
 import { useUsersData } from '../../../hooks/users/useUsersData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
@@ -36,10 +38,16 @@ const UsersPage = () => {
   const {
     // Modal state
     showAddUser,
+    showAutoCreateUser,
+    autoCreateCredentials,
     showEditUser,
     editingUser,
     setShowAddUser,
+    setShowAutoCreateUser,
     closeAddUser,
+    closeAutoCreateUser,
+    openCredentials,
+    closeCredentials,
     closeEditUser,
     refresh,
 
@@ -70,6 +78,19 @@ const UsersPage = () => {
         handleClose={closeAddUser}
       />
 
+      <AutoCreateUserModal
+        refresh={refresh}
+        visible={showAutoCreateUser}
+        handleClose={closeAutoCreateUser}
+        onCreated={openCredentials}
+      />
+
+      <CredentialsCopyModal
+        visible={!!autoCreateCredentials}
+        credentials={autoCreateCredentials}
+        onClose={closeCredentials}
+      />
+
       <EditUserModal
         refresh={refresh}
         visible={showEditUser}
@@ -88,7 +109,11 @@ const UsersPage = () => {
         }
         actionsArea={
           <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
-            <UsersActions setShowAddUser={setShowAddUser} t={t} />
+            <UsersActions
+              setShowAddUser={setShowAddUser}
+              setShowAutoCreateUser={setShowAutoCreateUser}
+              t={t}
+            />
 
             <UsersFilters
               formInitValues={formInitValues}

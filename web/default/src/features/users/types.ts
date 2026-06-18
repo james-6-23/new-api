@@ -129,4 +129,44 @@ export interface ManageUserQuotaPayload {
 // Dialog Types
 // ============================================================================
 
-export type UsersDialogType = 'create' | 'update' | 'delete'
+export type UsersDialogType =
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'auto-create'
+  | 'credentials'
+
+/** Snapshot of the just-created user shown by the credentials dialog. */
+export interface AutoCreateCredentials {
+  username: string
+  password: string
+  group: string
+  quota: number
+}
+
+/** GET /api/user/auto/preview response payload. */
+export interface AutoCreateUserPreview {
+  username: string
+  password: string
+  group: string
+  quota: number
+}
+
+/** A single row of the post-create copy popup, as stored in admin settings. */
+export interface AutoCreateUserCopyItem {
+  label: string
+  template: string
+}
+
+/** Resolved auto-create-user settings parsed from the system options endpoint. */
+export interface AutoCreateUserSettings {
+  username_prefix: string
+  username_suffix_length: number
+  username_suffix_charset: 'alphanumeric' | 'digits' | 'letters' | string
+  password_mode: 'same_as_username' | 'random' | string
+  random_password_length: number
+  default_quota: number
+  default_group: string
+  site_url: string
+  copy_templates: AutoCreateUserCopyItem[]
+}

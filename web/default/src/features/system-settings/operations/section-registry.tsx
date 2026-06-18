@@ -25,6 +25,7 @@ import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { AutoCreateUserSection } from './auto-create-user-section'
 
 const OPERATIONS_SECTIONS = [
   {
@@ -136,6 +137,44 @@ const OPERATIONS_SECTIONS = [
         }}
       />
     ),
+  },
+  {
+    id: 'auto-create-user',
+    titleKey: 'Auto Create User',
+    build: (settings: OperationsSettings) => {
+      // Narrow the suffix charset / password mode strings to the literal-union
+      // expected by the section's Zod schema. Unknown values from older
+      // deployments fall back to safe defaults so the form never refuses to mount.
+      const charset = settings['auto_create_user_setting.username_suffix_charset']
+      const passwordMode = settings['auto_create_user_setting.password_mode']
+      return (
+        <AutoCreateUserSection
+          defaultValues={{
+            auto_create_user_setting: {
+              username_prefix:
+                settings['auto_create_user_setting.username_prefix'],
+              username_suffix_length:
+                settings['auto_create_user_setting.username_suffix_length'],
+              username_suffix_charset:
+                charset === 'digits' || charset === 'letters'
+                  ? charset
+                  : 'alphanumeric',
+              password_mode:
+                passwordMode === 'random' ? 'random' : 'same_as_username',
+              random_password_length:
+                settings['auto_create_user_setting.random_password_length'],
+              default_quota:
+                settings['auto_create_user_setting.default_quota'],
+              default_group:
+                settings['auto_create_user_setting.default_group'],
+              site_url: settings['auto_create_user_setting.site_url'],
+              copy_templates:
+                settings['auto_create_user_setting.copy_templates'],
+            },
+          }}
+        />
+      )
+    },
   },
   {
     id: 'update-checker',

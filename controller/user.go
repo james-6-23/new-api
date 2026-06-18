@@ -874,32 +874,165 @@ func DeleteSelf(c *gin.Context) {
 	return
 }
 
+// applyCreateUserRequest 把入参 DTO 规范化为可直接 Insert 的 model.User，
+// 并把所有"应该立即拒绝"的情况转成 i18n 键 + ok=false。
+//
+// 这个函数是 CreateUser 控制器从 HTTP 层抽离出来的纯逻辑核，目的有二：
+//   - 让单测覆盖到 Group/Quota 指针语义（CLAUDE.md Rule 6）而不需要 DB；
+//   - 让"自动创建用户"流程可以走完全相同的归一化路径，避免逻辑分叉。
+//
+// 行为契约（必须与历史 CreateUser 保持一致）：
+//   - 用户名 trim 后为空 / 密码为空 → MsgInvalidParams（不会触发 Validator）。
+//   - role >= callerRole → MsgUserCannotCreateHigherLevel。
+//   - Validator 失败（密码长度、用户名长度等） → MsgUserInputInvalid，
+//     并通过返回的 validatorErr 让 HTTP 层把 {{.Error}} 模板参数透传给前端。
+//   - DisplayName 为空时回退到 Username。
+//
+// 新增行为：
+//   - Group 指针非 nil 时把值写入 cleanUser.Group（nil 时保持零值，让 GORM 默认 'default' 生效）。
+//   - Quota 指针非 nil 时把值写入 cleanUser.Quota；显式 0 受支持，负值被拒。
+//
+// 返回值约定：
+//   - ok=true 时 user 可直接 Insert；其余三个返回值为零。
+//   - ok=false 时 code 是 i18n 键；validatorErr 只在 code == MsgUserInputInvalid 时非 nil。
+func applyCreateUserRequest(req dto.CreateUserRequest, callerRole int) (
+	cleanUser model.User, code string, validatorErr error, ok bool,
+) {
+	req.Username = strings.TrimSpace(req.Username)
+	if req.Username == "" || req.Password == "" {
+		return model.User{}, i18n.MsgInvalidParams, nil, false
+	}
+	if req.Role >= callerRole {
+		return model.User{}, i18n.MsgUserCannotCreateHigherLevel, nil, false
+	}
+	if req.Quota != nil && *req.Quota < 0 {
+		return model.User{}, i18n.MsgInvalidParams, nil, false
+	}
+	u := model.User{
+		Username:    req.Username,
+		Password:    req.Password,
+		DisplayName: req.DisplayName,
+		Role:        req.Role,
+	}
+	if u.DisplayName == "" {
+		u.DisplayName = u.Username
+	}
+	if req.Group != nil {
+		u.Group = *req.Group
+	}
+	if req.Quota != nil {
+		u.Quota = *req.Quota
+	}
+	// Validator 在所有字段确定后再跑，避免被 DisplayName 回退逻辑前置触发。
+	if err := common.Validate.Struct(&u); err != nil {
+		return model.User{}, i18n.MsgUserInputInvalid, err, false
+	}
+	return u, "", nil, true
+}
+
+// BuildAutoCreatePreviewHandler 是 GetAutoCreateUserPreview 的工厂版本，所有
+// 外部依赖（设置读取、随机串生成、用户名存在性查询）都通过参数注入，便于在
+// 不启动 gin 路由 + DB 的前提下做单元测试。
+//
+// 生产路径请直接使用 GetAutoCreateUserPreview。
+func BuildAutoCreatePreviewHandler(
+	getSetting func() operation_setting.AutoCreateUserSetting,
+	randomFn func(int, string) string,
+	usernameExists service.UsernameExistsFunc,
+) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		s := getSetting()
+		resp, err := service.PreviewAutoCreateUser(s, randomFn, usernameExists)
+		if errors.Is(err, service.ErrUsernameCollisionExhausted) {
+			common.ApiErrorI18n(c, i18n.MsgAutoCreateUsernameCollision)
+			return
+		}
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, resp)
+	}
+}
+
+// GetAutoCreateUserPreview 是 GET /api/user/auto/preview 的生产处理器。
+// 它把 BuildAutoCreatePreviewHandler 与真实依赖绑定后即转发：
+//   - 设置来自 operation_setting.GetAutoCreateUserSetting（hierarchical config）
+//   - 随机串生成来自 common.GetRandomStringWithCharset
+//   - 用户名存在性查询走 model.CheckUserExistOrDeleted
+//
+// 注：每次请求都构建一个新的 closure，开销在 ns 级别，可以忽略；保持调用
+// 链显式可以避免 init() 时序问题（gin 路由注册早于 DB 初始化时也能编译通过）。
+func GetAutoCreateUserPreview(c *gin.Context) {
+	BuildAutoCreatePreviewHandler(
+		operation_setting.GetAutoCreateUserSetting,
+		common.GetRandomStringWithCharset,
+		func(name string) (bool, error) {
+			return model.CheckUserExistOrDeleted(name, "")
+		},
+	)(c)
+}
+
+// ensureUsernameNotTaken is the explicit pre-Insert dedup gate.
+//
+// model.User has a DB-level UNIQUE index on Username, so duplicate Inserts
+// can never silently succeed — but the resulting error text is database-
+// specific ("Error 1062: Duplicate entry", "UNIQUE constraint failed", etc.)
+// and ugly to surface to admins. This helper does a friendlier check first,
+// returning the i18n key MsgUserExists when the name is already taken.
+//
+// Returns:
+//   - ok=true → username is free; caller proceeds.
+//   - ok=false, code=MsgUserExists, lookupErr=nil → name already taken.
+//   - ok=false, code="", lookupErr=<err> → DB lookup itself blew up;
+//     caller should surface lookupErr via common.ApiError so operators see why.
+//
+// `exists` is injected so the helper is unit-testable without DB setup.
+// Wired in production to model.CheckUserExistOrDeleted in CreateUser below.
+func ensureUsernameNotTaken(
+	username string,
+	exists service.UsernameExistsFunc,
+) (code string, lookupErr error, ok bool) {
+	taken, err := exists(username)
+	if err != nil {
+		return "", err, false
+	}
+	if taken {
+		return i18n.MsgUserExists, nil, false
+	}
+	return "", nil, true
+}
+
 func CreateUser(c *gin.Context) {
-	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
-	user.Username = strings.TrimSpace(user.Username)
-	if err != nil || user.Username == "" || user.Password == "" {
+	var req dto.CreateUserRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if err := common.Validate.Struct(&user); err != nil {
-		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
+	cleanUser, code, validatorErr, ok := applyCreateUserRequest(req, c.GetInt("role"))
+	if !ok {
+		if validatorErr != nil {
+			common.ApiErrorI18n(c, code, map[string]any{"Error": validatorErr.Error()})
+			return
+		}
+		common.ApiErrorI18n(c, code)
 		return
 	}
-	if user.DisplayName == "" {
-		user.DisplayName = user.Username
-	}
-	myRole := c.GetInt("role")
-	if user.Role >= myRole {
-		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
+	// Friendly pre-Insert dedup. The DB UNIQUE index is still the final guarantee
+	// (race-safe), but checking here lets us return i18n.MsgUserExists ("用户已存在")
+	// instead of a database-specific constraint-violation string.
+	if code, lookupErr, ok := ensureUsernameNotTaken(
+		cleanUser.Username,
+		func(name string) (bool, error) {
+			return model.CheckUserExistOrDeleted(name, "")
+		},
+	); !ok {
+		if lookupErr != nil {
+			common.ApiError(c, lookupErr)
+			return
+		}
+		common.ApiErrorI18n(c, code)
 		return
-	}
-	// Even for admin users, we cannot fully trust them!
-	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.DisplayName,
-		Role:        user.Role, // 保持管理员设置的角色
 	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
@@ -914,7 +1047,6 @@ func CreateUser(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
-	return
 }
 
 type ManageRequest struct {

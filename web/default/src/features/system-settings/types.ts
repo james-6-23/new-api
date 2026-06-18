@@ -305,6 +305,20 @@ export type OperationsSettings = {
   'perf_metrics_setting.enabled': boolean
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
+  'auto_create_user_setting.username_prefix': string
+  'auto_create_user_setting.username_suffix_length': number
+  'auto_create_user_setting.username_suffix_charset': string
+  'auto_create_user_setting.password_mode': string
+  'auto_create_user_setting.random_password_length': number
+  'auto_create_user_setting.default_quota': number
+  'auto_create_user_setting.default_group': string
+  'auto_create_user_setting.site_url': string
+  /**
+   * JSON-encoded list of {label, template} rows. The auto-create-user section
+   * component parses/serializes this between the on-disk string form and the
+   * editable array form that the UI works with.
+   */
+  'auto_create_user_setting.copy_templates': string
   'perf_metrics_setting.retention_days': number
 }
 

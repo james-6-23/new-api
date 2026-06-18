@@ -28,6 +28,7 @@ import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import SettingsCloudPaste from '../../pages/Setting/Operation/SettingsCloudPaste';
+import SettingsAutoCreateUser from '../../pages/Setting/Operation/SettingsAutoCreateUser';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -90,6 +91,18 @@ const OperationSetting = () => {
     CloudPasteBaseURL: '',
     CloudPasteAPIKey: '',
     CloudPasteStorageConfigID: '',
+
+    /* 自动创建用户 */
+    'auto_create_user_setting.username_prefix': 'User-',
+    'auto_create_user_setting.username_suffix_length': 4,
+    'auto_create_user_setting.username_suffix_charset': 'alphanumeric',
+    'auto_create_user_setting.password_mode': 'same_as_username',
+    'auto_create_user_setting.random_password_length': 12,
+    'auto_create_user_setting.default_quota': 0,
+    'auto_create_user_setting.default_group': 'default',
+    'auto_create_user_setting.site_url': '',
+    'auto_create_user_setting.copy_templates':
+      '[{"label":"站点","template":"{{site}}"},{"label":"用户名","template":"{{username}}"},{"label":"密码","template":"{{password}}"}]',
   });
 
   let [loading, setLoading] = useState(false);
@@ -166,6 +179,10 @@ const OperationSetting = () => {
         {/* 媒体转存（CloudPaste） */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCloudPaste options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 自动创建用户 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsAutoCreateUser options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>
