@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
@@ -201,6 +202,11 @@ func AddToken(c *gin.Context) {
 		})
 		return
 	}
+	userGroup, _ := model.GetUserGroup(c.GetInt("id"), false)
+	if err := validateTokenGroups(userGroup, token.GetGroups()); err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
 	key, err := common.GenerateKey()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgTokenGenerateFailed)
@@ -275,6 +281,13 @@ func UpdateToken(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if statusOnly == "" {
+		userGroup, _ := model.GetUserGroup(userId, false)
+		if err := validateTokenGroups(userGroup, token.GetGroups()); err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+			return
+		}
 	}
 	if token.Status == common.TokenStatusEnabled {
 		if cleanToken.Status == common.TokenStatusExpired && cleanToken.ExpiredTime <= common.GetTimestamp() && cleanToken.ExpiredTime != -1 {
@@ -356,4 +369,26 @@ func GetTokenKeysBatch(c *gin.Context) {
 		keysMap[t.Id] = t.GetFullKey()
 	}
 	common.ApiSuccess(c, gin.H{"keys": keysMap})
+}
+
+// validateTokenGroupsWithUsable 校验分组列表合法性（纯逻辑，便于单测）：
+//  1. auto 不能与其它分组同时选择；
+//  2. 每个分组都必须在用户可用分组内。
+func validateTokenGroupsWithUsable(usable map[string]string, groups []string) error {
+	for _, g := range groups {
+		if g == "auto" && len(groups) > 1 {
+			return fmt.Errorf("auto 分组不能与其他分组同时选择")
+		}
+	}
+	for _, g := range groups {
+		if _, ok := usable[g]; !ok {
+			return fmt.Errorf("无权访问 %s 分组", g)
+		}
+	}
+	return nil
+}
+
+// validateTokenGroups 取用户可用分组后校验 token 的分组列表。
+func validateTokenGroups(userGroup string, groups []string) error {
+	return validateTokenGroupsWithUsable(service.GetUserUsableGroups(userGroup), groups)
 }
