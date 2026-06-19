@@ -1,11 +1,8 @@
 name: Build Test Image
 
-# Push to main builds the test image for this fork.
+# Manual-only test image build for this fork.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 env:
   REGISTRY: ghcr.io
