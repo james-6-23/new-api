@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -117,7 +118,7 @@ func TransferTaskMedia(task *model.Task) error {
 	if err != nil {
 		transferErr := fmt.Sprintf("failed to get channel %d for task %s: %s", task.ChannelId, task.TaskID, err.Error())
 		markTransferFailed(task, transferErr)
-		return fmt.Errorf(transferErr)
+		return errors.New(transferErr)
 	}
 
 	// 5. Get upstream URL and headers
@@ -125,14 +126,14 @@ func TransferTaskMedia(task *model.Task) error {
 	if err != nil {
 		transferErr := fmt.Sprintf("failed to get upstream URL for task %s: %s", task.TaskID, err.Error())
 		markTransferFailed(task, transferErr)
-		return fmt.Errorf(transferErr)
+		return errors.New(transferErr)
 	}
 
 	// Skip data: URIs – they are inline and cannot be streamed from upstream
 	if strings.HasPrefix(mediaURL, "data:") {
 		transferErr := fmt.Sprintf("data URI media not supported for transfer: task %s", task.TaskID)
 		markTransferFailed(task, transferErr)
-		return fmt.Errorf(transferErr)
+		return errors.New(transferErr)
 	}
 
 	// SSRF protection
@@ -150,7 +151,7 @@ func TransferTaskMedia(task *model.Task) error {
 	); err != nil {
 		transferErr := fmt.Sprintf("media URL blocked for task %s: %v", task.TaskID, err)
 		markTransferFailed(task, transferErr)
-		return fmt.Errorf(transferErr)
+		return errors.New(transferErr)
 	}
 
 	// 6. Fetch upstream media with optional proxy
@@ -159,7 +160,7 @@ func TransferTaskMedia(task *model.Task) error {
 	if err != nil {
 		transferErr := fmt.Sprintf("failed to create HTTP client for task %s: %s", task.TaskID, err.Error())
 		markTransferFailed(task, transferErr)
-		return fmt.Errorf(transferErr)
+		return errors.New(transferErr)
 	}
 
 	// Single timeout context for both download and upload
@@ -170,7 +171,7 @@ func TransferTaskMedia(task *model.Task) error {
 	if err != nil {
 		transferErr := fmt.Sprintf("failed to fetch upstream media for task %s: %s", task.TaskID, err.Error())
 		markTransferFailed(task, transferErr)
-		return fmt.Errorf(transferErr)
+		return errors.New(transferErr)
 	}
 	defer upstreamResp.Body.Close()
 
@@ -199,7 +200,7 @@ func TransferTaskMedia(task *model.Task) error {
 	if err != nil {
 		transferErr := fmt.Sprintf("CloudPaste upload failed for task %s: %s", task.TaskID, err.Error())
 		markTransferFailed(task, transferErr)
-		return fmt.Errorf(transferErr)
+		return errors.New(transferErr)
 	}
 
 	downloadURL := result.DownloadURL
