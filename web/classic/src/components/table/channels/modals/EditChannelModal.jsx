@@ -216,6 +216,14 @@ const EditChannelModal = (props) => {
     upstream_model_update_last_check_time: 0,
     upstream_model_update_last_detected_models: [],
     upstream_model_update_ignored_models: '',
+    // BytePlus 海外素材库（CreateAsset 预上传，仅火山方舟 45 / 豆包视频 54）
+    byteplus_asset_enabled: false,
+    byteplus_access_key: '',
+    byteplus_secret_key: '',
+    byteplus_asset_group_id: '',
+    byteplus_project_name: 'default',
+    byteplus_region: 'ap-southeast-1',
+    byteplus_moderation_skip: true,
   };
   const [batch, setBatch] = useState(false);
   const [multiToSingle, setMultiToSingle] = useState(false);
@@ -938,6 +946,19 @@ const EditChannelModal = (props) => {
           )
             ? parsedSettings.upstream_model_update_ignored_models.join(',')
             : '';
+          // 读取 BytePlus 素材库设置
+          data.byteplus_asset_enabled =
+            parsedSettings.byteplus_asset_enabled === true;
+          data.byteplus_access_key = parsedSettings.byteplus_access_key || '';
+          data.byteplus_secret_key = parsedSettings.byteplus_secret_key || '';
+          data.byteplus_asset_group_id =
+            parsedSettings.byteplus_asset_group_id || '';
+          data.byteplus_project_name =
+            parsedSettings.byteplus_project_name || 'default';
+          data.byteplus_region =
+            parsedSettings.byteplus_region || 'ap-southeast-1';
+          data.byteplus_moderation_skip =
+            parsedSettings.byteplus_moderation_skip !== false;
         } catch (error) {
           console.error('解析其他设置失败:', error);
           data.azure_responses_version = '';
@@ -957,6 +978,13 @@ const EditChannelModal = (props) => {
           data.upstream_model_update_last_check_time = 0;
           data.upstream_model_update_last_detected_models = [];
           data.upstream_model_update_ignored_models = '';
+          data.byteplus_asset_enabled = false;
+          data.byteplus_access_key = '';
+          data.byteplus_secret_key = '';
+          data.byteplus_asset_group_id = '';
+          data.byteplus_project_name = 'default';
+          data.byteplus_region = 'ap-southeast-1';
+          data.byteplus_moderation_skip = true;
         }
       } else {
         // 兼容历史数据：老渠道没有 settings 时，默认按 json 展示
@@ -975,6 +1003,13 @@ const EditChannelModal = (props) => {
         data.upstream_model_update_last_check_time = 0;
         data.upstream_model_update_last_detected_models = [];
         data.upstream_model_update_ignored_models = '';
+        data.byteplus_asset_enabled = false;
+        data.byteplus_access_key = '';
+        data.byteplus_secret_key = '';
+        data.byteplus_asset_group_id = '';
+        data.byteplus_project_name = 'default';
+        data.byteplus_region = 'ap-southeast-1';
+        data.byteplus_moderation_skip = true;
       }
 
       if (
@@ -1784,6 +1819,40 @@ const EditChannelModal = (props) => {
       settings.aws_key_type = localInputs.aws_key_type || 'ak_sk';
     }
 
+    // type === 45 (火山方舟) / 54 (豆包视频): 保存 BytePlus 海外素材库配置到 settings
+    const bytePlusKeys = [
+      'byteplus_asset_enabled',
+      'byteplus_access_key',
+      'byteplus_secret_key',
+      'byteplus_asset_group_id',
+      'byteplus_project_name',
+      'byteplus_region',
+      'byteplus_moderation_skip',
+    ];
+    if ([45, 54].includes(localInputs.type)) {
+      settings.byteplus_asset_enabled =
+        localInputs.byteplus_asset_enabled === true;
+      settings.byteplus_access_key = (
+        localInputs.byteplus_access_key || ''
+      ).trim();
+      settings.byteplus_secret_key = (
+        localInputs.byteplus_secret_key || ''
+      ).trim();
+      settings.byteplus_asset_group_id = (
+        localInputs.byteplus_asset_group_id || ''
+      ).trim();
+      settings.byteplus_project_name =
+        (localInputs.byteplus_project_name || '').trim() || 'default';
+      settings.byteplus_region =
+        (localInputs.byteplus_region || '').trim() || 'ap-southeast-1';
+      settings.byteplus_moderation_skip =
+        localInputs.byteplus_moderation_skip !== false;
+    } else {
+      bytePlusKeys.forEach((k) => {
+        if (k in settings) delete settings[k];
+      });
+    }
+
     // type === 41 (Vertex): 始终保存 vertex_key_type 到 settings，避免编辑时被重置
     if (localInputs.type === 41) {
       settings.vertex_key_type = localInputs.vertex_key_type || 'json';
@@ -1859,6 +1928,10 @@ const EditChannelModal = (props) => {
     delete localInputs.upstream_model_update_last_check_time;
     delete localInputs.upstream_model_update_last_detected_models;
     delete localInputs.upstream_model_update_ignored_models;
+    // 清理 BytePlus 素材库的临时顶层字段（已写入 settings）
+    bytePlusKeys.forEach((k) => {
+      delete localInputs[k];
+    });
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
@@ -2697,6 +2770,116 @@ const EditChannelModal = (props) => {
                             'AK/SK 模式：使用 AccessKey 和 SecretAccessKey；API Key 模式：使用 API Key',
                           )}
                         />
+                      </>
+                    )}
+
+                    {/* BytePlus 海外素材库（火山方舟 45 / 豆包视频 54） */}
+                    {[45, 54].includes(inputs.type) && (
+                      <>
+                        <Form.Switch
+                          field='byteplus_asset_enabled'
+                          label={t('启用 BytePlus 素材库预上传（海外）')}
+                          checkedText={t('开')}
+                          uncheckedText={t('关')}
+                          value={inputs.byteplus_asset_enabled === true}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange(
+                              'byteplus_asset_enabled',
+                              value,
+                            )
+                          }
+                          extraText={t(
+                            '提交到海外 BytePlus 前，先把参考图片/视频上传到素材库并替换为 asset://id，避免真人人脸 / 内容预审被拦截',
+                          )}
+                        />
+                        {inputs.byteplus_asset_enabled && (
+                          <>
+                            <Form.Input
+                              field='byteplus_access_key'
+                              label={t('Access Key (AK)')}
+                              mode='password'
+                              placeholder={t('用于素材库签名的 BytePlus AccessKey')}
+                              value={inputs.byteplus_access_key || ''}
+                              onChange={(value) =>
+                                handleChannelOtherSettingsChange(
+                                  'byteplus_access_key',
+                                  value,
+                                )
+                              }
+                            />
+                            <Form.Input
+                              field='byteplus_secret_key'
+                              label={t('Secret Key (SK)')}
+                              mode='password'
+                              placeholder={t('用于素材库签名的 BytePlus SecretKey')}
+                              value={inputs.byteplus_secret_key || ''}
+                              onChange={(value) =>
+                                handleChannelOtherSettingsChange(
+                                  'byteplus_secret_key',
+                                  value,
+                                )
+                              }
+                            />
+                            <Form.Input
+                              field='byteplus_asset_group_id'
+                              label={t('素材组 ID')}
+                              placeholder={t('例如：group-20260318033332-xxxxx')}
+                              value={inputs.byteplus_asset_group_id || ''}
+                              onChange={(value) =>
+                                handleChannelOtherSettingsChange(
+                                  'byteplus_asset_group_id',
+                                  value,
+                                )
+                              }
+                              extraText={t(
+                                '需先在 BytePlus 控制台创建素材组（首次使用需签署授权函）',
+                              )}
+                            />
+                            <Form.Input
+                              field='byteplus_project_name'
+                              label={t('Project 名称')}
+                              placeholder='default'
+                              value={inputs.byteplus_project_name || ''}
+                              onChange={(value) =>
+                                handleChannelOtherSettingsChange(
+                                  'byteplus_project_name',
+                                  value,
+                                )
+                              }
+                              extraText={t(
+                                '素材与推理接入点必须属于同一个 Project',
+                              )}
+                            />
+                            <Form.Input
+                              field='byteplus_region'
+                              label={t('地域 (Region)')}
+                              placeholder='ap-southeast-1'
+                              value={inputs.byteplus_region || ''}
+                              onChange={(value) =>
+                                handleChannelOtherSettingsChange(
+                                  'byteplus_region',
+                                  value,
+                                )
+                              }
+                            />
+                            <Form.Switch
+                              field='byteplus_moderation_skip'
+                              label={t('关闭内容预审（content filter）')}
+                              checkedText={t('开')}
+                              uncheckedText={t('关')}
+                              value={inputs.byteplus_moderation_skip !== false}
+                              onChange={(value) =>
+                                handleChannelOtherSettingsChange(
+                                  'byteplus_moderation_skip',
+                                  value,
+                                )
+                              }
+                              extraText={t(
+                                '上传时携带 Moderation.Strategy=Skip。名人 / 版权 IP 仍会被拦截',
+                              )}
+                            />
+                          </>
+                        )}
                       </>
                     )}
 

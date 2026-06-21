@@ -1409,6 +1409,166 @@ export function ChannelMutateDrawer({
                       />
                     )}
 
+                    {/* BytePlus overseas asset library (VolcEngine 45 / DoubaoVideo 54) */}
+                    {[45, 54].includes(currentType) && (
+                      <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                        <SubHeading
+                          title={t('BytePlus Asset Library (overseas)')}
+                          icon={<SlidersHorizontal className='h-3.5 w-3.5' />}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='byteplus_asset_enabled'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 px-1 py-2'>
+                              <div className='space-y-0.5'>
+                                <FormLabel className='text-sm'>
+                                  {t('Enable asset pre-upload')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Before submitting to overseas BytePlus, upload reference media to the asset library and replace it with asset://id. Avoids real-face / content pre-filter interception.'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        {form.watch('byteplus_asset_enabled') && (
+                          <>
+                            <FormField
+                              control={form.control}
+                              name='byteplus_access_key'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Access Key (AK)')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type='password'
+                                      autoComplete='off'
+                                      placeholder={t(
+                                        'BytePlus AccessKey for asset library signing'
+                                      )}
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='byteplus_secret_key'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Secret Key (SK)')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type='password'
+                                      autoComplete='off'
+                                      placeholder={t(
+                                        'BytePlus SecretKey for asset library signing'
+                                      )}
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='byteplus_asset_group_id'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Asset Group ID')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      placeholder={t(
+                                        'e.g., group-20260318033332-xxxxx'
+                                      )}
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormDescription>
+                                    {t(
+                                      'Pre-create the asset group in the BytePlus console (sign the authorization letter on first use).'
+                                    )}
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='byteplus_project_name'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Project Name')}</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder='default' {...field} />
+                                  </FormControl>
+                                  <FormDescription>
+                                    {t(
+                                      'Assets and inference endpoint must be in the same project.'
+                                    )}
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='byteplus_region'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Region')}</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      placeholder='ap-southeast-1'
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='byteplus_moderation_skip'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between gap-3 px-1 py-2'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel className='text-sm'>
+                                      {t('Skip content pre-filter')}
+                                    </FormLabel>
+                                    <FormDescription>
+                                      {t(
+                                        'Send Moderation.Strategy=Skip on upload. Celebrity / copyright IP is still intercepted.'
+                                      )}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          </>
+                        )}
+                      </div>
+                    )}
+
                     {/* AI Proxy Library (type 21) */}
                     {currentType === 21 && (
                       <FormField

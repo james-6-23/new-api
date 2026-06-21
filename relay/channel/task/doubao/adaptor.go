@@ -105,15 +105,23 @@ type responseTask struct {
 
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
-	ChannelType int
-	apiKey      string
-	baseURL     string
+	ChannelType   int
+	apiKey        string
+	baseURL       string
+	channelId     int
+	proxy         string
+	otherSettings dto.ChannelOtherSettings
+	// endpointOverride 仅用于测试，指向 httptest.Server；生产为空时按 region 推导。
+	endpointOverride string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 	a.baseURL = info.ChannelBaseUrl
 	a.apiKey = info.ApiKey
+	a.channelId = info.ChannelId
+	a.proxy = info.ChannelSetting.Proxy
+	a.otherSettings = info.ChannelOtherSettings
 }
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
@@ -194,6 +202,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	} else {
 		info.UpstreamModelName = body.Model
 	}
+
+	// 海外 BytePlus 素材库预上传：开关开启时，把 content 中的公网媒体 URL 先上传素材库，
+	// 替换为 asset://<id> 再提交生成。开关关闭时此调用为零行为。
+	if err := a.preuploadAssets(c, body); err != nil {
+		return nil, err
+	}
+
 	data, err := common.Marshal(body)
 	if err != nil {
 		return nil, err
