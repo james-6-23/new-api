@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>君の星辰·AI — 跨越星辰的统一 AI API 网关</title>
+<meta name="description" content="君の星辰·AI 由 XINGCHEN NETWORK LIMITED（英国）运营，提供统一、OpenAI 兼容的 API 接口，单一端点访问数百个 AI 模型。" />
+<!-- 社交分享卡片 -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="君の星辰·AI" />
+<meta property="og:title" content="君の星辰·AI — 跨越星辰的统一 AI API 网关" />
+<meta property="og:description" content="统一、OpenAI 兼容的 API 接口，单一端点访问数百个 AI 模型：GPT、Claude、Gemini、国产大模型与视频生图。一比一充值，三网优化加速。" />
+<meta property="og:url" content="https://ai.centos.hk" />
+<meta property="og:image" content="https://ai.centos.hk/logo.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="君の星辰·AI — 跨越星辰的统一 AI API 网关" />
+<meta name="twitter:description" content="统一、OpenAI 兼容的 API 接口，单一端点访问数百个 AI 模型。一比一充值，三网优化加速。" />
+<meta name="twitter:image" content="https://ai.centos.hk/logo.png" />
+<style>
+  :root {
+    --bg-main: #FFFFFF;
+    --bg-secondary: #F4F4F5;
+    --text-primary: #090A0B;
+    --text-secondary: #52525B;
+    --text-muted: #A1A1AA;
+    --border-subtle: #E4E4E7;
+    --border-hover: #D4D4D8;
+    --accent-blue: #3B82F6;
+    --accent-glow: rgba(59, 130, 246, 0.05);
+    
+    --card-bg: rgba(255, 255, 255, 0.6);
+    --card-border: rgba(0, 0, 0, 0.08);
+    
+    --grid-color: rgba(0,0,0,0.04);
+    --grad-start: #090A0B;
+    --grad-end: #71717A;
+    --btn-primary-bg: #000000;
+    --btn-primary-text: #FFFFFF;
+    --btn-primary-hover: #27272A;
+    
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 24px;
+    --max-w: 1120px;
+  }
+  
+  html.dark {
+    --bg-main: #000000;
+    --bg-secondary: #0A0A0A;
+    --text-primary: #EDEDED;
+    --text-secondary: #A1A1AA;
+    --text-muted: #71717A;
+    --border-subtle: #27272A;
+    --border-hover: #3F3F46;
+    --accent-glow: rgba(59, 130, 246, 0.15);
+    
+    --card-bg: rgba(10, 10, 10, 0.6);
+    --card-border: rgba(255, 255, 255, 0.08);
+
+    --grid-color: rgba(255,255,255,0.03);
+    --grad-start: #FFFFFF;
+    --grad-end: #A1A1AA;
+    --btn-primary-bg: #FFFFFF;
+    --btn-primary-text: #000000;
+    --btn-primary-hover: #E4E4E7;
+  }
+  
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  a { color: inherit; text-decoration: none; }
+  h1, h2, h3, h4, h5 { margin: 0; font-weight: 600; letter-spacing: -0.02em; }
+  ::selection { background: var(--border-hover); color: var(--text-primary); }
+
+  /* Background Grid & Glow */
+  .bg-grid {
+    position: fixed; inset: 0; z-index: -2; pointer-events: none;
+    background-image: linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
+                      linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(circle at 50% 0%, black, transparent 70%);
+    -webkit-mask-image: radial-gradient(circle at 50% 0%, black, transparent 70%);
+  }
+  .bg-glow {
+    position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
+    width: 800px; height: 500px; z-index: -1; pointer-events: none;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 60%);
+    border-radius: 50%;
+  }
+
+  /* Meteors (dark mode only) */
+  html:not(.dark) #meteors { display: none; }
+  #meteors { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
+  .meteor {
+    position: absolute;
+    width: 220px; height: 2px;
+    border-radius: 2px;
+    /* 冷色调渐变拖尾：透明 → 青蓝 → 亮白头部 */
+    background: linear-gradient(to right,
+      rgba(59,130,246,0) 0%,
+      rgba(99,179,255,0.25) 40%,
+      rgba(160,210,255,0.7) 80%,
+      rgba(255,255,255,0.95) 100%);
+    transform: rotate(45deg);
+    opacity: 0;
+    filter: drop-shadow(0 0 6px rgba(96,165,250,0.45));
+    animation: fall linear infinite;
+  }
+  .meteor::after {
+    content: ''; position: absolute; right: -1px; top: -1.5px;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: radial-gradient(circle, #fff 0%, #cfe6ff 45%, rgba(96,165,250,0) 75%);
+    box-shadow:
+      0 0 8px 2px rgba(255,255,255,0.9),
+      0 0 16px 4px rgba(96,165,250,0.8),
+      0 0 28px 8px rgba(59,130,246,0.45);
+  }
+  @keyframes fall {
+    0%   { transform: rotate(45deg) translateX(-220px); opacity: 0; }
+    8%   { opacity: 1; }
+    55%  { opacity: 1; }
+    100% { transform: rotate(45deg) translateX(1200px); opacity: 0; }
+  }
+
+  /* 轻量闪烁星点（仅深色模式） */
+  html:not(.dark) #stars { display: none; }
+  #stars { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
+  .star {
+    position: absolute; border-radius: 50%;
+    background: #fff;
+    animation: twinkle ease-in-out infinite alternate;
+  }
+  @keyframes twinkle {
+    0%   { opacity: 0.15; transform: scale(0.8); }
+    100% { opacity: 0.9;  transform: scale(1.15); }
+  }
+
+  /* 无障碍：尊重系统「减少动态效果」偏好，关闭流星/星空与过渡 */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+    #meteors, #stars, #starfield { display: none !important; }
+  }
+
+  /* Layout */
+  .wrap { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+  .section { padding: 96px 0; }
+
+  /* Typography */
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 9999px;
+    border: 1px solid var(--border-subtle);
+    background: var(--card-border);
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+    backdrop-filter: blur(8px);
+  }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-blue); box-shadow: 0 0 8px var(--accent-blue); }
+  
+  .text-gradient {
+    background: linear-gradient(180deg, var(--grad-start) 0%, var(--grad-end) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 8px; border-radius: var(--radius-sm); padding: 12px 24px;
+    font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s ease;
+  }
+  .btn-primary {
+    background: var(--btn-primary-bg); color: var(--btn-primary-text); border: 1px solid transparent;
+  }
+  .btn-primary:hover {
+    background: var(--btn-primary-hover); transform: translateY(-1px);
+  }
+  .btn-secondary {
+    background: transparent; color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+  }
+  .btn-secondary:hover {
+    background: var(--card-border); border-color: var(--border-hover);
+  }
+
+  /* Navigation */
+  nav.wrap { padding: 32px 24px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .logo-text { font-weight: 700; font-size: 26px; letter-spacing: -0.03em; }
+  .nav-right { display: flex; gap: 12px; align-items: center; }
+
+  /* Hero */
+  .hero { text-align: center; padding: 100px 0 80px; }
+  .hero h1 { font-size: clamp(44px, 6vw, 72px); line-height: 1.1; margin: 24px 0; }
+  .hero p { max-width: 640px; margin: 0 auto 36px; font-size: 18px; color: var(--text-secondary); }
+  .hero-actions { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
+
+  /* Endpoints */
+  .endpoints { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 48px; }
+  .ep { 
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px; 
+    border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);
+    background: var(--card-bg); font-family: ui-monospace, monospace; font-size: 12px;
+  }
+  .ep .ep-label { color: var(--text-muted); font-size: 11px; margin-left: 4px; }
+
+  /* Stats */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; margin-top: 80px; }
+  .stat-card { background: var(--bg-main); padding: 32px 24px; text-align: center; }
+  .stat-card h3 { font-size: 32px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+  .stat-card p { font-size: 14px; color: var(--text-secondary); margin: 0; }
+
+  /* Section Headers */
+  .sec-header { text-align: center; margin-bottom: 64px; }
+  .sec-header h2 { font-size: clamp(32px, 4vw, 40px); margin: 16px 0; }
+  .sec-header p { color: var(--text-secondary); max-width: 600px; margin: 0 auto; font-size: 16px; }
+
+  /* Features */
+  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .card {
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: var(--radius-md); padding: 32px; transition: all 0.3s ease;
+  }
+  .card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+  .card-icon { 
+    width: 48px; height: 48px; border-radius: var(--radius-sm);
+    background: var(--card-border); border: 1px solid var(--border-subtle);
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+    margin-bottom: 24px; color: var(--text-primary);
+  }
+  .card h3 { font-size: 18px; margin-bottom: 12px; color: var(--text-primary); }
+  .card p { color: var(--text-secondary); font-size: 14px; line-height: 1.5; margin: 0; }
+
+  /* Filter & Groups */
+  .filter-bar { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 40px; }
+  .filter-btn {
+    background: transparent; border: 1px solid transparent; color: var(--text-secondary);
+    padding: 8px 16px; border-radius: 9999px; font-size: 14px; cursor: pointer; transition: 0.2s;
+  }
+  .filter-btn:hover { color: var(--text-primary); }
+  .filter-btn.active { background: var(--card-border); color: var(--text-primary); border-color: var(--border-subtle); }
+  
+  .groups-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .group-card {
+    display: flex; flex-direction: column;
+    background: var(--bg-main); border: 1px solid var(--card-border);
+    border-radius: var(--radius-md); padding: 24px; transition: 0.2s;
+  }
+  .group-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+  .group-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .group-title { font-weight: 600; font-size: 16px; color: var(--text-primary); }
+  .group-cat { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .group-ratio { text-align: right; }
+  .group-ratio strong { font-size: 18px; color: var(--text-primary); }
+  .group-ratio span { display: block; font-size: 11px; color: #EAB308; }
+  .group-desc { color: var(--text-secondary); font-size: 13px; flex-grow: 1; margin-bottom: 16px; line-height: 1.5; }
+  .group-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .g-tag { padding: 4px 8px; background: var(--card-border); border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 11px; color: var(--text-secondary); }
+  .g-tag.hot { color: #F87171; border-color: rgba(248, 113, 113, 0.2); }
+  .g-tag.deal { color: #EAB308; border-color: rgba(234, 179, 8, 0.2); }
+
+  .notice { text-align: center; margin-top: 32px; font-size: 13px; color: var(--text-muted); }
+
+  /* Pricing Tables */
+  .tables-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+  .table-box { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-main); }
+  .table-box h4 { padding: 16px 24px; font-size: 14px; background: var(--card-border); border-bottom: 1px solid var(--border-subtle); color: var(--text-primary); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+  th, td { padding: 12px 24px; border-bottom: 1px solid var(--border-subtle); }
+  th { font-weight: 500; color: var(--text-muted); }
+  td:last-child { text-align: right; font-family: ui-monospace, monospace; color: #EAB308; }
+  tr:last-child td { border-bottom: none; }
+
+  /* FAQ */
+  .faq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  details.faq { 
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-md); 
+    background: var(--bg-main); transition: 0.2s;
+  }
+  details.faq[open] { border-color: var(--border-hover); background: var(--card-border); }
+  details.faq summary {
+    padding: 20px 24px; cursor: pointer; font-size: 14px; font-weight: 500;
+    list-style: none; display: flex; justify-content: space-between; align-items: center;
+    color: var(--text-primary);
+  }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq summary::after {
+    content: '+'; font-size: 18px; color: var(--text-muted); transition: 0.3s;
+  }
+  details.faq[open] summary::after { transform: rotate(45deg); color: var(--text-primary); }
+  details.faq .a { padding: 0 24px 20px; font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+  details.faq .a code { background: var(--card-border); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+  /* Footer */
+  footer { border-top: 1px solid var(--border-subtle); padding: 64px 0 32px; margin-top: 80px; }
+  .foot-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; margin-bottom: 48px; }
+  .foot-brand { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: block; color: var(--text-primary); }
+  .foot-desc { color: var(--text-secondary); font-size: 14px; max-width: 400px; line-height: 1.6; }
+  .foot-col h5 { font-size: 13px; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 20px; }
+  .foot-col ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+  .foot-col ul a { color: var(--text-secondary); font-size: 14px; transition: 0.2s; }
+  .foot-col ul a:hover { color: var(--text-primary); }
+  .foot-bot { border-top: 1px solid var(--border-subtle); padding-top: 24px; display: flex; justify-content: space-between; color: var(--text-muted); font-size: 13px; flex-wrap: wrap; gap: 16px; }
+
+  @media(max-width: 900px) {
+    .features-grid, .groups-grid { grid-template-columns: repeat(2, 1fr); }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .tables-grid, .faq-grid { grid-template-columns: 1fr; }
+    .foot-grid { grid-template-columns: 1fr; }
+  }
+  @media(max-width: 600px) {
+    .features-grid, .groups-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: 1fr; gap: 1px; }
+    .hero h1 { font-size: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="stars"></div>
+<div id="meteors"></div>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+
+<nav class="wrap">
+  <div class="logo-text">君の星辰·AI</div>
+  <div class="nav-right">
+    <button id="lang-toggle" class="btn btn-secondary" style="padding: 8px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600;" aria-label="Switch Language">中 / EN</button>
+    <button id="theme-toggle" class="btn btn-secondary" style="padding: 8px; border-radius: 50%;" aria-label="Toggle Theme">
+      <svg id="moon-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      <svg id="sun-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+    </button>
+  </div>
+</nav>
+
+<section class="hero wrap">
+  <div class="badge"><span class="dot"></span><span data-i18n="badge">英国 · XINGCHEN NETWORK LIMITED</span></div>
+  <h1 class="text-gradient" data-i18n-html="hero_h1">跨越星辰的<br/>统一 AI API 网关</h1>
+  <p data-i18n="hero_p">提供统一、OpenAI 兼容的 API 接口，通过单一端点访问数百个模型。同一套代码，调用 GPT、Claude、Gemini、国产大模型与视频生图。</p>
+  <div class="hero-actions">
+    <a href="https://ai.centos.hk" target="_blank" class="btn btn-primary" data-i18n="hero_cta1">立即开始使用</a>
+    <a href="https://t.me/XingChen_AI" target="_blank" class="btn btn-secondary" data-i18n="hero_cta2">官方 Telegram</a>
+  </div>
+  <div class="endpoints">
+    <div class="ep"><code>ai.centos.hk</code><span class="ep-label" data-i18n="ep_main">主线路</span></div>
+    <div class="ep"><code>api.centos.hk</code><span class="ep-label" data-i18n="ep_eo">EO加速</span></div>
+    <div class="ep"><code>frapi.centos.hk</code><span class="ep-label" data-i18n="ep_opt">三网优化</span></div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card"><h3>1</h3><p data-i18n="stat1">统一端点</p></div>
+    <div class="stat-card"><h3>200+</h3><p data-i18n="stat2">支持模型</p></div>
+    <div class="stat-card"><h3>1:1</h3><p data-i18n="stat3">透明费率</p></div>
+    <div class="stat-card"><h3>24/7</h3><p data-i18n="stat4">高可用性</p></div>
+  </div>
+</section>
+
+<section id="features" class="section wrap">
+  <div class="sec-header">
+    <h2 data-i18n="feat_title">架构优势</h2>
+    <p data-i18n="feat_sub">为您的应用提供强大的底层基础设施，无缝集成主流 AI 服务。</p>
+  </div>
+  <div class="features-grid">
+    <div class="card">
+      <div class="card-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+      </div>
+      <h3 data-i18n="feat1_t">单 API，多模型</h3>
+      <p data-i18n="feat1_d">无需为每家供应商重复对接。同一套代码即可调用数百个业界顶尖模型。</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11.5V15"></path><path d="M12 8.5V11"></path><path d="M12 11a4 4 0 0 1 4 4"></path><path d="M12 11a4 4 0 0 0-4 4"></path><path d="M6 11.5V15"></path><circle cx="12" cy="7" r="1.5"></circle><circle cx="6" cy="16.5" r="1.5"></circle><circle cx="18" cy="16.5" r="1.5"></circle></svg>
+      </div>
+      <h3 data-i18n="feat2_t">智能路由调度</h3>
+      <p data-i18n="feat2_d">根据并发可用性、网络延迟和使用成本，自动为您选择最佳的上游提供商。</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+      </div>
+      <h3 data-i18n="feat3_t">OpenAI 零感兼容</h3>
+      <p data-i18n="feat3_d">完美适配 OpenAI 官方 SDK 与开源客户端，仅需修改 Base URL 即可无缝迁移。</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+      </div>
+      <h3 data-i18n="feat4_t">统一余额管理</h3>
+      <p data-i18n="feat4_d">一个账号、一个账单。所有模型共享账户余额，彻底告别繁琐的多平台充值。</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg>
+      </div>
+      <h3 data-i18n="feat5_t">官方 1:1 费率</h3>
+      <p data-i18n="feat5_d">严格按照官方 Token 计费标准，仅收取极少量的网关服务费，杜绝隐形加价。</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+      </div>
+      <h3 data-i18n="feat6_t">多节点边缘加速</h3>
+      <p data-i18n="feat6_d">结合 CF / EO 与三网优化端点，大幅降低跨境 API 调用的网络延迟。</p>
+    </div>
+  </div>
+</section>
+
+<section id="groups" class="section wrap">
+  <div class="sec-header">
+    <h2 data-i18n="grp_title">分组与计费</h2>
+    <p data-i18n="grp_sub">灵活的模型分组体系。按需选择不同级别的稳定性和价格，倍率越低价格越优。</p>
+  </div>
+  <div class="filter-bar" id="filters"></div>
+  <div class="groups-grid" id="groups-container"></div>
+  <p class="notice" data-i18n="grp_notice">注意：特惠与逆向分组无技术售后及退款保证。实际倍率以控制台为准。</p>
+</section>
+
+<section id="pricing" class="section wrap">
+  <div class="sec-header">
+    <h2 data-i18n="price_title">特色模型参考</h2>
+    <p data-i18n="price_sub">部分生图与视频模型单次调用价格参考。完整清单请查阅控制台定价页面。</p>
+  </div>
+  <div class="tables-grid">
+    <div class="table-box">
+      <h4 data-i18n="price_t1">生图模型 (单次)</h4>
+      <table>
+        <tr><th data-i18n="price_col_model">模型名称</th><th data-i18n="price_col_price">价格 (￥)</th></tr>
+        <tr><td>gemini-3-pro-image-preview</td><td>0.50</td></tr>
+        <tr><td>gemini-3.1-flash-image-preview</td><td>0.20</td></tr>
+        <tr><td>gpt-image-2</td><td>0.08</td></tr>
+      </table>
+    </div>
+    <div class="table-box">
+      <h4 data-i18n="price_t2">Seedance 视频 (1M Tokens)</h4>
+      <table>
+        <tr><th data-i18n="price_col_model">模型名称</th><th data-i18n="price_col_tier">梯度 (￥)</th></tr>
+        <tr><td>doubao-seedance-2-0</td><td>46 - 51</td></tr>
+        <tr><td>doubao-seedance-2-0-fast</td><td>22 - 37</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="faq" class="section wrap">
+  <div class="sec-header">
+    <h2 data-i18n="faq_title">常见问题</h2>
+    <p data-i18n="faq_sub">技术支持与常见错误排查指南。</p>
+  </div>
+  <div class="faq-grid" id="faq-container"></div>
+</section>
+
+<footer class="wrap">
+  <div class="foot-grid">
+    <div>
+      <span class="foot-brand">君の星辰·AI</span>
+      <p class="foot-desc" data-i18n="foot_desc">由英国 XINGCHEN NETWORK LIMITED 运营的 AI API 网关。提供统一、OpenAI 兼容的接口，面向专业开发者及技术团队。</p>
+    </div>
+    <div class="foot-col">
+      <h5 data-i18n="foot_platform">平台</h5>
+      <ul>
+        <li><a href="#features" data-i18n="feat_title">架构优势</a></li>
+        <li><a href="#groups" data-i18n="grp_title">分组与计费</a></li>
+        <li><a href="#pricing" data-i18n="foot_pricing">特色模型</a></li>
+        <li><a href="https://ai.centos.hk" target="_blank" data-i18n="foot_console">控制台入口</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h5 data-i18n="foot_resource">资源</h5>
+      <ul>
+        <li><a href="https://t.me/XingChen_AI" target="_blank" data-i18n="foot_tg_group">Telegram 交流群</a></li>
+        <li><a href="https://t.me/XingChenaiTG" target="_blank" data-i18n="foot_tg_channel">Telegram 频道</a></li>
+        <li><a href="#faq" data-i18n="foot_docs">帮助文档</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot-bot">
+    <span>© 2026 XINGCHEN NETWORK LIMITED. All rights reserved.</span>
+    <span data-i18n="foot_terms">使用即代表同意服务条款。</span>
+  </div>
+</footer>
+
+<script>
+/* ============ 国际化（中 / 英）============ */
+const I18N = {
+  zh: {
+    badge: '英国 · XINGCHEN NETWORK LIMITED',
+    hero_h1: '跨越星辰的<br/>统一 AI API 网关',
+    hero_p: '提供统一、OpenAI 兼容的 API 接口，通过单一端点访问数百个模型。同一套代码，调用 GPT、Claude、Gemini、国产大模型与视频生图。',
+    hero_cta1: '立即开始使用', hero_cta2: '官方 Telegram',
+    ep_main: '主线路', ep_eo: 'EO加速', ep_opt: '三网优化',
+    stat1: '统一端点', stat2: '支持模型', stat3: '透明费率', stat4: '高可用性',
+    feat_title: '架构优势', feat_sub: '为您的应用提供强大的底层基础设施，无缝集成主流 AI 服务。',
+    feat1_t: '单 API，多模型', feat1_d: '无需为每家供应商重复对接。同一套代码即可调用数百个业界顶尖模型。',
+    feat2_t: '智能路由调度', feat2_d: '根据并发可用性、网络延迟和使用成本，自动为您选择最佳的上游提供商。',
+    feat3_t: 'OpenAI 零感兼容', feat3_d: '完美适配 OpenAI 官方 SDK 与开源客户端，仅需修改 Base URL 即可无缝迁移。',
+    feat4_t: '统一余额管理', feat4_d: '一个账号、一个账单。所有模型共享账户余额，彻底告别繁琐的多平台充值。',
+    feat5_t: '官方 1:1 费率', feat5_d: '严格按照官方 Token 计费标准，仅收取极少量的网关服务费，杜绝隐形加价。',
+    feat6_t: '多节点边缘加速', feat6_d: '结合 CF / EO 与三网优化端点，大幅降低跨境 API 调用的网络延迟。',
+    grp_title: '分组与计费', grp_sub: '灵活的模型分组体系。按需选择不同级别的稳定性和价格，倍率越低价格越优。',
+    grp_notice: '注意：特惠与逆向分组无技术售后及退款保证。实际倍率以控制台为准。',
+    price_title: '特色模型参考', price_sub: '部分生图与视频模型单次调用价格参考。完整清单请查阅控制台定价页面。',
+    price_t1: '生图模型 (单次)', price_t2: 'Seedance 视频 (1M Tokens)',
+    price_col_model: '模型名称', price_col_price: '价格 (￥)', price_col_tier: '梯度 (￥)',
+    faq_title: '常见问题', faq_sub: '技术支持与常见错误排查指南。',
+    foot_desc: '由英国 XINGCHEN NETWORK LIMITED 运营的 AI API 网关。提供统一、OpenAI 兼容的接口，面向专业开发者及技术团队。',
+    foot_platform: '平台', foot_pricing: '特色模型', foot_console: '控制台入口',
+    foot_resource: '资源', foot_tg_group: 'Telegram 交流群', foot_tg_channel: 'Telegram 频道', foot_docs: '帮助文档',
+    foot_terms: '使用即代表同意服务条款。',
+    cat_all: '全部', cat_other: '其他',
+    ratio_auto: '自动', off_dynamic: '动态',
+    off_fmt: (r) => '约 ' + (r / 0.7).toFixed(1) + ' 折',
+  },
+  en: {
+    badge: 'UK · XINGCHEN NETWORK LIMITED',
+    hero_h1: 'A Unified AI API Gateway<br/>Across the Stars',
+    hero_p: 'A unified, OpenAI-compatible API — reach hundreds of models through a single endpoint. One codebase to call GPT, Claude, Gemini, Chinese LLMs, and image/video generation.',
+    hero_cta1: 'Get Started', hero_cta2: 'Official Telegram',
+    ep_main: 'Primary', ep_eo: 'EO CDN', ep_opt: 'Multi-ISP',
+    stat1: 'Unified Endpoint', stat2: 'Models', stat3: '1:1 Pricing', stat4: 'Availability',
+    feat_title: 'Architecture', feat_sub: 'Powerful infrastructure for your apps, seamlessly integrating mainstream AI services.',
+    feat1_t: 'One API, Many Models', feat1_d: 'No per-vendor integration. One codebase calls hundreds of top-tier models.',
+    feat2_t: 'Smart Routing', feat2_d: 'Automatically picks the best upstream by availability, latency and cost.',
+    feat3_t: 'OpenAI Compatible', feat3_d: 'Drop-in for the official OpenAI SDK and open-source clients — just change the Base URL.',
+    feat4_t: 'Unified Balance', feat4_d: 'One account, one bill. All models share a single balance — no more juggling top-ups.',
+    feat5_t: 'Official 1:1 Pricing', feat5_d: 'Billed strictly at official token rates plus a tiny gateway fee. No hidden markup.',
+    feat6_t: 'Edge Acceleration', feat6_d: 'CF / EO and multi-ISP endpoints greatly reduce cross-border API latency.',
+    grp_title: 'Groups & Pricing', grp_sub: 'A flexible model-group system. Pick the stability and price you need — lower ratio, lower cost.',
+    grp_notice: 'Note: Saver and reverse groups carry no support or refund guarantee. Actual ratios follow the console.',
+    price_title: 'Featured Models', price_sub: 'Reference per-call prices for selected image/video models. See the console pricing page for the full list.',
+    price_t1: 'Image Models (per call)', price_t2: 'Seedance Video (1M tokens)',
+    price_col_model: 'Model', price_col_price: 'Price (￥)', price_col_tier: 'Tiers (￥)',
+    faq_title: 'FAQ', faq_sub: 'Support and common error troubleshooting.',
+    foot_desc: 'An AI API gateway operated by XINGCHEN NETWORK LIMITED (UK). A unified, OpenAI-compatible interface for professional developers and teams.',
+    foot_platform: 'Platform', foot_pricing: 'Featured Models', foot_console: 'Console',
+    foot_resource: 'Resources', foot_tg_group: 'Telegram Group', foot_tg_channel: 'Telegram Channel', foot_docs: 'Docs',
+    foot_terms: 'By using the service you agree to the Terms of Service.',
+    cat_all: 'All', cat_other: 'Other',
+    ratio_auto: 'Auto', off_dynamic: 'Dynamic',
+    off_fmt: (r) => '~' + (100 / (r / 0.7)).toFixed(0) + '% off',
+  },
+};
+// 分类、标签的双语映射（key 为中文原值，保持数据层不变）
+const CAT_I18N = {
+  'Claude': { zh: 'Claude', en: 'Claude' },
+  'GPT/Codex': { zh: 'GPT/Codex', en: 'GPT/Codex' },
+  'Gemini': { zh: 'Gemini', en: 'Gemini' },
+  '国产': { zh: '国产', en: 'Chinese' },
+  '视频/生图': { zh: '视频/生图', en: 'Image/Video' },
+  '海外/其他': { zh: '海外/其他', en: 'Overseas' },
+  '其他': { zh: '其他', en: 'Other' },
+};
+const TAG_I18N = {
+  '自动切换': 'Auto-switch', '默认 MAX': 'Default MAX', '逆向': 'Reverse', '超低价': 'Ultra-low',
+  '速度优先': 'Speed-first', '高性价比': 'Best value', '官方号池': 'Official pool', '仅 Claude Code': 'Claude Code only',
+  '无限制': 'Unlimited', 'Claude Code': 'Claude Code', '官方直出': 'Direct official', 'Bedrock': 'Bedrock',
+  '仅 Codex': 'Codex only', '强推理': 'Strong reasoning', '代码生成': 'Code-gen', '官方渠道': 'Official', '多模态': 'Multimodal',
+  '原生格式': 'Native format', '推理': 'Reasoning', '百炼合作': 'Bailian', '中文优化': 'CN-optimized', '通义千问': 'Qwen',
+  '长文本': 'Long-context', '超长上下文': 'Ultra-long ctx', '实时信息': 'Real-time', '创意': 'Creative',
+  '官方接口': 'Official API', '极稳定': 'Very stable', '视频生成': 'Video-gen', '字节跳动': 'ByteDance',
+  '商业级': 'Commercial', '生图': 'Image-gen', '多模型': 'Multi-model',
+  'AWS Bedrock': 'AWS Bedrock',
+};
+let LANG = 'zh';
+function t(key){ const d = I18N[LANG] || I18N.zh; return (key in d) ? d[key] : (I18N.zh[key] != null ? I18N.zh[key] : key); }
+function catLabel(cat){ const m = CAT_I18N[cat]; return m ? (m[LANG] || m.zh) : cat; }
+function tagLabel(tag){ return LANG === 'en' ? (TAG_I18N[tag] || tag) : tag; }
+
+// 应用语言：更新静态文案 + 重渲染分组/FAQ；初始化阶段 render 函数可能尚未定义，做存在性判断
+function applyLang(lang){
+  LANG = (lang === 'en') ? 'en' : 'zh';
+  document.documentElement.setAttribute('lang', LANG === 'en' ? 'en' : 'zh-CN');
+  document.title = LANG === 'en'
+    ? '君の星辰·AI — Unified, OpenAI-compatible AI API Gateway'
+    : '君の星辰·AI — 跨越星辰的统一 AI API 网关';
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k = el.getAttribute('data-i18n'); const v = t(k);
+    if (typeof v === 'string') el.textContent = v;
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el=>{
+    const k = el.getAttribute('data-i18n-html'); const v = t(k);
+    if (typeof v === 'string') el.innerHTML = v; // 仅用于内置可信文案（如带 <br/> 的标题）
+  });
+  const lt = document.getElementById('lang-toggle');
+  if (lt) lt.textContent = LANG === 'en' ? 'EN / 中' : '中 / EN';
+  if (typeof renderFilters === 'function') renderFilters();
+  if (typeof renderGroups === 'function') renderGroups();
+  if (typeof renderFAQ === 'function') renderFAQ();
+}
+
+/* ============ 分组数据 ============ */
+const GROUPS=[
+  {n:'auto',cat:'Claude',r:'自动',d:'在可用的 Claude 分组中自动切换，默认 Claude MAX。倍率随之自动调整，请注意额度消耗。',de:'Automatically switches among available Claude groups, defaulting to Claude MAX. The ratio adjusts accordingly — mind your quota.',b:[['自动切换',''],['默认 MAX','']]},
+  {n:'Claude 特惠',ne:'Claude Saver',cat:'Claude',r:'0.1',d:'逆向渠道，无技术支持，极致性价比。',de:'Reverse channel, no tech support, extreme value for money.',b:[['逆向','hot'],['超低价','deal']]},
+  {n:'反重力CC',ne:'Antigravity CC',cat:'Claude',r:'0.7',d:'由谷歌反重力平台逆向，限制思考时间，成本与速度有优势。',de:'Reversed from Google Antigravity; limited thinking time, strong on cost and speed.',b:[['逆向','hot'],['速度优先','']]},
+  {n:'逆向CC',ne:'Reverse CC',cat:'Claude',r:'0.7',d:'逆向技术实现的 Claude 访问，体验接近官方但成本更低。',de:'Claude access via reverse engineering — near-official experience at lower cost.',b:[['逆向','hot'],['高性价比','']]},
+  {n:'Claude MAX',cat:'Claude',r:'1.1',d:'Claude 官方号池，仅允许在 Claude Code 中使用。',de:'Official Claude account pool, usable only within Claude Code.',b:[['官方号池',''],['仅 Claude Code','']]},
+  {n:'Claude MAX 无限制',ne:'Claude MAX Unlimited',cat:'Claude',r:'2',d:'Claude 官方号池，无使用场景限制。',de:'Official Claude account pool, no usage restrictions.',b:[['官方号池',''],['无限制','']]},
+  {n:'ClaudeCode-AWS',cat:'Claude',r:'2',d:'AWS Bedrock 渠道的 Claude Code 专用分组。',de:'Claude Code group dedicated to the AWS Bedrock channel.',b:[['AWS Bedrock',''],['Claude Code','']]},
+  {n:'AWS claude',ne:'AWS Claude',cat:'Claude',r:'3.5',d:'AWS Bedrock 官 key 直出，可用性随官方波动。',de:'Direct AWS Bedrock official keys; availability follows the provider.',b:[['官方直出',''],['Bedrock','']]},
+  {n:'claude api',ne:'Claude API',cat:'Claude',r:'3.5',d:'Anthropic 官 key 直出，稳定可靠。',de:'Direct Anthropic official keys — stable and reliable.',b:[['官方直出','']]},
+  {n:'gpt-pro',cat:'GPT/Codex',r:'0.3',d:'高级账号，更强推理、长上下文。仅限在 Codex 中使用。',de:'Premium accounts with stronger reasoning and long context. Codex only.',b:[['仅 Codex',''],['强推理','deal']]},
+  {n:'gpt-pro-fast',cat:'GPT/Codex',r:'0.6',d:'侧重返回速度与流畅体验。仅限在 Codex 中使用。',de:'Optimized for response speed and smooth experience. Codex only.',b:[['仅 Codex',''],['速度优先','']]},
+  {n:'codex 特惠',ne:'Codex Saver',cat:'GPT/Codex',r:'0.15',d:'提供极高性价比的代码生成服务。',de:'Highly cost-effective code-generation service.',b:[['超低价','deal'],['代码生成','']]},
+  {n:'gemini',cat:'Gemini',r:'1.3',d:'Google Gemini 系列，支持多模态。仅可使用 Gemini 原生格式接入。',de:'Google Gemini series with multimodal support. Native Gemini format only.',b:[['官方渠道',''],['多模态',''],['原生格式','']]},
+  {n:'DeepSeek',cat:'国产',r:'0.85',d:'高质量代码生成与推理能力。',de:'High-quality code generation and reasoning.',b:[['推理','']]},
+  {n:'MiniMax',cat:'国产',r:'0.85',d:'提供多模态 AI 服务。',de:'Multimodal AI services.',b:[['多模态','']]},
+  {n:'国模分组',ne:'Domestic Models',cat:'国产',r:'0.85',d:'国产模型整合分组，源于阿里云百炼平台合作。',de:'Aggregated domestic models, via the Aliyun Bailian partnership.',b:[['百炼合作','']]},
+  {n:'智谱GLM',ne:'Zhipu GLM',cat:'国产',r:'0.85',d:'高质量中文语言模型服务。',de:'High-quality Chinese LLM service.',b:[['中文优化','']]},
+  {n:'阿里云Qwen',ne:'Aliyun Qwen',cat:'国产',r:'0.65',d:'阿里云通义千问模型专用分组。',de:'Dedicated group for Aliyun Tongyi Qwen models.',b:[['通义千问','']]},
+  {n:'Kimi',cat:'国产',r:'0.85',d:'擅长长文本处理与文档分析，支持超长上下文。',de:'Great at long-text processing and document analysis with ultra-long context.',b:[['长文本',''],['超长上下文','']]},
+  {n:'小米Mimo',ne:'Xiaomi MiMo',cat:'国产',r:'0.85',d:'针对中文场景优化。',de:'Optimized for Chinese-language scenarios.',b:[['中文优化','']]},
+  {n:'X-AI',cat:'海外/其他',r:'0.6',d:'xAI Grok 专用分组，幽默风格与实时信息获取。',de:'Dedicated xAI Grok group — witty style and real-time info.',b:[['实时信息',''],['创意','']]},
+  {n:'OpenRouter',cat:'海外/其他',r:'8',d:'OpenRouter 官方接口，稳定性极佳。',de:'Official OpenRouter interface — excellent stability.',b:[['官方接口',''],['极稳定','']]},
+  {n:'海外-dreamina',ne:'Dreamina (Overseas)',cat:'视频/生图',r:'1.0',d:'字节跳动视频生成，支持文生/图生视频。',de:'ByteDance video generation — text-to-video and image-to-video.',b:[['视频生成',''],['字节跳动','']]},
+  {n:'火山视频',ne:'Volcengine Video',cat:'视频/生图',r:'0.88',d:'火山引擎视频生成，适合商业视频制作。',de:'Volcengine video generation, ideal for commercial production.',b:[['视频生成',''],['商业级','']]},
+  {n:'生图/视频',ne:'Image/Video',cat:'视频/生图',r:'1',d:'可用模型：gpt-image-2 等。',de:'Available models: gpt-image-2 and more.',b:[['生图',''],['多模型','']]},
+];
+const KNOWN_CATS=['Claude','GPT/Codex','Gemini','国产','视频/生图','海外/其他'];
+let CATS=['全部','Claude','GPT/Codex','Gemini','国产','视频/生图','海外/其他']; // 内部 key（中文），显示时经 catLabel 翻译
+let activeCat='全部';
+
+// HTML 转义：实时接口返回的分组名/描述均经此处理后再插入，纵深防御 XSS
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// 分组显示：名称/描述按语言切换；倍率与折扣实时计算
+function grpName(item){ return LANG==='en' ? (item.ne||item.n) : item.n; }
+function grpDesc(item){ return LANG==='en' ? (item.de||item.d) : item.d; }
+function grpRatioText(item){
+  if(item.r==='自动'||item.r==='Auto') return t('ratio_auto');
+  return '×'+item.r;
+}
+function grpOffText(item){
+  if(item.r==='自动'||item.r==='Auto') return t('off_dynamic');
+  const num=parseFloat(item.r);
+  if(isFinite(num)&&num>0) return t('off_fmt')(num);
+  return '';
+}
+
+function renderFilters(){
+  const f = document.getElementById('filters');
+  f.innerHTML = CATS.map(c=>{
+    const label = c==='全部' ? t('cat_all') : catLabel(c);
+    return `<button class="filter-btn ${c===activeCat?'active':''}" data-cat="${esc(c)}">${esc(label)}</button>`;
+  }).join('');
+  f.querySelectorAll('.filter-btn').forEach(b=>b.onclick=()=>setCat(b.dataset.cat));
+}
+window.setCat = function(c) {
+  activeCat = c;
+  renderFilters();
+  renderGroups();
+}
+function renderGroups(){
+  const list = activeCat==='全部' ? GROUPS : GROUPS.filter(g=>g.cat===activeCat);
+  const g = document.getElementById('groups-container');
+  g.innerHTML = list.map(item=>`
+    <div class="group-card">
+      <div class="group-header">
+        <div>
+          <div class="group-cat">${esc(catLabel(item.cat))}</div>
+          <div class="group-title">${esc(grpName(item))}</div>
+        </div>
+        <div class="group-ratio">
+          <strong>${esc(grpRatioText(item))}</strong>
+          <span>${esc(grpOffText(item))}</span>
+        </div>
+      </div>
+      <div class="group-desc">${esc(grpDesc(item))}</div>
+      <div class="group-tags">
+        ${item.b.map(([text, type])=>`<span class="g-tag ${type}">${esc(tagLabel(text))}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+renderFilters();
+renderGroups();
+
+/* ---------- 实时分组（只读公开接口，无需登录，不带 cookie） ----------
+   GET /api/user/groups 仅返回 {分组名:{ratio,desc}}，不含任何后台/密钥信息。
+   策略：已有精选分组的倍率用系统实时值覆盖，未知分组自动追加；接口失败则保留精选兜底。 */
+const IGNORE_GROUPS=['default','vip']; // new-api 内置占位分组，营销页不展示
+function fmtRatio(r){
+  if(typeof r==='number'&&isFinite(r)) return (Math.round(r*1000)/1000).toString();
+  return r; // 如 "自动"
+}
+function rebuildCats(){
+  const present=new Set(GROUPS.map(g=>g.cat));
+  const ordered=KNOWN_CATS.filter(c=>present.has(c));
+  const extras=[...present].filter(c=>!KNOWN_CATS.includes(c));
+  CATS=['全部',...ordered,...extras];
+}
+// 归一化：去空格/分隔符 + 去常见后缀 + 小写，用于名字不完全一致时的倍率覆盖匹配
+function normName(s){
+  return String(s==null?'':s)
+    .toLowerCase()
+    .replace(/[\s_\-·•・|/\\]+/g,'')
+    .replace(/(官方|专用|分组|渠道|系列|平台|模型)+$/g,'');
+}
+async function loadLiveGroups(){
+  try{
+    const res=await fetch('/api/user/groups',{headers:{'Accept':'application/json'},credentials:'omit'});
+    if(!res.ok) return;
+    const json=await res.json();
+    if(!json||json.success!==true||!json.data||typeof json.data!=='object') return;
+    const live=json.data;
+    const byName={};       // 精确名 -> 精选卡片
+    const byNorm={};        // 归一化名 -> 精选卡片（用于模糊覆盖）
+    GROUPS.forEach(g=>{ byName[g.n]=g; const k=normName(g.n); if(k&&!(k in byNorm)) byNorm[k]=g; });
+    let changed=false;
+    Object.keys(live).forEach(name=>{
+      if(IGNORE_GROUPS.includes(name)) return;
+      const info=live[name]||{};
+      const r=info.ratio;
+      // 1) 精确名命中 -> 覆盖倍率；2) 归一化名命中 -> 覆盖倍率（名字不完全一致也覆盖）；3) 都不中 -> 追加新分组
+      // 折扣由 grpOffText 按倍率实时计算，无需存储
+      const ex=byName[name]||byNorm[normName(name)];
+      if(ex){
+        ex.r=fmtRatio(r);
+        changed=true;
+      }else{
+        const ng={n:name,cat:'其他',r:fmtRatio(r),d:info.desc||'',de:info.desc||'',b:[]};
+        GROUPS.push(ng); byName[name]=ng; const k=normName(name); if(k&&!(k in byNorm)) byNorm[k]=ng; changed=true;
+      }
+    });
+    if(changed){ rebuildCats(); renderFilters(); renderGroups(); }
+  }catch(e){ /* 离线兜底：保留精选分组 */ }
+}
+loadLiveGroups();
+
+const FAQ=[
+  {q:'国产模型用什么协议？',a:'目前国产模型只提供 anthropic 协议。',qe:'Which protocol do Chinese models use?',ae:'For now, Chinese models are only available via the Anthropic protocol.'},
+  {q:'响应速度有时候过慢？',a:'推荐使用区域优化端点：<code>ai.centos.hk</code>(CF)、<code>api.centos.hk</code>(EO)、<code>frapi.centos.hk</code>(三网优化)。',qe:'Responses are sometimes slow?',ae:'Use a region-optimized endpoint: <code>ai.centos.hk</code> (CF), <code>api.centos.hk</code> (EO), or <code>frapi.centos.hk</code> (multi-ISP).'},
+  {q:'Token 是怎么计费的？',a:'严格按各提供商官方 token 价格 + 少量服务费透明计费。详见控制台定价页面。',qe:'How is billing calculated?',ae:'Strictly at each provider\'s official token price plus a small service fee. See the console pricing page.'},
+  {q:'使用 gemini 分组报错？',a:'请用原生格式请求 Google Gemini，不要用 OpenAI 格式；使用 cc switch 时 Base URL 后不需要加 v1。',qe:'Errors with the Gemini group?',ae:'Use the native Gemini format, not the OpenAI format; with cc switch, do not append v1 to the Base URL.'},
+  {q:'如何开发票？',a:'累计充值 1000￥ 以上可找群主开票，提供专票与普票。',qe:'How do I get an invoice?',ae:'After cumulative top-ups of ￥1000+, contact the group owner. Both special and general VAT invoices are available.'},
+  {q:'可以分发吗？',a:'可以。RPM200 以上需联系客服提供服务器 IP 加白名单，暂不支持代理 IP 加白名单。',qe:'Can I resell / distribute?',ae:'Yes. Above 200 RPM, contact support to whitelist your server IP. Proxy IPs cannot be whitelisted.'},
+  {q:'微软邮箱无法注册？',a:'支持 QQ / 网易 / 谷歌 / 苹果 / Foxmail 邮箱；因滥用问题，暂不支持微软邮箱。',qe:'Can\'t register with a Microsoft email?',ae:'QQ / NetEase / Google / Apple / Foxmail emails are supported. Microsoft email is unsupported due to abuse.'},
+  {q:'不想用了能退款吗？',a:'仅限 14 天内充值可退款（扣除 5% 手续费）。',qe:'Can I get a refund?',ae:'Refunds are available only for top-ups within 14 days (a 5% fee applies).'},
+  {q:'400 错误怎么办？',a:'请添加环境变量 <code>CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1</code>。',qe:'What about a 400 error?',ae:'Add the environment variable <code>CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1</code>.'},
+  {q:'401 Unauthorized？',a:'确认 API Key 与 Base URL 配置正确、是否有权限使用对应模型与供应商。',qe:'401 Unauthorized?',ae:'Verify your API Key and Base URL, and that you have access to the model and provider.'},
+  {q:'Codex 出现 403 Image generation？',a:'在 config 添加 <code>[features] image_generation = false</code>；若无效请改用 CLI。',qe:'403 Image generation in Codex?',ae:'Add <code>[features] image_generation = false</code> to your config; if that fails, use the CLI.'},
+  {q:'429 错误？',a:'缓存问题，先尝试新开对话，其次更换分组与模型。',qe:'429 error?',ae:'A caching issue — start a new conversation first, then try switching groups and models.'},
+  {q:'524 错误？',a:'对 IP 有 RPM 限制，未经许可禁止高并发。',qe:'524 error?',ae:'There is a per-IP RPM limit; high concurrency without permission is not allowed.'},
+  {q:'特惠分组老是不稳定？',a:'特惠分组无任何售后与退款，使用即为同意。',qe:'Saver groups are unstable?',ae:'Saver groups carry no support or refund — using them implies acceptance.'},
+];
+function renderFAQ(){
+  document.getElementById('faq-container').innerHTML = FAQ.map(f=>`
+    <details class="faq">
+      <summary>${LANG==='en'?f.qe:f.q}</summary>
+      <div class="a">${LANG==='en'?f.ae:f.a}</div>
+    </details>
+  `).join('');
+}
+renderFAQ();
+
+// Theme Toggle
+const themeToggleBtn = document.getElementById('theme-toggle');
+const sunIcon = document.getElementById('sun-icon');
+const moonIcon = document.getElementById('moon-icon');
+const htmlEl = document.documentElement;
+
+function updateThemeIcons() {
+  if (htmlEl.classList.contains('dark')) {
+    sunIcon.style.display = 'block';
+    moonIcon.style.display = 'none';
+  } else {
+    sunIcon.style.display = 'none';
+    moonIcon.style.display = 'block';
+  }
+}
+
+function setTheme(mode, persist) {
+  if (mode === 'light') {
+    htmlEl.classList.remove('dark');
+  } else {
+    htmlEl.classList.add('dark');
+  }
+  if (persist) localStorage.setItem('theme', mode);
+  updateThemeIcons();
+}
+
+// 是否嵌入在 new-api 宿主页（iframe）中 —— 嵌入时主题跟随宿主，不显示独立切换按钮
+const embedded = window.self !== window.top;
+
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'light' || savedTheme === 'dark') {
+  setTheme(savedTheme, false);
+} else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+  setTheme('light', false);
+} else {
+  setTheme('dark', false);
+}
+
+// 嵌入宿主时隐藏自带的明暗/语言切换按钮（由宿主统一控制）
+if (embedded && themeToggleBtn) themeToggleBtn.style.display = 'none';
+const langToggleBtn = document.getElementById('lang-toggle');
+if (embedded && langToggleBtn) langToggleBtn.style.display = 'none';
+
+themeToggleBtn.addEventListener('click', () => {
+  setTheme(htmlEl.classList.contains('dark') ? 'light' : 'dark', true);
+});
+
+/* ---------- 语言初始化与切换 ---------- */
+// 独立访问时：localStorage > 浏览器语言；嵌入时由宿主 postMessage 下发
+(function(){
+  let lang = localStorage.getItem('lang');
+  if (lang !== 'en' && lang !== 'zh') {
+    const nav = (navigator.language || 'zh').toLowerCase();
+    lang = nav.startsWith('zh') ? 'zh' : 'en';
+  }
+  applyLang(lang);
+})();
+if (langToggleBtn) {
+  langToggleBtn.addEventListener('click', () => {
+    const next = LANG === 'en' ? 'zh' : 'en';
+    localStorage.setItem('lang', next);
+    applyLang(next);
+  });
+}
+
+// 接收 new-api 宿主页通过 postMessage 下发的主题/语言，保持联动
+window.addEventListener('message', (e) => {
+  const d = e && e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.themeMode === 'dark' || d.themeMode === 'light') {
+    setTheme(d.themeMode, false); // 跟随宿主，不覆盖本地持久化偏好
+  }
+  if (typeof d.lang === 'string') {
+    applyLang(d.lang.toLowerCase().startsWith('zh') ? 'zh' : 'en');
+  }
+});
+
+// 向宿主页回传真实内容高度，便于父级 iframe 自适应高度，消除双滚动条
+(function(){
+  if (!embedded) return;
+  function postHeight() {
+    const h = Math.max(
+      document.body.scrollHeight, document.documentElement.scrollHeight,
+      document.body.offsetHeight, document.documentElement.offsetHeight
+    );
+    try { window.parent.postMessage({ xingchenHomeHeight: h }, '*'); } catch (_) {}
+  }
+  postHeight();
+  window.addEventListener('load', postHeight);
+  window.addEventListener('resize', postHeight);
+  if (window.ResizeObserver) {
+    new ResizeObserver(postHeight).observe(document.body);
+  }
+})();
+
+// Meteors —— 每颗略有差异（长度/速度/色相），更自然
+(function(){
+  const box = document.getElementById('meteors');
+  if (!box) return;
+  const N = 9;
+  const hues = ['rgba(96,165,250,', 'rgba(129,140,248,', 'rgba(56,189,248,']; // 蓝/靛/青
+  for(let i=0; i<N; i++){
+    const m = document.createElement('div');
+    m.className = 'meteor';
+    m.style.left = (Math.random() * 100) + '%';
+    m.style.top = (Math.random() * 80 - 25) + '%';
+    const dur = (Math.random() * 5 + 3.5).toFixed(2);
+    m.style.animationDuration = dur + 's';
+    m.style.animationDelay = (Math.random() * 6).toFixed(2) + 's';
+    // 长度与粗细微差
+    const len = (Math.random() * 120 + 160).toFixed(0);
+    m.style.width = len + 'px';
+    const glow = hues[i % hues.length];
+    m.style.filter = 'drop-shadow(0 0 6px ' + glow + '0.5))';
+    box.appendChild(m);
+  }
+})();
+
+// 闪烁星点
+(function(){
+  const box = document.getElementById('stars');
+  if (!box) return;
+  const N = 70;
+  for(let i=0; i<N; i++){
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = (Math.random() * 1.8 + 0.6).toFixed(2);
+    s.style.width = size + 'px';
+    s.style.height = size + 'px';
+    s.style.left = (Math.random() * 100) + '%';
+    s.style.top = (Math.random() * 100) + '%';
+    s.style.animationDuration = (Math.random() * 3 + 1.8).toFixed(2) + 's';
+    s.style.animationDelay = (Math.random() * 4).toFixed(2) + 's';
+    // 偶尔给星点一点冷色
+    if (Math.random() < 0.25) {
+      s.style.background = Math.random() < 0.5 ? '#bcd4ff' : '#a5b4fc';
+    }
+    box.appendChild(s);
+  }
+})();
+</script>
+</body>
+</html>

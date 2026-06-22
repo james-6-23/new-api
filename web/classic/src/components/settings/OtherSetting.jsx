@@ -48,6 +48,7 @@ const OtherSetting = () => {
     Footer: '',
     About: '',
     HomePageContent: '',
+    XingchenHomeEnabled: false,
   });
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -79,6 +80,7 @@ const OtherSetting = () => {
     SystemName: false,
     Logo: false,
     HomePageContent: false,
+    XingchenHomeEnabled: false,
     About: false,
     Footer: false,
     CheckUpdate: false,
@@ -199,6 +201,25 @@ const OtherSetting = () => {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
         HomePageContent: false,
+      }));
+    }
+  };
+  // 个性化设置 - 启用星辰首页
+  const submitXingchenHome = async (value) => {
+    try {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        XingchenHomeEnabled: true,
+      }));
+      await updateOption('XingchenHomeEnabled', value ? 'true' : 'false');
+      showSuccess(t('星辰首页设置已更新'));
+    } catch (error) {
+      console.error('星辰首页设置更新失败', error);
+      showError('星辰首页设置更新失败');
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        XingchenHomeEnabled: false,
       }));
     }
   };
@@ -325,7 +346,10 @@ const OtherSetting = () => {
       let newInputs = {};
       data.forEach((item) => {
         if (item.key in inputs) {
-          newInputs[item.key] = item.value;
+          newInputs[item.key] =
+            item.key === 'XingchenHomeEnabled'
+              ? item.value === 'true'
+              : item.value;
         }
       });
       setInputs(newInputs);
@@ -506,6 +530,21 @@ const OtherSetting = () => {
               >
                 {t('设置首页内容')}
               </Button>
+              <Form.Switch
+                label={t('启用君の星辰·AI 内置首页')}
+                field={'XingchenHomeEnabled'}
+                extraText={t(
+                  '开启后，首页将展示内置的「君の星辰·AI」星辰主题页面（含流星动效、分组与 FAQ），优先级高于上方首页内容。',
+                )}
+                onChange={(value) => {
+                  setInputs((inputs) => ({
+                    ...inputs,
+                    XingchenHomeEnabled: value,
+                  }));
+                  submitXingchenHome(value);
+                }}
+                loading={loadingInput['XingchenHomeEnabled']}
+              />
               <Form.TextArea
                 label={t('关于')}
                 placeholder={t(

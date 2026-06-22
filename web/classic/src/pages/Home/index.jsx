@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Typography,
@@ -74,6 +74,10 @@ const Home = () => {
   const [noticeVisible, setNoticeVisible] = useState(false);
   const isMobile = useIsMobile();
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
+  const xingchenHomeEnabled =
+    statusState?.status?.xingchen_home_enabled || false;
+  const xingchenIframeRef = useRef(null);
+  const [xingchenHeight, setXingchenHeight] = useState(0);
   const docsLink = statusState?.status?.docs_link || '';
   const serverAddress =
     statusState?.status?.server_address || `${window.location.origin}`;
@@ -148,6 +152,26 @@ const Home = () => {
     return () => clearInterval(timer);
   }, [endpointItems.length]);
 
+  // 内置星辰首页：接收 iframe 回传的内容高度以自适应，消除双滚动条
+  useEffect(() => {
+    if (!xingchenHomeEnabled) return;
+    const onMessage = (e) => {
+      const h = e?.data?.xingchenHomeHeight;
+      if (typeof h === 'number' && h > 0) setXingchenHeight(h);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [xingchenHomeEnabled]);
+
+  // 内置星辰首页：主题/语言变化时下发给 iframe，保持明暗联动
+  useEffect(() => {
+    if (!xingchenHomeEnabled) return;
+    const win = xingchenIframeRef.current?.contentWindow;
+    if (!win) return;
+    win.postMessage({ themeMode: actualTheme }, '*');
+    win.postMessage({ lang: i18n.language }, '*');
+  }, [xingchenHomeEnabled, actualTheme, i18n.language]);
+
   return (
     <div className='classic-page-fill classic-home-page w-full overflow-x-hidden'>
       <NoticeModal
@@ -155,7 +179,28 @@ const Home = () => {
         onClose={() => setNoticeVisible(false)}
         isMobile={isMobile}
       />
-      {homePageContentLoaded && homePageContent === '' ? (
+      {xingchenHomeEnabled ? (
+        <div className='classic-page-fill overflow-x-hidden w-full'>
+          <iframe
+            ref={xingchenIframeRef}
+            src='/xingchen-home.html'
+            title='君の星辰·AI'
+            className='w-full border-none block'
+            style={
+              xingchenHeight
+                ? { height: `${xingchenHeight}px` }
+                : { height: '100vh' }
+            }
+            scrolling='no'
+            onLoad={() => {
+              const win = xingchenIframeRef.current?.contentWindow;
+              if (!win) return;
+              win.postMessage({ themeMode: actualTheme }, '*');
+              win.postMessage({ lang: i18n.language }, '*');
+            }}
+          />
+        </div>
+      ) : homePageContentLoaded && homePageContent === '' ? (
         <div className='classic-home-default w-full overflow-x-hidden'>
           {/* Banner 部分 */}
           <div className='classic-home-hero w-full border-b border-semi-color-border relative overflow-x-hidden'>

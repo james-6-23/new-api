@@ -91,6 +91,9 @@ var TelegramOAuthEnabled = false
 var TurnstileCheckEnabled = false
 var RegisterEnabled = true
 
+// XingchenHomeEnabled 控制是否启用内置「君の星辰·AI」星辰首页（通过 iframe 嵌入 /xingchen-home.html）
+var XingchenHomeEnabled = false
+
 var EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
 var EmailAliasRestrictionEnabled = false  // 是否启用邮箱别名限制
 var EmailDomainWhitelist = []string{
