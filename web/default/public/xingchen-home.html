@@ -295,6 +295,56 @@
   .g-tag.hot { color: #F87171; border-color: rgba(248, 113, 113, 0.2); }
   .g-tag.deal { color: #EAB308; border-color: rgba(234, 179, 8, 0.2); }
 
+  /* 翻转卡片：正面=分组信息，背面=模型列表 */
+  .flip { perspective: 1200px; }
+  .flip-inner {
+    position: relative; width: 100%; min-height: 178px;
+    transition: transform 0.6s cubic-bezier(.2,.7,.2,1);
+    transform-style: preserve-3d;
+  }
+  .flip.flipped .flip-inner { transform: rotateY(180deg); }
+  .flip-face {
+    position: absolute; inset: 0;
+    -webkit-backface-visibility: hidden; backface-visibility: hidden;
+    display: flex; flex-direction: column;
+  }
+  .flip-back { transform: rotateY(180deg); }
+  .flip.flippable { cursor: pointer; }
+  .flip.flippable .flip-front::after {
+    content: '🔄'; position: absolute; right: 0; bottom: 0;
+    font-size: 12px; opacity: .35; transition: .2s;
+  }
+  .flip.flippable:hover .flip-front::after { opacity: .7; }
+  .back-head {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;
+  }
+  .back-head .back-btn { font-size: 12px; font-weight: 500; color: var(--text-muted); cursor: pointer; }
+  .back-head .back-btn:hover { color: var(--text-primary); }
+  .model-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 7px; flex-grow: 1; }
+  .model-list li {
+    font-size: 12.5px; color: var(--text-secondary);
+    font-family: ui-monospace, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding-left: 14px; position: relative;
+  }
+  .model-list li::before { content: '•'; position: absolute; left: 2px; color: var(--accent-blue); }
+  .more-models {
+    margin-top: 10px; font-size: 12.5px; font-weight: 600; color: var(--accent-blue);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .more-models:hover { text-decoration: underline; }
+
+  /* 待上线分组（无可用模型）：整卡降饱和 + 角标 */
+  .group-card.coming { opacity: .62; position: relative; }
+  .group-card.coming:hover { transform: none; border-color: var(--card-border); }
+  .group-ratio .soon {
+    display: inline-block; font-size: 13px; font-weight: 600;
+    padding: 3px 10px; border-radius: 9999px;
+    color: var(--text-secondary);
+    background: var(--card-border); border: 1px solid var(--border-subtle);
+  }
+  .group-ratio .soon::before { content: '🛠 '; font-size: 11px; }
+
   .notice { text-align: center; margin-top: 32px; font-size: 13px; color: var(--text-muted); }
 
   /* Pricing Tables */
@@ -359,7 +409,7 @@
 <div class="bg-glow"></div>
 
 <nav class="wrap">
-  <div class="logo-text">君の星辰·AI</div>
+  <div class="logo-text">君の星辰</div>
   <div class="nav-right">
     <button id="lang-toggle" class="btn btn-secondary" style="padding: 8px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600;" aria-label="Switch Language">中 / EN</button>
     <button id="theme-toggle" class="btn btn-secondary" style="padding: 8px; border-radius: 50%;" aria-label="Toggle Theme">
@@ -489,7 +539,7 @@
 <footer class="wrap">
   <div class="foot-grid">
     <div>
-      <span class="foot-brand">君の星辰·AI</span>
+      <span class="foot-brand">君の星辰</span>
       <p class="foot-desc" data-i18n="foot_desc">由英国 XINGCHEN NETWORK LIMITED 运营的 AI API 网关。提供统一、OpenAI 兼容的接口，面向专业开发者及技术团队。</p>
     </div>
     <div class="foot-col">
@@ -544,8 +594,11 @@ const I18N = {
     foot_resource: '资源', foot_tg_group: 'Telegram 交流群', foot_tg_channel: 'Telegram 频道', foot_docs: '帮助文档',
     foot_terms: '使用即代表同意服务条款。',
     cat_all: '全部', cat_other: '其他',
-    ratio_auto: '自动', off_dynamic: '动态',
-    off_fmt: (r) => '约 ' + (r / 0.7).toFixed(1) + ' 折',
+    ratio_auto: '自动', off_dynamic: '动态', coming_soon: '待上线',
+    models_title: '可用模型', back: '返回',
+    more_models: (n) => '查看全部 ' + n + ' 个模型 →',
+    no_models: '暂无可展示模型',
+    off_fmt: (r) => (r < 1 ? (Math.round(r * 1000) / 10) + ' 折' : ''),
   },
   en: {
     badge: 'UK · XINGCHEN NETWORK LIMITED',
@@ -572,8 +625,11 @@ const I18N = {
     foot_resource: 'Resources', foot_tg_group: 'Telegram Group', foot_tg_channel: 'Telegram Channel', foot_docs: 'Docs',
     foot_terms: 'By using the service you agree to the Terms of Service.',
     cat_all: 'All', cat_other: 'Other',
-    ratio_auto: 'Auto', off_dynamic: 'Dynamic',
-    off_fmt: (r) => '~' + (100 / (r / 0.7)).toFixed(0) + '% off',
+    ratio_auto: 'Auto', off_dynamic: 'Dynamic', coming_soon: 'Coming soon',
+    models_title: 'Models', back: 'Back',
+    more_models: (n) => 'View all ' + n + ' models →',
+    no_models: 'No models to show',
+    off_fmt: (r) => (r < 1 ? (Math.round(r * 1000) / 10) + '% of list' : ''),
   },
 };
 // 分类、标签的双语映射（key 为中文原值，保持数据层不变）
@@ -634,11 +690,11 @@ const GROUPS=[
   {n:'Claude MAX 无限制',ne:'Claude MAX Unlimited',cat:'Claude',r:'2',d:'Claude 官方号池，无使用场景限制。',de:'Official Claude account pool, no usage restrictions.',b:[['官方号池',''],['无限制','']]},
   {n:'ClaudeCode-AWS',cat:'Claude',r:'2',d:'AWS Bedrock 渠道的 Claude Code 专用分组。',de:'Claude Code group dedicated to the AWS Bedrock channel.',b:[['AWS Bedrock',''],['Claude Code','']]},
   {n:'AWS claude',ne:'AWS Claude',cat:'Claude',r:'3.5',d:'AWS Bedrock 官 key 直出，可用性随官方波动。',de:'Direct AWS Bedrock official keys; availability follows the provider.',b:[['官方直出',''],['Bedrock','']]},
-  {n:'claude api',ne:'Claude API',cat:'Claude',r:'3.5',d:'Anthropic 官 key 直出，稳定可靠。',de:'Direct Anthropic official keys — stable and reliable.',b:[['官方直出','']]},
+  {n:'claude api',ne:'Claude API',cat:'Claude',r:'3.5',d:'Anthropic 官 key 直出，稳定可靠。',de:'Direct Anthropic official keys — stable and reliable.',b:[['官方直出','']],models:['claude-opus-4-1','claude-sonnet-4-5','claude-3-7-sonnet','claude-3-5-haiku']},
   {n:'gpt-pro',cat:'GPT/Codex',r:'0.3',d:'高级账号，更强推理、长上下文。仅限在 Codex 中使用。',de:'Premium accounts with stronger reasoning and long context. Codex only.',b:[['仅 Codex',''],['强推理','deal']]},
   {n:'gpt-pro-fast',cat:'GPT/Codex',r:'0.6',d:'侧重返回速度与流畅体验。仅限在 Codex 中使用。',de:'Optimized for response speed and smooth experience. Codex only.',b:[['仅 Codex',''],['速度优先','']]},
   {n:'codex 特惠',ne:'Codex Saver',cat:'GPT/Codex',r:'0.15',d:'提供极高性价比的代码生成服务。',de:'Highly cost-effective code-generation service.',b:[['超低价','deal'],['代码生成','']]},
-  {n:'gemini',cat:'Gemini',r:'1.3',d:'Google Gemini 系列，支持多模态。仅可使用 Gemini 原生格式接入。',de:'Google Gemini series with multimodal support. Native Gemini format only.',b:[['官方渠道',''],['多模态',''],['原生格式','']]},
+  {n:'gemini',cat:'Gemini',r:'1.3',d:'Google Gemini 系列，支持多模态。仅可使用 Gemini 原生格式接入。',de:'Google Gemini series with multimodal support. Native Gemini format only.',b:[['官方渠道',''],['多模态',''],['原生格式','']],models:['gemini-3-pro','gemini-3-flash','gemini-3-pro-image-preview','gemini-3.1-flash-image-preview','gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash']},
   {n:'DeepSeek',cat:'国产',r:'0.85',d:'高质量代码生成与推理能力。',de:'High-quality code generation and reasoning.',b:[['推理','']]},
   {n:'MiniMax',cat:'国产',r:'0.85',d:'提供多模态 AI 服务。',de:'Multimodal AI services.',b:[['多模态','']]},
   {n:'国模分组',ne:'Domestic Models',cat:'国产',r:'0.85',d:'国产模型整合分组，源于阿里云百炼平台合作。',de:'Aggregated domestic models, via the Aliyun Bailian partnership.',b:[['百炼合作','']]},
@@ -649,8 +705,8 @@ const GROUPS=[
   {n:'X-AI',cat:'海外/其他',r:'0.6',d:'xAI Grok 专用分组，幽默风格与实时信息获取。',de:'Dedicated xAI Grok group — witty style and real-time info.',b:[['实时信息',''],['创意','']]},
   {n:'OpenRouter',cat:'海外/其他',r:'8',d:'OpenRouter 官方接口，稳定性极佳。',de:'Official OpenRouter interface — excellent stability.',b:[['官方接口',''],['极稳定','']]},
   {n:'海外-dreamina',ne:'Dreamina (Overseas)',cat:'视频/生图',r:'1.0',d:'字节跳动视频生成，支持文生/图生视频。',de:'ByteDance video generation — text-to-video and image-to-video.',b:[['视频生成',''],['字节跳动','']]},
-  {n:'火山视频',ne:'Volcengine Video',cat:'视频/生图',r:'0.88',d:'火山引擎视频生成，适合商业视频制作。',de:'Volcengine video generation, ideal for commercial production.',b:[['视频生成',''],['商业级','']]},
-  {n:'生图/视频',ne:'Image/Video',cat:'视频/生图',r:'1',d:'可用模型：gpt-image-2 等。',de:'Available models: gpt-image-2 and more.',b:[['生图',''],['多模型','']]},
+  {n:'火山视频',ne:'Volcengine Video',cat:'视频/生图',r:'0.88',d:'火山引擎视频生成，适合商业视频制作。',de:'Volcengine video generation, ideal for commercial production.',b:[['视频生成',''],['商业级','']],models:['doubao-seedance-2-0-260128','doubao-seedance-2-0-fast-260128']},
+  {n:'生图/视频',ne:'Image/Video',cat:'视频/生图',r:'1',d:'可用模型：gpt-image-2 等。',de:'Available models: gpt-image-2 and more.',b:[['生图',''],['多模型','']],models:['gpt-image-2','gemini-3-pro-image-preview','gemini-3.1-flash-image-preview']},
 ];
 const KNOWN_CATS=['Claude','GPT/Codex','Gemini','国产','视频/生图','海外/其他'];
 let CATS=['全部','Claude','GPT/Codex','Gemini','国产','视频/生图','海外/其他']; // 内部 key（中文），显示时经 catLabel 翻译
@@ -667,9 +723,8 @@ function grpRatioText(item){
   return '×'+item.r;
 }
 function grpOffText(item){
+  // 仅 auto 分组显示「动态」，其余只展示倍率，不再显示折扣（避免歧义）
   if(item.r==='自动'||item.r==='Auto') return t('off_dynamic');
-  const num=parseFloat(item.r);
-  if(isFinite(num)&&num>0) return t('off_fmt')(num);
   return '';
 }
 
@@ -686,27 +741,52 @@ window.setCat = function(c) {
   renderFilters();
   renderGroups();
 }
+const MODEL_LIMIT = 6; // 背面最多展示的模型数
 function renderGroups(){
   const list = activeCat==='全部' ? GROUPS : GROUPS.filter(g=>g.cat===activeCat);
   const g = document.getElementById('groups-container');
-  g.innerHTML = list.map(item=>`
-    <div class="group-card">
-      <div class="group-header">
-        <div>
-          <div class="group-cat">${esc(catLabel(item.cat))}</div>
-          <div class="group-title">${esc(grpName(item))}</div>
+  g.innerHTML = list.map(item=>{
+    const models = Array.isArray(item.models) ? item.models : [];
+    const hasModels = models.length > 0;
+    const shown = models.slice(0, MODEL_LIMIT);
+    const backInner = hasModels
+      ? `<div class="back-head"><span>${esc(t('models_title'))}</span><span class="back-btn">↩ ${esc(t('back'))}</span></div>
+         <ul class="model-list">${shown.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>
+         ${models.length>MODEL_LIMIT ? `<a class="more-models" href="/pricing">${esc(t('more_models')(models.length))}</a>` : ''}`
+      : `<div class="back-head"><span>${esc(t('models_title'))}</span><span class="back-btn">↩ ${esc(t('back'))}</span></div>
+         <ul class="model-list"><li style="padding-left:0">${esc(t('no_models'))}</li></ul>`;
+    return `
+    <div class="group-card flip${item.coming?' coming':''}${hasModels?' flippable':''}" data-group="${esc(item.n)}">
+      <div class="flip-inner">
+        <div class="flip-face flip-front">
+          <div class="group-header">
+            <div>
+              <div class="group-cat">${esc(catLabel(item.cat))}</div>
+              <div class="group-title">${esc(grpName(item))}</div>
+            </div>
+            <div class="group-ratio">
+              ${item.coming
+                ? `<span class="soon">${esc(t('coming_soon'))}</span>`
+                : `<strong>${esc(grpRatioText(item))}</strong><span>${esc(grpOffText(item))}</span>`}
+            </div>
+          </div>
+          <div class="group-desc">${esc(grpDesc(item))}</div>
+          <div class="group-tags">
+            ${item.b.map(([text, type])=>`<span class="g-tag ${type}">${esc(tagLabel(text))}</span>`).join('')}
+          </div>
         </div>
-        <div class="group-ratio">
-          <strong>${esc(grpRatioText(item))}</strong>
-          <span>${esc(grpOffText(item))}</span>
-        </div>
+        <div class="flip-face flip-back">${backInner}</div>
       </div>
-      <div class="group-desc">${esc(grpDesc(item))}</div>
-      <div class="group-tags">
-        ${item.b.map(([text, type])=>`<span class="g-tag ${type}">${esc(tagLabel(text))}</span>`).join('')}
-      </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+
+  // 点击可翻转卡片：正反互翻；点击「查看全部」链接不触发翻转
+  g.querySelectorAll('.group-card.flippable').forEach(card=>{
+    card.addEventListener('click', (e)=>{
+      if (e.target.closest('a.more-models')) return; // 让链接正常跳转
+      card.classList.toggle('flipped');
+    });
+  });
 }
 renderFilters();
 renderGroups();
@@ -734,7 +814,7 @@ function normName(s){
 }
 async function loadLiveGroups(){
   try{
-    const res=await fetch('/api/user/groups',{headers:{'Accept':'application/json'},credentials:'omit'});
+    const res=await fetch('/api/user/groups?_='+Date.now(),{headers:{'Accept':'application/json'},credentials:'omit',cache:'no-store'});
     if(!res.ok) return;
     const json=await res.json();
     if(!json||json.success!==true||!json.data||typeof json.data!=='object') return;
@@ -761,7 +841,75 @@ async function loadLiveGroups(){
     if(changed){ rebuildCats(); renderFilters(); renderGroups(); }
   }catch(e){ /* 离线兜底：保留精选分组 */ }
 }
-loadLiveGroups();
+// 初次加载在轮询驱动里统一触发（见 loadLivePricing 之后）
+
+/* ---------- 实时模型数量 → 标记「待上线」 + 同步倍率 ----------
+   GET /api/pricing（公开只读）返回模型列表与 group_ratio。
+   - 统计每个分组实际挂载的模型数；模型数为 0 的分组标记为「待上线」
+   - 同时用 group_ratio 再次校准倍率（与 /api/user/groups 互为补充）
+   注意：auto 分组按动态处理，不参与待上线判断。 */
+async function loadLivePricing(){
+  try{
+    const res=await fetch('/api/pricing?_='+Date.now(),{headers:{'Accept':'application/json'},credentials:'omit',cache:'no-store'});
+    if(!res.ok) return;
+    const json=await res.json();
+    if(!json||json.success!==true) return;
+    const pricing=Array.isArray(json.data)?json.data:[];
+    const groupRatio=(json.group_ratio&&typeof json.group_ratio==='object')?json.group_ratio:{};
+
+    // 统计每个分组的模型数 + 收集模型名（按 enable_groups）
+    const modelCount={}, modelNames={};
+    pricing.forEach(p=>{
+      const gs=Array.isArray(p.enable_groups)?p.enable_groups:[];
+      gs.forEach(g=>{
+        modelCount[g]=(modelCount[g]||0)+1;
+        (modelNames[g]=modelNames[g]||[]).push(p.model_name);
+      });
+    });
+
+    // 系统「已知分组」= group_ratio 的键 ∪ 出现在模型 enable_groups 里的分组
+    const knownGroups=new Set([...Object.keys(groupRatio),...Object.keys(modelCount)]);
+    // 归一化索引：归一名 -> 是否已知 / 模型数 / 模型名 / 倍率
+    const normKnown=new Set(), normCount={}, normNames={}, normRatio={};
+    knownGroups.forEach(g=>{ const k=normName(g); if(k) normKnown.add(k); });
+    Object.keys(modelCount).forEach(g=>{ const k=normName(g); if(k) normCount[k]=(normCount[k]||0)+modelCount[g]; });
+    Object.keys(modelNames).forEach(g=>{ const k=normName(g); if(k){ normNames[k]=(normNames[k]||[]).concat(modelNames[g]); } });
+    Object.keys(groupRatio).forEach(g=>{ const k=normName(g); if(k && !(k in normRatio)) normRatio[k]=groupRatio[g]; });
+
+    let changed=false;
+    GROUPS.forEach(item=>{
+      const k=normName(item.n);
+      // 模型名：精确名优先，其次归一化（auto 也收集，便于翻面展示）
+      const names = (item.n in modelNames) ? modelNames[item.n] : (normNames[k] || undefined);
+      if(names){ const arr=[...new Set(names)].sort(); if(JSON.stringify(arr)!==JSON.stringify(item.models||[])){ item.models=arr; changed=true; } }
+      if(item.n==='auto') return; // auto 动态，不判待上线
+      const isKnown = knownGroups.has(item.n) || normKnown.has(k);
+      // 倍率校准（若 pricing 提供了该分组倍率）
+      const gr = (item.n in groupRatio) ? groupRatio[item.n] : (k in normRatio ? normRatio[k] : undefined);
+      if(typeof gr==='number' && isFinite(gr)){ const nr=fmtRatio(gr); if(nr!==item.r){ item.r=nr; changed=true; } }
+      // 只有当该分组确实是系统已知分组时才判定上线状态，避免误标精选里的占位分组
+      if(isKnown){
+        const cnt = (item.n in modelCount) ? modelCount[item.n] : (normCount[k]||0);
+        const coming = cnt===0;
+        if(coming!==!!item.coming){ item.coming=coming; changed=true; }
+        // 线上确认无模型 → 清空兜底模型列表，避免「待上线」却仍可翻出模型
+        if(coming && item.models && item.models.length){ item.models=[]; changed=true; }
+      }
+    });
+    if(changed){ renderGroups(); }
+  }catch(e){ /* 接口不可用则忽略，不影响展示 */ }
+}
+
+/* ---------- 实时刷新驱动 ----------
+   1) 立即拉一次；2) 每 60s 轮询，让停留在首页的访客也能看到后台倍率/上线状态变化；
+   3) 页面切回前台（visibilitychange）时立即补拉一次，避免长时间后台后数据陈旧。
+   接口均带时间戳防缓存（绕开 CDN），且只读、不带 cookie。 */
+function refreshLiveData(){ loadLiveGroups(); loadLivePricing(); }
+refreshLiveData();
+setInterval(() => { if (document.visibilityState !== 'hidden') refreshLiveData(); }, 60000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshLiveData();
+});
 
 const FAQ=[
   {q:'国产模型用什么协议？',a:'目前国产模型只提供 anthropic 协议。',qe:'Which protocol do Chinese models use?',ae:'For now, Chinese models are only available via the Anthropic protocol.'},
