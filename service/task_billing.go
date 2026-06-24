@@ -43,6 +43,15 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		other["model_ratio"] = info.PriceData.ModelRatio
 	}
 	other["group_ratio"] = info.PriceData.GroupRatioInfo.GroupRatio
+	if vb := info.PriceData.VideoBilling; vb != nil {
+		other["video_resolution_tier"] = vb.ResolutionTier
+		other["video_has_input"] = vb.HasVideoInput
+		if info.PriceData.ModelRatio > 0 {
+			other["video_unit_price"] = info.PriceData.ModelRatio * 2.0 * vb.PricingRatio
+		} else {
+			other["video_unit_price"] = vb.BaseUnitUSDPerM * vb.PricingRatio
+		}
+	}
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
@@ -128,6 +137,20 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		if len(bc.OtherRatios) > 0 {
 			for k, v := range bc.OtherRatios {
 				other[k] = v
+			}
+		}
+		if vb := bc.VideoBilling; vb != nil {
+			other["video_resolution_tier"] = vb.ResolutionTier
+			other["video_has_input"] = vb.HasVideoInput
+			// 有效单价(含管理员加价)= 基准单价 × 倍率 × (modelRatio / (基准单价/2))
+			// 简化:有效单价 = modelRatio * 2 * PricingRatio
+			if bc.ModelRatio > 0 {
+				other["video_unit_price"] = bc.ModelRatio * 2.0 * vb.PricingRatio
+			} else {
+				other["video_unit_price"] = vb.BaseUnitUSDPerM * vb.PricingRatio
+			}
+			if vb.VideoTokens > 0 {
+				other["video_tokens"] = vb.VideoTokens
 			}
 		}
 	}
@@ -313,6 +336,10 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 
 	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * otherMultiplier
 	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
+
+	if bc != nil && bc.VideoBilling != nil {
+		bc.VideoBilling.VideoTokens = totalTokens
+	}
 
 	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason)
