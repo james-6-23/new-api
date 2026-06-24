@@ -1,6 +1,14 @@
 package doubao
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
+
+	"github.com/gin-gonic/gin"
+)
 
 // dreaminaUnitPrice 官方海外定价矩阵：USD / 百万 token。
 // 维度：model → 分辨率档位("base"=480p/720p, "1080p", "4k") → 是否含视频输入。
@@ -68,4 +76,61 @@ func DreaminaPricingRatio(model, tier string, hasVideo bool) (ratio, baseUnit fl
 		return 0, 0, false
 	}
 	return unit / base, base, true
+}
+
+// resolutionFromMetadata 从 task metadata 读取 resolution 字段(纯 map，便于单测)。
+func resolutionFromMetadata(metadata map[string]interface{}) string {
+	if metadata == nil {
+		return ""
+	}
+	if v, ok := metadata["resolution"].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// detectDreaminaResolution 优先取 metadata.resolution，回退扫描 raw body 顶层 resolution。
+func detectDreaminaResolution(c *gin.Context, metadata map[string]interface{}) string {
+	if s := resolutionFromMetadata(metadata); s != "" {
+		return s
+	}
+	if c == nil {
+		return ""
+	}
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return ""
+	}
+	raw, err := storage.Bytes()
+	if err != nil || len(raw) == 0 {
+		return ""
+	}
+	var top struct {
+		Resolution string `json:"resolution"`
+	}
+	if err := common.Unmarshal(raw, &top); err == nil {
+		return top.Resolution
+	}
+	return ""
+}
+
+// dreaminaVideoBilling 聚合：检测含视频输入 + 分辨率档位 → 计费倍率与展示快照。
+func dreaminaVideoBilling(c *gin.Context, info *relaycommon.RelayInfo) (float64, types.VideoBillingDisplay, bool) {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return 0, types.VideoBillingDisplay{}, false
+	}
+	hasVideo := hasVideoInMetadata(req.Metadata)
+	tier := ClassifyResTier(detectDreaminaResolution(c, req.Metadata))
+	ratio, baseUnit, ok := DreaminaPricingRatio(info.OriginModelName, tier, hasVideo)
+	if !ok {
+		return 0, types.VideoBillingDisplay{}, false
+	}
+	disp := types.VideoBillingDisplay{
+		ResolutionTier:  tier,
+		HasVideoInput:   hasVideo,
+		BaseUnitUSDPerM: baseUnit,
+		PricingRatio:    ratio,
+	}
+	return ratio, disp, true
 }

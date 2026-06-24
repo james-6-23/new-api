@@ -145,6 +145,18 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 
 // EstimateBilling 检测请求 metadata 中是否包含视频输入，返回视频折扣 OtherRatio。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	if IsDreaminaSeedance2(info.OriginModelName) {
+		ratio, disp, ok := dreaminaVideoBilling(c, info)
+		if !ok {
+			return nil
+		}
+		d := disp
+		info.PriceData.VideoBilling = &d
+		if ratio != 1.0 {
+			return map[string]float64{"video_pricing": ratio}
+		}
+		return nil
+	}
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil

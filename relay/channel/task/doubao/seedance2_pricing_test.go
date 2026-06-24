@@ -85,3 +85,13 @@ func TestDreaminaPricingRatio(t *testing.T) {
 		t.Fatalf("base ratio=%v want 1", r0)
 	}
 }
+
+func TestDreaminaResolutionFromMetadata(t *testing.T) {
+	md := map[string]interface{}{"resolution": "4k"}
+	if got := resolutionFromMetadata(md); ClassifyResTier(got) != "4k" {
+		t.Fatalf("metadata resolution=%q tier=%q want 4k", got, ClassifyResTier(got))
+	}
+	if got := resolutionFromMetadata(map[string]interface{}{}); got != "" {
+		t.Fatalf("empty metadata want empty, got %q", got)
+	}
+}
