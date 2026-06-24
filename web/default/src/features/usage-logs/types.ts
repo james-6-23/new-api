@@ -198,6 +198,10 @@ export interface LogOtherData {
   reject_reason?: string
   // Task-related fields (for refund logs, type=6)
   is_task?: boolean
+  video_resolution_tier?: string
+  video_has_input?: boolean
+  video_unit_price?: number
+  video_tokens?: number
   task_id?: string
   reason?: string
   // Subscription billing fields

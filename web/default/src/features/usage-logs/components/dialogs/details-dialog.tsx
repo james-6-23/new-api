@@ -398,6 +398,62 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   )
 }
 
+function VideoPricingBreakdown(props: { log: UsageLog; other: LogOtherData }) {
+  const { t } = useTranslation()
+  const { log, other } = props
+  const unit = other.video_unit_price
+  if (unit == null || !Number.isFinite(unit)) return null
+
+  const tokens = other.video_tokens || log.completion_tokens || 0
+  const gr =
+    other.user_group_ratio != null &&
+    Number.isFinite(other.user_group_ratio) &&
+    other.user_group_ratio !== -1
+      ? other.user_group_ratio
+      : (other.group_ratio ?? 1)
+  const fmtPrice = (usd: number) =>
+    formatBillingCurrencyFromUSD(usd, {
+      digitsLarge: 4,
+      digitsSmall: 6,
+      abbreviate: false,
+    })
+
+  const tierLabelMap: Record<string, string> = {
+    base: t('480p / 720p'),
+    '1080p': '1080p',
+    '4k': '4K',
+  }
+
+  const rows: Array<{ label: string; value: string }> = []
+  if (other.video_resolution_tier) {
+    rows.push({
+      label: t('Resolution Tier'),
+      value: tierLabelMap[other.video_resolution_tier] ?? other.video_resolution_tier,
+    })
+  }
+  rows.push({
+    label: t('Video Input'),
+    value: other.video_has_input ? t('Yes') : t('No'),
+  })
+  rows.push({ label: t('Unit Price'), value: `${fmtPrice(unit)}/M` })
+  if (tokens > 0) {
+    rows.push({ label: t('Billed Tokens'), value: tokens.toLocaleString() })
+  }
+  rows.push({ label: t('Group Ratio'), value: `${gr.toFixed(4)}x` })
+
+  // 计费公式：单价/M × tokens ÷ 1,000,000 × 分组倍率 = 费用
+  const formula = `${fmtPrice(unit)}/M × ${tokens.toLocaleString()} ÷ 1,000,000 × ${gr.toFixed(4)} = ${formatLogQuota(log.quota)}`
+
+  return (
+    <DetailSection label={t('Video Pricing')}>
+      {rows.map((row, idx) => (
+        <DetailRow key={idx} label={row.label} value={row.value} mono />
+      ))}
+      <DetailRow label={t('Billing Formula')} value={formula} mono />
+    </DetailSection>
+  )
+}
+
 interface DetailsDialogProps {
   log: UsageLog
   isAdmin: boolean
@@ -966,6 +1022,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
               other={other}
               isAdmin={props.isAdmin}
             />
+          )}
+
+          {/* Video pricing breakdown (dreamina-seedance2 etc.) */}
+          {isConsume && other && !isViolation && (
+            <VideoPricingBreakdown log={props.log} other={other} />
           )}
 
           {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
