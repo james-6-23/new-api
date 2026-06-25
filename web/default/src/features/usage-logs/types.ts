@@ -202,6 +202,7 @@ export interface LogOtherData {
   video_has_input?: boolean
   video_unit_price?: number
   video_tokens?: number
+  actual_quota?: number
   task_id?: string
   reason?: string
   // Subscription billing fields

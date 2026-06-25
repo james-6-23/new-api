@@ -441,15 +441,24 @@ function VideoPricingBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   }
   rows.push({ label: t('Group Ratio'), value: `${gr.toFixed(4)}x` })
 
-  // 计费公式：单价/M × tokens ÷ 1,000,000 × 分组倍率 = 费用
-  const formula = `${fmtPrice(unit)}/M × ${tokens.toLocaleString()} ÷ 1,000,000 × ${gr.toFixed(4)} = ${formatLogQuota(log.quota)}`
+  // 计费公式仅在有真实 token 数量且有完整费用锚点时渲染。
+  // PRE-CONSUME 行：tokens=0 且 actual_quota 缺失 → 不渲染，避免左右不一致。
+  // SETTLEMENT DELTA 行：actual_quota 为完整费用，tokens 完整 → 渲染并一致。
+  const fullQuota = other.actual_quota ?? log.quota
+  const showFormula = tokens > 0 && other.actual_quota != null
 
   return (
     <DetailSection label={t('Video Pricing')}>
       {rows.map((row, idx) => (
         <DetailRow key={idx} label={row.label} value={row.value} mono />
       ))}
-      <DetailRow label={t('Billing Formula')} value={formula} mono />
+      {showFormula && (
+        <DetailRow
+          label={t('Billing Formula')}
+          value={`${fmtPrice(unit)}/M × ${tokens.toLocaleString()} ÷ 1,000,000 × ${gr.toFixed(4)} = ${formatLogQuota(fullQuota)}`}
+          mono
+        />
+      )}
     </DetailSection>
   )
 }
