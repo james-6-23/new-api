@@ -37,4 +37,27 @@ func TestWriteBillSummarySheet_ValuesAndTotals(t *testing.T) {
 	if prompt != "12" {
 		t.Fatalf("prompt cell = %q, want 12", prompt)
 	}
+
+	// totals row (row 3)
+	totalDay, _ := f.GetCellValue(billSummarySheetPrefix, "A3")
+	if totalDay != "合计" {
+		t.Fatalf("A3 = %q, want 合计", totalDay)
+	}
+	totalUSD, _ := f.GetCellValue(billSummarySheetPrefix, "F3")
+	wantTotalUSD := formatPrice(1500 / common.QuotaPerUnit)
+	if totalUSD != wantTotalUSD {
+		t.Fatalf("F3 (total USD) = %q, want %q", totalUSD, wantTotalUSD)
+	}
+	totalPrompt, _ := f.GetCellValue(billSummarySheetPrefix, "I3")
+	if totalPrompt != "12" {
+		t.Fatalf("I3 (total prompt tokens) = %q, want 12", totalPrompt)
+	}
+	totalCRead, _ := f.GetCellValue(billSummarySheetPrefix, "K3")
+	if totalCRead != "5" {
+		t.Fatalf("K3 (total cache read tokens) = %q, want 5", totalCRead)
+	}
+	totalCCreat, _ := f.GetCellValue(billSummarySheetPrefix, "L3")
+	if totalCCreat != "3" {
+		t.Fatalf("L3 (total cache creation tokens) = %q, want 3", totalCCreat)
+	}
 }

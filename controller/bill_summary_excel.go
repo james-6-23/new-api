@@ -121,7 +121,7 @@ func writeBillSummarySheet(f *excelize.File, agg *billSummaryAgg, exchangeRate f
 	// 合计行
 	totalRow := []any{
 		"合计", "", "", "", "",
-		formatPrice(roundTo6(totalUSD)), "", formatPrice(roundTo6(totalCNY)),
+		formatPrice(totalUSD), "", formatPrice(totalCNY),
 		sumPrompt, sumComp, sumCRead, sumCCreat,
 	}
 	cell, err := excelize.CoordinatesToCellName(1, rowInSt+1)
