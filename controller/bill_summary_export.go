@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -92,8 +93,7 @@ func runBillExport(c *gin.Context, p billExportParams,
 		return
 	}
 
-	_ = f.DeleteSheet("Sheet1")
-	f.SetActiveSheet(0)
+	finalizeBillWorkbook(f)
 
 	if truncated {
 		c.Writer.Header().Set("X-Export-Truncated", "1")
@@ -105,7 +105,7 @@ func runBillExport(c *gin.Context, p billExportParams,
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.WriteHeader(http.StatusOK)
 	if err := f.Write(c.Writer); err != nil {
-		common.SysError("failed to write bill summary xlsx: " + err.Error())
+		common.SysError(fmt.Sprintf("bill summary xlsx write failed uid=%d: %v", c.GetInt("id"), err))
 	}
 }
 
@@ -132,4 +132,16 @@ func ExportBillSummarySelf(c *gin.Context) {
 		return model.GetUserLogsForExport(userId, model.LogTypeConsume, p.startTimestamp, p.endTimestamp,
 			p.modelName, p.tokenName, p.group, "", maxRows, consume)
 	})
+}
+
+// finalizeBillWorkbook removes the default Sheet1 and makes the summary sheet
+// the active/first tab. Detail sheets are created before the summary sheet, so
+// after Sheet1 is deleted the summary must be located by name, not index 0.
+func finalizeBillWorkbook(f *excelize.File) {
+	if err := f.DeleteSheet("Sheet1"); err != nil {
+		common.SysLog("bill export: delete default sheet: " + err.Error())
+	}
+	if idx, err := f.GetSheetIndex(billSummarySheetPrefix); err == nil && idx >= 0 {
+		f.SetActiveSheet(idx)
+	}
 }
