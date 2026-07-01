@@ -27,6 +27,7 @@ type billDetailWriter struct {
 	headerID   int
 	wrapID     int
 	modelHdrID int
+	softCap    int
 
 	curDay string
 	buffer []*model.Log
@@ -48,7 +49,11 @@ func newBillDetailWriter(f *excelize.File, splitModel bool) (*billDetailWriter, 
 	if err != nil {
 		return nil, err
 	}
-	return &billDetailWriter{f: f, splitModel: splitModel, headerID: headerID, wrapID: wrapID, modelHdrID: modelHdrID}, nil
+	return &billDetailWriter{
+		f: f, splitModel: splitModel,
+		headerID: headerID, wrapID: wrapID, modelHdrID: modelHdrID,
+		softCap: excelSingleSheetSoftCap,
+	}, nil
 }
 
 func (w *billDetailWriter) addBatch(logs []*model.Log) error {
@@ -86,7 +91,7 @@ func (w *billDetailWriter) flushDay() error {
 		})
 	}
 
-	// 单 sheet 内分片：超 excelSingleSheetSoftCap 滚动 (2)(3)
+	// 单 sheet 内分片：超 softCap 行时滚动为 (2)(3)…
 	suffix := 1
 	rowIn := 0
 	var sw *excelize.StreamWriter
@@ -123,10 +128,29 @@ func (w *billDetailWriter) flushDay() error {
 		}
 		sw = s
 		rowIn = 1
-		lastModel = ""
+		lastModel = "" // reset so emitModelHeader re-fires on the new sheet
 		suffix++
 		return nil
 	}
+
+	// emitModelHeader writes "模型：<name>" into the current row and advances rowIn.
+	// If writing the header itself hits the soft cap, the sheet is rolled first so
+	// the header always lands as the first content row on a fresh sheet.
+	emitModelHeader := func(modelName string) error {
+		if rowIn >= w.softCap {
+			if err := openSheet(); err != nil {
+				return err
+			}
+		}
+		cell, _ := excelize.CoordinatesToCellName(1, rowIn+1)
+		if err := sw.SetRow(cell, []any{excelize.Cell{Value: "模型：" + modelName, StyleID: w.modelHdrID}}); err != nil {
+			return err
+		}
+		rowIn++
+		lastModel = modelName
+		return nil
+	}
+
 	if err := openSheet(); err != nil {
 		return err
 	}
@@ -139,23 +163,21 @@ func (w *billDetailWriter) flushDay() error {
 	}
 
 	for _, log := range logs {
-		if rowIn >= excelSingleSheetSoftCap {
+		// Roll the sheet if we are at or over the cap before writing the data row.
+		// After openSheet, lastModel=="" so emitModelHeader will fire below.
+		if rowIn >= w.softCap {
 			if err := openSheet(); err != nil {
 				return err
 			}
 		}
+		// Emit (or re-emit after a sheet roll) the model header whenever the model changes.
 		if w.splitModel && log.ModelName != lastModel {
-			lastModel = log.ModelName
-			cell, _ := excelize.CoordinatesToCellName(1, rowIn+1)
-			if err := sw.SetRow(cell, []any{excelize.Cell{Value: "模型：" + log.ModelName, StyleID: w.modelHdrID}}); err != nil {
+			if err := emitModelHeader(log.ModelName); err != nil {
 				return err
 			}
-			rowIn++
-			if rowIn >= excelSingleSheetSoftCap {
-				if err := openSheet(); err != nil {
-					return err
-				}
-			}
+			// The header write may have itself triggered a sheet roll via the cap
+			// check inside emitModelHeader; either way lastModel is now set correctly
+			// and the data row follows immediately on the correct sheet.
 		}
 		row := make([]any, len(billDetailColumns))
 		for i, col := range billDetailColumns {
