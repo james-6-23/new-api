@@ -4656,6 +4656,12 @@
     "Label": "名称",
     "Placeholders: {{username}}, {{password}}, {{site}}": "可用占位符：{{username}}、{{password}}、{{site}}",
     "Move up": "上移",
-    "Move down": "下移"
+    "Move down": "下移",
+    "Bill Management": "账单管理",
+    "Export Summary Bill": "导出汇总账单",
+    "Include daily detail": "附带每日明细账",
+    "Split detail by model": "明细分不同模型",
+    "Exchange rate (USD to CNY)": "汇率 (美元→人民币)",
+    "Export truncated, please narrow the time range": "数据超出上限，已截断，请缩小时间范围"
   }
 }
