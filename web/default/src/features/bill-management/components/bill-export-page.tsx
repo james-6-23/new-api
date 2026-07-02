@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'
+import { SectionPageLayout } from '@/components/layout'
 import { exportBillSummary, getBillSummary, type BillExportParams, type BillSummaryResponse } from '../api'
 
 function toUnix(local: string): number | undefined {
@@ -105,159 +106,164 @@ export function BillExportPage() {
   }
 
   return (
-    <div className='p-4 max-w-2xl space-y-4'>
-      <h1 className='text-xl font-semibold'>{t('Bill Management')}</h1>
+    <SectionPageLayout fixedContent>
+      <SectionPageLayout.Title>{t('Bill Management')}</SectionPageLayout.Title>
+      <SectionPageLayout.Content>
+        <div className='flex h-full min-h-0 flex-col gap-4 overflow-auto'>
+          {/* 筛选工具栏区（标题之下、表格之上） */}
+          <div className='space-y-4 rounded-lg border p-4'>
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='space-y-1'>
+                <Label>{t('Start Time')}</Label>
+                <Input
+                  type='datetime-local'
+                  value={start}
+                  onChange={(e) => setStart(e.target.value)}
+                />
+              </div>
+              <div className='space-y-1'>
+                <Label>{t('End Time')}</Label>
+                <Input
+                  type='datetime-local'
+                  value={end}
+                  onChange={(e) => setEnd(e.target.value)}
+                />
+              </div>
 
-      <div className='grid grid-cols-2 gap-4'>
-        <div className='space-y-1'>
-          <Label>{t('Start Time')}</Label>
-          <Input
-            type='datetime-local'
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-          />
-        </div>
-        <div className='space-y-1'>
-          <Label>{t('End Time')}</Label>
-          <Input
-            type='datetime-local'
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-          />
-        </div>
+              {isAdmin && (
+                <>
+                  <div className='space-y-1'>
+                    <Label>{t('Username')}</Label>
+                    <Input
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                    />
+                  </div>
+                  <div className='space-y-1'>
+                    <Label>{t('Channel ID')}</Label>
+                    <Input
+                      value={channel}
+                      onChange={(e) => setChannel(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
 
-        {isAdmin && (
-          <>
-            <div className='space-y-1'>
-              <Label>{t('Username')}</Label>
-              <Input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
+              <div className='space-y-1'>
+                <Label>{t('Token Name')}</Label>
+                <Input
+                  value={tokenName}
+                  onChange={(e) => setTokenName(e.target.value)}
+                />
+              </div>
+              <div className='space-y-1'>
+                <Label>{t('Model Name')}</Label>
+                <Input
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                />
+              </div>
+              <div className='space-y-1'>
+                <Label>{t('Exchange rate (USD to CNY)')}</Label>
+                <Input
+                  value={rate}
+                  onChange={(e) => setRate(e.target.value)}
+                  placeholder='7.3'
+                />
+              </div>
             </div>
-            <div className='space-y-1'>
-              <Label>{t('Channel ID')}</Label>
-              <Input
-                value={channel}
-                onChange={(e) => setChannel(e.target.value)}
-              />
+
+            <div className='flex items-center gap-2'>
+              <Switch checked={withDetail} onCheckedChange={setWithDetail} />
+              <Label>{t('Include daily detail')}</Label>
             </div>
-          </>
-        )}
+            {withDetail && (
+              <div className='flex items-center gap-2'>
+                <Switch checked={splitModel} onCheckedChange={setSplitModel} />
+                <Label>{t('Split detail by model')}</Label>
+              </div>
+            )}
 
-        <div className='space-y-1'>
-          <Label>{t('Token Name')}</Label>
-          <Input
-            value={tokenName}
-            onChange={(e) => setTokenName(e.target.value)}
-          />
-        </div>
-        <div className='space-y-1'>
-          <Label>{t('Model Name')}</Label>
-          <Input
-            value={modelName}
-            onChange={(e) => setModelName(e.target.value)}
-          />
-        </div>
-        <div className='space-y-1'>
-          <Label>{t('Exchange rate (USD to CNY)')}</Label>
-          <Input
-            value={rate}
-            onChange={(e) => setRate(e.target.value)}
-            placeholder='7.3'
-          />
-        </div>
-      </div>
-
-      <div className='flex items-center gap-2'>
-        <Switch
-          checked={withDetail}
-          onCheckedChange={setWithDetail}
-        />
-        <Label>{t('Include daily detail')}</Label>
-      </div>
-      {withDetail && (
-        <div className='flex items-center gap-2'>
-          <Switch
-            checked={splitModel}
-            onCheckedChange={setSplitModel}
-          />
-          <Label>{t('Split detail by model')}</Label>
-        </div>
-      )}
-
-      <div className='flex gap-2'>
-        <Button onClick={() => runQuery(1)} disabled={querying}>
-          {t('Query')}
-        </Button>
-        <Button variant='outline' onClick={handleExport} disabled={loading}>
-          {t('Export Summary Bill')}
-        </Button>
-      </div>
-
-      {data && (
-        <div className='space-y-2'>
-          <div className='text-sm text-muted-foreground'>
-            {t('Total')}: ${data.summary.total_amount_usd.toFixed(6)} / ¥
-            {data.summary.total_amount_cny.toFixed(6)} · {t('Prompt Tokens')}{' '}
-            {data.summary.total_prompt_tokens} · {t('Completion Tokens')}{' '}
-            {data.summary.total_completion_tokens} · {t('Cache Read Tokens')}{' '}
-            {data.summary.total_cache_read_tokens} · {t('Cache Creation Tokens')}{' '}
-            {data.summary.total_cache_creation_tokens}
+            <div className='flex gap-2'>
+              <Button onClick={() => runQuery(1)} disabled={querying}>
+                {t('Query')}
+              </Button>
+              <Button variant='outline' onClick={handleExport} disabled={loading}>
+                {t('Export Summary Bill')}
+              </Button>
+            </div>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('Date')}</TableHead>
-                {isAdmin && <TableHead>{t('Username')}</TableHead>}
-                {isAdmin && <TableHead>{t('Channel ID')}</TableHead>}
-                <TableHead>{t('Token Name')}</TableHead>
-                <TableHead>{t('Model Name')}</TableHead>
-                <TableHead>{t('Amount (USD)')}</TableHead>
-                <TableHead>{t('Exchange Rate')}</TableHead>
-                <TableHead>{t('Amount (CNY)')}</TableHead>
-                <TableHead>{t('Prompt Tokens')}</TableHead>
-                <TableHead>{t('Completion Tokens')}</TableHead>
-                <TableHead>{t('Cache Read Tokens')}</TableHead>
-                <TableHead>{t('Cache Creation Tokens')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.items.map((it, i) => (
-                <TableRow key={i}>
-                  <TableCell>{it.date}</TableCell>
-                  {isAdmin && <TableCell>{it.username}</TableCell>}
-                  {isAdmin && <TableCell>{it.channel_id}</TableCell>}
-                  <TableCell>{it.token_name}</TableCell>
-                  <TableCell>{it.model_name}</TableCell>
-                  <TableCell>${it.amount_usd.toFixed(6)}</TableCell>
-                  <TableCell>{it.exchange_rate}</TableCell>
-                  <TableCell>¥{it.amount_cny.toFixed(6)}</TableCell>
-                  <TableCell>{it.prompt_tokens}</TableCell>
-                  <TableCell>{it.completion_tokens}</TableCell>
-                  <TableCell>{it.cache_read_tokens}</TableCell>
-                  <TableCell>{it.cache_creation_tokens}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className='flex items-center gap-2'>
-            <Button variant='outline' disabled={page <= 1 || querying} onClick={() => runQuery(page - 1)}>
-              {t('Previous Page')}
-            </Button>
-            <span className='text-sm'>
-              {page} / {Math.max(1, Math.ceil(data.total / pageSize))}
-            </span>
-            <Button
-              variant='outline'
-              disabled={page >= Math.ceil(data.total / pageSize) || querying}
-              onClick={() => runQuery(page + 1)}
-            >
-              {t('Next Page')}
-            </Button>
-          </div>
+
+          {/* 表格区 */}
+          {data && (
+            <div className='min-h-0 flex-1 space-y-2'>
+              <div className='text-sm text-muted-foreground'>
+                {t('Total')}: ${data.summary.total_amount_usd.toFixed(6)} / ¥
+                {data.summary.total_amount_cny.toFixed(6)} · {t('Prompt Tokens')}{' '}
+                {data.summary.total_prompt_tokens} · {t('Completion Tokens')}{' '}
+                {data.summary.total_completion_tokens} · {t('Cache Read Tokens')}{' '}
+                {data.summary.total_cache_read_tokens} · {t('Cache Creation Tokens')}{' '}
+                {data.summary.total_cache_creation_tokens}
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('Date')}</TableHead>
+                    {isAdmin && <TableHead>{t('Username')}</TableHead>}
+                    {isAdmin && <TableHead>{t('Channel ID')}</TableHead>}
+                    <TableHead>{t('Token Name')}</TableHead>
+                    <TableHead>{t('Model Name')}</TableHead>
+                    <TableHead>{t('Amount (USD)')}</TableHead>
+                    <TableHead>{t('Exchange Rate')}</TableHead>
+                    <TableHead>{t('Amount (CNY)')}</TableHead>
+                    <TableHead>{t('Prompt Tokens')}</TableHead>
+                    <TableHead>{t('Completion Tokens')}</TableHead>
+                    <TableHead>{t('Cache Read Tokens')}</TableHead>
+                    <TableHead>{t('Cache Creation Tokens')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.items.map((it, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{it.date}</TableCell>
+                      {isAdmin && <TableCell>{it.username}</TableCell>}
+                      {isAdmin && <TableCell>{it.channel_id}</TableCell>}
+                      <TableCell>{it.token_name}</TableCell>
+                      <TableCell>{it.model_name}</TableCell>
+                      <TableCell>${it.amount_usd.toFixed(6)}</TableCell>
+                      <TableCell>{it.exchange_rate}</TableCell>
+                      <TableCell>¥{it.amount_cny.toFixed(6)}</TableCell>
+                      <TableCell>{it.prompt_tokens}</TableCell>
+                      <TableCell>{it.completion_tokens}</TableCell>
+                      <TableCell>{it.cache_read_tokens}</TableCell>
+                      <TableCell>{it.cache_creation_tokens}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className='flex items-center gap-2'>
+                <Button
+                  variant='outline'
+                  disabled={page <= 1 || querying}
+                  onClick={() => runQuery(page - 1)}
+                >
+                  {t('Previous Page')}
+                </Button>
+                <span className='text-sm'>
+                  {page} / {Math.max(1, Math.ceil(data.total / pageSize))}
+                </span>
+                <Button
+                  variant='outline'
+                  disabled={page >= Math.ceil(data.total / pageSize) || querying}
+                  onClick={() => runQuery(page + 1)}
+                >
+                  {t('Next Page')}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
   )
 }
