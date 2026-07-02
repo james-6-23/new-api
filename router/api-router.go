@@ -314,6 +314,8 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/self/export", middleware.UserAuth(), controller.ExportUserLogs)
 		logRoute.GET("/bill/export", middleware.AdminAuth(), controller.ExportBillSummaryAll)
 		logRoute.GET("/self/bill/export", middleware.UserAuth(), controller.ExportBillSummarySelf)
+		logRoute.GET("/bill/summary", middleware.AdminAuth(), controller.QueryBillSummaryAll)
+		logRoute.GET("/self/bill/summary", middleware.UserAuth(), controller.QueryBillSummarySelf)
 
 		dataRoute := apiRouter.Group("/data")
 		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
