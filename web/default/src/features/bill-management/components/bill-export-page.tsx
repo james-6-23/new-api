@@ -109,7 +109,7 @@ export function BillExportPage() {
     <SectionPageLayout fixedContent>
       <SectionPageLayout.Title>{t('Bill Management')}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
-        <div className='flex h-full min-h-0 flex-col gap-4 overflow-auto'>
+        <div className='flex h-full min-h-0 flex-col gap-4 overflow-auto pt-2'>
           {/* 筛选工具栏区（标题之下、表格之上） */}
           <div className='space-y-4 rounded-lg border p-4'>
             <div className='grid grid-cols-2 gap-4'>
