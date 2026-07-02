@@ -33,6 +33,10 @@ func newBillSummaryAgg() *billSummaryAgg {
 
 func (a *billSummaryAgg) addBatch(logs []*model.Log) {
 	for _, log := range logs {
+		// 账单只计消费与退款；其余类型(充值/管理/系统/错误/登录)跳过。
+		if log.Type != model.LogTypeConsume && log.Type != model.LogTypeRefund {
+			continue
+		}
 		key := billSummaryKey{
 			Day:       time.Unix(log.CreatedAt, 0).Format("2006-01-02"),
 			Username:  log.Username,
@@ -44,6 +48,11 @@ func (a *billSummaryAgg) addBatch(logs []*model.Log) {
 		if row == nil {
 			row = &billSummaryRow{}
 			a.rows[key] = row
+		}
+		if log.Type == model.LogTypeRefund {
+			// 退款冲抵金额；退款日志无 tokens，不动 token 列。
+			row.Quota -= log.Quota
+			continue
 		}
 		row.Quota += log.Quota
 		row.PromptTokens += log.PromptTokens

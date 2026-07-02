@@ -61,3 +61,45 @@ func TestBillSummaryAgg_AggregatesByDayModel(t *testing.T) {
 		t.Fatalf("cache creation = %d, want 3", r.CacheCreationTokens)
 	}
 }
+
+func TestBillSummaryAgg_RefundNetsConsumption(t *testing.T) {
+	agg := newBillSummaryAgg()
+	// 同一分组：消费 1000 + 退款 300 => 净 700；tokens 只来自消费
+	agg.addBatch([]*model.Log{
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 10), Username: "alice", ChannelId: 3, TokenName: "tk", ModelName: "gpt-4o",
+			Quota: 1000, PromptTokens: 10, CompletionTokens: 5, Other: `{"cache_tokens":4}`},
+		{Type: model.LogTypeRefund, CreatedAt: tsOn("2026-06-01", 11), Username: "alice", ChannelId: 3, TokenName: "tk", ModelName: "gpt-4o",
+			Quota: 300, PromptTokens: 0, CompletionTokens: 0, Other: ``},
+		// 充值日志必须被忽略
+		{Type: model.LogTypeTopup, CreatedAt: tsOn("2026-06-01", 12), Username: "alice", ChannelId: 3, TokenName: "tk", ModelName: "gpt-4o",
+			Quota: 99999, Other: ``},
+	})
+
+	keys := agg.sortedKeys()
+	if len(keys) != 1 {
+		t.Fatalf("expected 1 group (topup ignored), got %d: %+v", len(keys), keys)
+	}
+	r := agg.rows[keys[0]]
+	if r.Quota != 700 {
+		t.Fatalf("net quota = %d, want 700 (1000 consume - 300 refund)", r.Quota)
+	}
+	if r.PromptTokens != 10 || r.CompletionTokens != 5 || r.CacheReadTokens != 4 {
+		t.Fatalf("tokens must come from consume only: %+v", r)
+	}
+}
+
+func TestBillSummaryAgg_RefundOnlyGroupIsNegative(t *testing.T) {
+	agg := newBillSummaryAgg()
+	// 退款独立 key（模型不同于任何消费）=> 单独成行，净额为负
+	agg.addBatch([]*model.Log{
+		{Type: model.LogTypeRefund, CreatedAt: tsOn("2026-06-01", 9), Username: "bob", ChannelId: 1, TokenName: "t2", ModelName: "refunded-model",
+			Quota: 500, Other: ``},
+	})
+	keys := agg.sortedKeys()
+	if len(keys) != 1 {
+		t.Fatalf("expected 1 group, got %d", len(keys))
+	}
+	if agg.rows[keys[0]].Quota != -500 {
+		t.Fatalf("refund-only quota = %d, want -500", agg.rows[keys[0]].Quota)
+	}
+}
