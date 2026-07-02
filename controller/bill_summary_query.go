@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -143,6 +144,10 @@ func QueryBillSummaryAll(c *gin.Context) {
 
 // QueryBillSummarySelf — normal user, locked to self; ignores username/channel.
 func QueryBillSummarySelf(c *gin.Context) {
+	if !common.LogExportEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "导出功能已关闭"})
+		return
+	}
 	userId := c.GetInt("id")
 	start, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	end, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
