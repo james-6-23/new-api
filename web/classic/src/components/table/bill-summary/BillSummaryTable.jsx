@@ -22,7 +22,7 @@ import { Table, Typography } from '@douyinfe/semi-ui';
 
 const money = (v) => (typeof v === 'number' ? v.toFixed(6) : v);
 
-const BillSummaryTable = ({ items, total, page, pageSize, summary, isAdminUser, onPageChange, t }) => {
+const BillSummaryTable = ({ items, summary, isAdminUser, t }) => {
   const columns = [
     { title: t('日期'), dataIndex: 'date' },
     ...(isAdminUser
@@ -55,13 +55,8 @@ const BillSummaryTable = ({ items, total, page, pageSize, summary, isAdminUser, 
       <Table
         columns={columns}
         dataSource={items}
+        pagination={false}
         rowKey={(r, i) => `${r.date}-${r.username}-${r.channel_id}-${r.token_name}-${r.model_name}-${i}`}
-        pagination={{
-          currentPage: page,
-          pageSize,
-          total,
-          onPageChange,
-        }}
       />
     </div>
   );

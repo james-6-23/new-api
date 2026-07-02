@@ -20,7 +20,9 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API, isAdmin, showError } from '../../../helpers';
-import { downloadBlobAsFile } from '../../../helpers/utils';
+import { downloadBlobAsFile, createCardProPagination } from '../../../helpers/utils';
+import { useIsMobile } from '../../../hooks/common/useIsMobile';
+import CardPro from '../../common/ui/CardPro';
 import BillFilters from './BillFilters';
 import BillSummaryTable from './BillSummaryTable';
 
@@ -35,6 +37,7 @@ const toUnix = (v) => {
 const BillSummary = () => {
   const { t } = useTranslation();
   const isAdminUser = isAdmin();
+  const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const [data, setData] = useState(null);
   const [page, setPage] = useState(1);
@@ -101,28 +104,38 @@ const BillSummary = () => {
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <BillFilters
-        formApiRef={formApiRef}
-        isAdminUser={isAdminUser}
-        onQuery={() => runQuery(1)}
-        onExport={runExport}
-        loading={loading}
-        t={t}
-      />
+    <CardPro
+      type='type2'
+      searchArea={
+        <BillFilters
+          formApiRef={formApiRef}
+          isAdminUser={isAdminUser}
+          onQuery={() => runQuery(1)}
+          onExport={runExport}
+          loading={loading}
+          t={t}
+        />
+      }
+      paginationArea={createCardProPagination({
+        currentPage: page,
+        pageSize: PAGE_SIZE,
+        total: data?.total ?? 0,
+        onPageChange: (pg) => runQuery(pg),
+        isMobile,
+        showSizeChanger: false,
+        t,
+      })}
+      t={t}
+    >
       {data && (
         <BillSummaryTable
           items={data.items}
-          total={data.total}
-          page={page}
-          pageSize={PAGE_SIZE}
           summary={data.summary}
           isAdminUser={isAdminUser}
-          onPageChange={(pg) => runQuery(pg)}
           t={t}
         />
       )}
-    </div>
+    </CardPro>
   );
 };
 
