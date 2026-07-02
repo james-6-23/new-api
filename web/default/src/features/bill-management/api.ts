@@ -61,3 +61,52 @@ export async function exportBillSummary(
 
   return { truncated }
 }
+
+export interface BillSummaryItem {
+  date: string
+  username: string
+  channel_id: number
+  token_name: string
+  model_name: string
+  amount_usd: number
+  exchange_rate: number
+  amount_cny: number
+  prompt_tokens: number
+  completion_tokens: number
+  cache_read_tokens: number
+  cache_creation_tokens: number
+}
+
+export interface BillSummaryTotals {
+  total_amount_usd: number
+  total_amount_cny: number
+  total_prompt_tokens: number
+  total_completion_tokens: number
+  total_cache_read_tokens: number
+  total_cache_creation_tokens: number
+}
+
+export interface BillSummaryResponse {
+  items: BillSummaryItem[]
+  total: number
+  page: number
+  page_size: number
+  summary: BillSummaryTotals
+}
+
+export async function getBillSummary(
+  params: Omit<BillExportParams, 'with_detail' | 'detail_split_model'>,
+  isAdmin: boolean,
+  page: number,
+  pageSize: number
+): Promise<BillSummaryResponse> {
+  const path = isAdmin ? '/api/log/bill/summary' : '/api/log/self/bill/summary'
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== '' && v !== null) search.append(k, String(v))
+  })
+  search.append('p', String(page))
+  search.append('page_size', String(pageSize))
+  const res = await api.get(`${path}?${search.toString()}`)
+  return res.data.data as BillSummaryResponse
+}

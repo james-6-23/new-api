@@ -4662,6 +4662,15 @@
     "Include daily detail": "附带每日明细账",
     "Split detail by model": "明细分不同模型",
     "Exchange rate (USD to CNY)": "汇率 (美元→人民币)",
-    "Export truncated, please narrow the time range": "数据超出上限，已截断，请缩小时间范围"
+    "Export truncated, please narrow the time range": "数据超出上限，已截断，请缩小时间范围",
+    "Query": "查询",
+    "Date": "日期",
+    "Amount (USD)": "金额(美元)",
+    "Amount (CNY)": "金额(人民币)",
+    "Exchange Rate": "汇率",
+    "Prompt Tokens": "输入tokens",
+    "Completion Tokens": "输出tokens",
+    "Cache Read Tokens": "缓存读取tokens",
+    "Cache Creation Tokens": "缓存创建tokens"
   }
 }
