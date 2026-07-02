@@ -10,7 +10,7 @@ import (
 )
 
 var billDetailColumns = func() []logExportColumn {
-	keys := []string{"time", "username", "token", "group", "model", "prompt", "completion"}
+	keys := []string{"time", "username", "token", "group", "model", "type", "prompt", "completion"}
 	cols := make([]logExportColumn, 0, len(keys)+5)
 	for _, k := range keys {
 		cols = append(cols, logExportColumnMap[k])
@@ -58,6 +58,10 @@ func newBillDetailWriter(f *excelize.File, splitModel bool) (*billDetailWriter, 
 
 func (w *billDetailWriter) addBatch(logs []*model.Log) error {
 	for _, log := range logs {
+		// 明细只列消费与退款，其余类型跳过（与汇总口径一致）。
+		if log.Type != model.LogTypeConsume && log.Type != model.LogTypeRefund {
+			continue
+		}
 		day := time.Unix(log.CreatedAt, 0).Format("2006-01-02")
 		if w.curDay != "" && day != w.curDay {
 			if err := w.flushDay(); err != nil {

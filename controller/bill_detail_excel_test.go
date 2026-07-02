@@ -101,3 +101,50 @@ func TestBillDetailWriter_ModelHeaderReEmittedOnRoll(t *testing.T) {
 	}
 }
 
+
+func TestBillDetailWriter_IncludesRefundRowWithTypeColumn(t *testing.T) {
+	f := excelize.NewFile()
+	defer f.Close()
+	w, err := newBillDetailWriter(f, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.addBatch([]*model.Log{
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 10), Username: "a", ModelName: "gpt-4o", Quota: 1000},
+		{Type: model.LogTypeRefund, CreatedAt: tsOn("2026-06-01", 11), Username: "a", ModelName: "gpt-4o", Quota: 300},
+		{Type: model.LogTypeTopup, CreatedAt: tsOn("2026-06-01", 12), Username: "a", ModelName: "gpt-4o", Quota: 99999},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := f.GetRows("2026-06-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 表头行 + 2 数据行(消费/退款)，充值被过滤 => 共 3 行
+	if len(rows) != 3 {
+		t.Fatalf("expected header + 2 data rows (topup filtered), got %d: %v", len(rows), rows)
+	}
+	header := rows[0]
+	typeIdx := -1
+	for i, h := range header {
+		if h == "类型" {
+			typeIdx = i
+		}
+	}
+	if typeIdx == -1 {
+		t.Fatalf("header missing 类型 column: %v", header)
+	}
+	foundRefund := false
+	for _, r := range rows[1:] {
+		if typeIdx < len(r) && r[typeIdx] == "退款" {
+			foundRefund = true
+		}
+	}
+	if !foundRefund {
+		t.Fatalf("no 退款 row found in detail: %v", rows)
+	}
+}
