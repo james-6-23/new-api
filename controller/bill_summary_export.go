@@ -113,7 +113,7 @@ func runBillExport(c *gin.Context, p billExportParams,
 func ExportBillSummaryAll(c *gin.Context) {
 	p := parseBillExportParams(c)
 	runBillExport(c, p, func(maxRows int, consume func([]*model.Log) error) (bool, error) {
-		return model.GetAllLogsForExport(model.LogTypeConsume, p.startTimestamp, p.endTimestamp,
+		return model.GetAllLogsForExport(model.LogTypeUnknown, p.startTimestamp, p.endTimestamp,
 			p.modelName, p.username, p.tokenName, p.channel, p.group, "", maxRows, consume)
 	})
 }
@@ -129,7 +129,7 @@ func ExportBillSummarySelf(c *gin.Context) {
 	p.username = ""
 	p.channel = 0
 	runBillExport(c, p, func(maxRows int, consume func([]*model.Log) error) (bool, error) {
-		return model.GetUserLogsForExport(userId, model.LogTypeConsume, p.startTimestamp, p.endTimestamp,
+		return model.GetUserLogsForExport(userId, model.LogTypeUnknown, p.startTimestamp, p.endTimestamp,
 			p.modelName, p.tokenName, p.group, "", maxRows, consume)
 	})
 }

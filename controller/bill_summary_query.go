@@ -129,7 +129,7 @@ func QueryBillSummaryAll(c *gin.Context) {
 
 	agg := newBillSummaryAgg()
 	maxRows := model.LogExportMaxRows("xlsx")
-	_, err := model.GetAllLogsForExport(model.LogTypeConsume, start, end,
+	_, err := model.GetAllLogsForExport(model.LogTypeUnknown, start, end,
 		c.Query("model_name"), c.Query("username"), c.Query("token_name"),
 		channel, c.Query("group"), "", maxRows, func(batch []*model.Log) error {
 			agg.addBatch(batch)
@@ -156,7 +156,7 @@ func QueryBillSummarySelf(c *gin.Context) {
 
 	agg := newBillSummaryAgg()
 	maxRows := model.LogExportMaxRows("xlsx")
-	_, err := model.GetUserLogsForExport(userId, model.LogTypeConsume, start, end,
+	_, err := model.GetUserLogsForExport(userId, model.LogTypeUnknown, start, end,
 		c.Query("model_name"), c.Query("token_name"), c.Query("group"), "", maxRows,
 		func(batch []*model.Log) error {
 			agg.addBatch(batch)

@@ -32,13 +32,13 @@ func tsOn(day string, hour int) int64 {
 func TestBillSummaryAgg_AggregatesByDayModel(t *testing.T) {
 	agg := newBillSummaryAgg()
 	agg.addBatch([]*model.Log{
-		{CreatedAt: tsOn("2026-06-01", 12), Username: "alice", ChannelId: 3, TokenName: "tk", ModelName: "gpt-4o",
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 12), Username: "alice", ChannelId: 3, TokenName: "tk", ModelName: "gpt-4o",
 			Quota: 1000, PromptTokens: 10, CompletionTokens: 5,
 			Other: `{"cache_tokens":4,"cache_creation_tokens":2,"cache_creation_tokens_5m":1}`},
-		{CreatedAt: tsOn("2026-06-01", 13), Username: "alice", ChannelId: 3, TokenName: "tk", ModelName: "gpt-4o",
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 13), Username: "alice", ChannelId: 3, TokenName: "tk", ModelName: "gpt-4o",
 			Quota: 500, PromptTokens: 2, CompletionTokens: 1,
 			Other: `{"cache_tokens":1}`},
-		{CreatedAt: tsOn("2026-06-02", 9), Username: "alice", ChannelId: 3, TokenName: "tk", ModelName: "gpt-4o",
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-02", 9), Username: "alice", ChannelId: 3, TokenName: "tk", ModelName: "gpt-4o",
 			Quota: 200, PromptTokens: 1, CompletionTokens: 1, Other: ``},
 	})
 
