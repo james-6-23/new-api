@@ -243,7 +243,7 @@ export function BillExportPage() {
           </Table>
           <div className='flex items-center gap-2'>
             <Button variant='outline' disabled={page <= 1 || querying} onClick={() => runQuery(page - 1)}>
-              {t('Previous')}
+              {t('Previous Page')}
             </Button>
             <span className='text-sm'>
               {page} / {Math.max(1, Math.ceil(data.total / pageSize))}
@@ -253,7 +253,7 @@ export function BillExportPage() {
               disabled={page >= Math.ceil(data.total / pageSize) || querying}
               onClick={() => runQuery(page + 1)}
             >
-              {t('Next')}
+              {t('Next Page')}
             </Button>
           </div>
         </div>
