@@ -21,7 +21,11 @@ import React from 'react';
 import BillSummary from '../../components/table/bill-summary';
 
 const Bill = () => {
-  return <BillSummary />;
+  return (
+    <div className='mt-[60px] px-2'>
+      <BillSummary />
+    </div>
+  );
 };
 
 export default Bill;
