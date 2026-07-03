@@ -124,6 +124,10 @@ export function SidebarModulesSection({
         title: t('Profile'),
         description: t('Personal settings and profile management.'),
       },
+      bill: {
+        title: t('Bill Management'),
+        description: t('Summary bill query and export.'),
+      },
     },
     admin: {
       channel: {
