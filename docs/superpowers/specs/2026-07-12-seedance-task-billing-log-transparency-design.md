@@ -97,7 +97,7 @@
   预扣 {symbol}{pre} → 实扣 {symbol}{actual}，{补扣/退款} {symbol}{|delta|}
   任务 {task_id}
   ```
-  - `tokens` = 实际 token(视频取 `video_tokens`,否则由 `actual_quota` 反推或省略);`pre` = `pre_consumed_quota`;`actual` = `actual_quota`;`delta` = `actual − pre`(>0 补扣,<0 退款)。
+  - `tokens` = 实际 token(视频取 `video_tokens`;**非视频任务 `other` 不带实际 token,则省略「实际结算 = tokens × …」这一行,只显示 `预扣 → 实扣 + 补扣/退款` 金额行**);`pre` = `pre_consumed_quota`;`actual` = `actual_quota`;`delta` = `actual − pre`(>0 补扣,<0 退款)。
 
 ### 前端改动 3:一键关联(点击 Request ID 按 `request_id` 过滤)
 

@@ -1612,14 +1612,71 @@ function renderPriceSimpleCore({
 }
 
 export function renderTaskBillingProcess(other, content) {
-  if (other?.task_id != null) {
-    return renderBillingArticle(
-        [content].filter(Boolean),
-        { showReferenceNote: false },
+  const stage = other?.billing_stage;
+  const { ratio: g } = getEffectiveRatio(
+      other?.group_ratio,
+      other?.user_group_ratio,
+  );
+  const unitUsd =
+      other?.video_unit_price != null
+          ? Number(other.video_unit_price)
+          : (Number(other?.model_ratio) || 0) * 2.0;
+  const unitText = formatCompactDisplayPrice(unitUsd);
+  const v = other?.video_input; // 视频折扣，存在才显示
+  const vpart = v != null ? i18next.t(' × 视频折扣 {{v}}', { v }) : '';
+
+  const perUnit = Number(getQuotaPerUnit());
+  const qpu = Number.isFinite(perUnit) && perUnit > 0 ? perUnit : 500000;
+  const quotaToAmount = (q) =>
+      renderDisplayAmountFromUsd((Number(q) || 0) / qpu);
+
+  const isSettle =
+      stage === 'settle' || stage === 'refund' || other?.task_id != null;
+  if (isSettle) {
+    const pre = Number(other?.pre_consumed_quota) || 0;
+    const actual = Number(other?.actual_quota) || 0;
+    const delta = actual - pre;
+    const lines = [];
+    if (Number(other?.video_tokens) > 0) {
+      lines.push(
+          buildBillingText(
+              '实际结算 = {{tokens}} tokens × 单价 {{unit}} / 1M × 分组 {{g}}{{vpart}} = 应扣 {{actual}}',
+              {
+                tokens: other.video_tokens,
+                unit: unitText,
+                g,
+                vpart,
+                actual: quotaToAmount(actual),
+              },
+          ),
+      );
+    }
+    lines.push(
+        buildBillingText('预扣 {{pre}} → 实扣 {{actual}}，{{label}} {{amount}}', {
+          pre: quotaToAmount(pre),
+          actual: quotaToAmount(actual),
+          label: delta >= 0 ? i18next.t('补扣') : i18next.t('退款'),
+          amount: quotaToAmount(Math.abs(delta)),
+        }),
     );
+    if (other?.task_id) {
+      lines.push(buildBillingText('任务 {{taskId}}', { taskId: other.task_id }));
+    }
+    // 无结算金额字段（旧数据）时兜底展示原始 content。
+    if (lines.length === 1 && !other?.task_id && content) {
+      lines.push(content);
+    }
+    return renderBillingArticle(lines, { showReferenceNote: false });
   }
+
+  // 预扣阶段：显式公式 + 自动追加「仅供参考，以实际扣费为准」。
   return renderBillingArticle([
-    buildBillingText('任务预扣费（将在任务完成后按实际token重算）'),
+    buildBillingText('任务预扣费（估算，完成后按实际 token 重算）'),
+    buildBillingText('预扣额度 = 预估用量 × 单价 {{unit}} / 1M × 分组 {{g}}{{vpart}}', {
+      unit: unitText,
+      g,
+      vpart,
+    }),
   ]);
 }
 
@@ -2079,7 +2136,7 @@ export function renderModelPrice(opts) {
 export function renderLogContent(opts) {
   const {
     model_ratio: modelRatio,
-    completion_ratio: completionRatio,
+    completion_ratio: completionRatio = 1,
     model_price: modelPrice = -1,
     group_ratio: groupRatio,
     user_group_ratio,
@@ -2090,6 +2147,9 @@ export function renderLogContent(opts) {
     web_search_call_count: webSearchCallCount = 0,
     file_search: fileSearch = false,
     file_search_call_count: fileSearchCallCount = 0,
+    video_unit_price: videoUnitPrice,
+    video_resolution_tier: videoResolutionTier,
+    video_has_input: videoHasInput,
     displayMode = 'price',
   } = opts;
   const {
@@ -2110,6 +2170,24 @@ export function renderLogContent(opts) {
         }),
         getGroupRatioText(groupRatio, user_group_ratio),
       ]);
+    }
+
+    if (videoUnitPrice != null) {
+      const videoParts = [
+        i18next.t('视频单价 {{price}} / 1M tokens', {
+          price: formatCompactDisplayPrice(Number(videoUnitPrice)),
+        }),
+      ];
+      if (videoResolutionTier) {
+        videoParts.push(
+            i18next.t('分辨率 {{tier}}', { tier: videoResolutionTier }),
+        );
+      }
+      videoParts.push(
+          videoHasInput ? i18next.t('含视频输入') : i18next.t('不含视频输入'),
+      );
+      videoParts.push(getGroupRatioText(groupRatio, user_group_ratio));
+      return joinBillingSummary(videoParts);
     }
 
     const parts = [
