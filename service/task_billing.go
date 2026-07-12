@@ -191,6 +191,7 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
 	other["reason"] = reason
+	other["billing_stage"] = "refund"
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 		UserId:    task.UserId,
 		LogType:   model.LogTypeRefund,
@@ -200,6 +201,7 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 		Quota:     quota,
 		TokenId:   task.PrivateData.TokenId,
 		Group:     task.Group,
+		RequestId: task.PrivateData.RequestId,
 		Other:     other,
 	})
 }
@@ -254,6 +256,11 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	other["task_id"] = task.TaskID
 	other["pre_consumed_quota"] = preConsumedQuota
 	other["actual_quota"] = actualQuota
+	if quotaDelta > 0 {
+		other["billing_stage"] = "settle"
+	} else {
+		other["billing_stage"] = "refund"
+	}
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 		UserId:    task.UserId,
 		LogType:   logType,
@@ -263,6 +270,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		Quota:     logQuota,
 		TokenId:   task.PrivateData.TokenId,
 		Group:     task.Group,
+		RequestId: task.PrivateData.RequestId,
 		Other:     other,
 	})
 }

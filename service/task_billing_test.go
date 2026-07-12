@@ -397,6 +397,49 @@ func TestRecalculate_ActualQuotaZero(t *testing.T) {
 	assert.Equal(t, int64(0), countLogs(t))
 }
 
+func TestRecalculate_SetsRequestIdAndStage(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+	const userID, tokenID, channelID = 20, 20, 20
+	const initQuota, preConsumed, actualQuota, tokenRemain = 10000, 2000, 3000, 5000
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-reqid", tokenRemain)
+	seedChannel(t, channelID)
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.RequestId = "req-abc-123"
+
+	RecalculateTaskQuota(ctx, task, actualQuota, "token重算")
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, "req-abc-123", log.RequestId)
+	var other map[string]interface{}
+	require.NoError(t, common.Unmarshal([]byte(log.Other), &other))
+	assert.Equal(t, "settle", other["billing_stage"])
+}
+
+func TestRefundTaskQuota_SetsRequestIdAndStage(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+	const userID, tokenID, channelID = 21, 21, 21
+	const initQuota, quota, tokenRemain = 10000, 4000, 5000
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-refund-reqid", tokenRemain)
+	seedChannel(t, channelID)
+	task := makeTask(userID, channelID, quota, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.RequestId = "req-refund-999"
+
+	RefundTaskQuota(ctx, task, "task failed")
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeRefund, log.Type)
+	assert.Equal(t, "req-refund-999", log.RequestId)
+	var other map[string]interface{}
+	require.NoError(t, common.Unmarshal([]byte(log.Other), &other))
+	assert.Equal(t, "refund", other["billing_stage"])
+}
+
 func TestRecalculate_Subscription_NegativeDelta(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
