@@ -1625,10 +1625,8 @@ export function renderTaskBillingProcess(other, content) {
   const v = other?.video_input; // 视频折扣，存在才显示
   const vpart = v != null ? i18next.t(' × 视频折扣 {{v}}', { v }) : '';
 
-  const perUnit = Number(getQuotaPerUnit());
-  const qpu = Number.isFinite(perUnit) && perUnit > 0 ? perUnit : 500000;
-  const quotaToAmount = (q) =>
-      renderDisplayAmountFromUsd((Number(q) || 0) / qpu);
+  // 与日志「金额」列一致，用 6 位小数，保证 预扣 − 实扣 = 退款 精确对得上。
+  const quotaToAmount = (q) => renderQuota(Number(q) || 0, 6);
 
   const isSettle =
       stage === 'settle' || stage === 'refund' || other?.task_id != null;
