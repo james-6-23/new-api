@@ -194,9 +194,40 @@ func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 		}, nil
 	}
 
+	// Multi-group token: ContextKeyTokenGroups holds []string when len >= 2.
+	if tokenGroups, ok := c.Get(string(constant.ContextKeyTokenGroups)); ok {
+		if tgs, ok2 := tokenGroups.([]string); ok2 && len(tgs) >= 2 {
+			return modelListGroups{
+				userGroup:   userGroup,
+				tokenGroup:  tokenGroup,
+				ownerGroups: tgs,
+			}, nil
+		}
+	}
+	// Fallback: parse comma-separated tokenGroup string (e.g. "claude,gpt").
+	if tokenGroup != "" {
+		parts := strings.Split(tokenGroup, ",")
+		cleaned := parts[:0]
+		for _, p := range parts {
+			if t := strings.TrimSpace(p); t != "" {
+				cleaned = append(cleaned, t)
+			}
+		}
+		if len(cleaned) >= 2 {
+			return modelListGroups{
+				userGroup:   userGroup,
+				tokenGroup:  tokenGroup,
+				ownerGroups: cleaned,
+			}, nil
+		}
+	}
+
 	group := userGroup
 	if tokenGroup != "" {
-		group = tokenGroup
+		group = strings.TrimSpace(strings.SplitN(tokenGroup, ",", 2)[0])
+		if group == "" {
+			group = userGroup
+		}
 	}
 	return modelListGroups{
 		userGroup:   userGroup,
@@ -246,16 +277,17 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	} else {
 		var models []string
-		if groups.tokenGroup == "auto" {
-			for _, autoGroup := range ownerGroups {
-				groupModels := model.GetGroupEnabledModels(autoGroup)
+		if len(ownerGroups) > 1 {
+			// Multi-group: merge enabled models from all groups (auto or multi-group token).
+			for _, grp := range ownerGroups {
+				groupModels := model.GetGroupEnabledModels(grp)
 				for _, g := range groupModels {
 					if !common.StringsContains(models, g) {
 						models = append(models, g)
 					}
 				}
 			}
-		} else {
+		} else if len(ownerGroups) == 1 {
 			models = model.GetGroupEnabledModels(ownerGroups[0])
 		}
 		for _, modelName := range models {
@@ -290,9 +322,19 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 		c.JSON(200, gin.H{
 			"data":     useranthropicModels,
-			"first_id": useranthropicModels[0].ID,
+			"first_id": func() string {
+				if len(useranthropicModels) == 0 {
+					return ""
+				}
+				return useranthropicModels[0].ID
+			}(),
 			"has_more": false,
-			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
+			"last_id": func() string {
+				if len(useranthropicModels) == 0 {
+					return ""
+				}
+				return useranthropicModels[len(useranthropicModels)-1].ID
+			}(),
 		})
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))

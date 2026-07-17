@@ -86,72 +86,19 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 
+	// 多分组令牌模式：按 token 自定义的有序分组列表遍历（始终启用跨分组重试）
+	if groups, isMulti := resolveSelectGroups(param.Ctx, param.TokenGroup); isMulti {
+		channel, selectGroup = selectChannelAcrossGroups(param, groups, true)
+		return channel, selectGroup, nil
+	}
+
 	if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
 			return nil, selectGroup, errors.New("auto groups is not enabled")
 		}
 		autoGroups := GetUserAutoGroup(userGroup)
-
-		// startGroupIndex: the group index to start searching from
-		// startGroupIndex: 开始搜索的分组索引
-		startGroupIndex := 0
 		crossGroupRetry := common.GetContextKeyBool(param.Ctx, constant.ContextKeyTokenCrossGroupRetry)
-
-		if lastGroupIndex, exists := common.GetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex); exists {
-			if idx, ok := lastGroupIndex.(int); ok {
-				startGroupIndex = idx
-			}
-		}
-
-		for i := startGroupIndex; i < len(autoGroups); i++ {
-			autoGroup := autoGroups[i]
-			// Calculate priorityRetry for current group
-			// 计算当前分组的 priorityRetry
-			priorityRetry := param.GetRetry()
-			// If moved to a new group, reset priorityRetry and update startRetryIndex
-			// 如果切换到新分组，重置 priorityRetry 并更新 startRetryIndex
-			if i > startGroupIndex {
-				priorityRetry = 0
-			}
-			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
-
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
-			if channel == nil {
-				// Current group has no available channel for this model, try next group
-				// 当前分组没有该模型的可用渠道，尝试下一个分组
-				logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", autoGroup, param.ModelName, priorityRetry)
-				// 重置状态以尝试下一个分组
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
-				// Reset retry counter so outer loop can continue for next group
-				// 重置重试计数器，以便外层循环可以为下一个分组继续
-				param.SetRetry(0)
-				continue
-			}
-			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, autoGroup)
-			selectGroup = autoGroup
-			logger.LogDebug(param.Ctx, "Auto selected group: %s", autoGroup)
-
-			// Prepare state for next retry
-			// 为下一次重试准备状态
-			if crossGroupRetry && priorityRetry >= common.RetryTimes {
-				// Current group has exhausted all retries, prepare to switch to next group
-				// This request still uses current group, but next retry will use next group
-				// 当前分组已用完所有重试次数，准备切换到下一个分组
-				// 本次请求仍使用当前分组，但下次重试将使用下一个分组
-				logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group for next retry", autoGroup, priorityRetry, common.RetryTimes)
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
-				// Reset retry counter so outer loop can continue for next group
-				// 重置重试计数器，以便外层循环可以为下一个分组继续
-				param.SetRetry(0)
-				param.ResetRetryNextTry()
-			} else {
-				// Stay in current group, save current state
-				// 保持在当前分组，保存当前状态
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
-			}
-			break
-		}
+		channel, selectGroup = selectChannelAcrossGroups(param, autoGroups, crossGroupRetry)
 	} else {
 		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
 		if err != nil {
@@ -159,4 +106,86 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		}
 	}
 	return channel, selectGroup, nil
+}
+
+// selectChannelAcrossGroups 按有序分组列表遍历选渠道，复用跨分组重试状态机。
+// 这是 auto 模式与多分组令牌模式的共用逻辑，二者仅分组列表来源不同。
+func selectChannelAcrossGroups(param *RetryParam, groups []string, crossGroupRetry bool) (*model.Channel, string) {
+	var channel *model.Channel
+	selectGroup := param.TokenGroup
+
+	// startGroupIndex: the group index to start searching from
+	// startGroupIndex: 开始搜索的分组索引
+	startGroupIndex := 0
+	if lastGroupIndex, exists := common.GetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex); exists {
+		if idx, ok := lastGroupIndex.(int); ok {
+			startGroupIndex = idx
+		}
+	}
+
+	for i := startGroupIndex; i < len(groups); i++ {
+		group := groups[i]
+		// Calculate priorityRetry for current group
+		// 计算当前分组的 priorityRetry
+		priorityRetry := param.GetRetry()
+		// If moved to a new group, reset priorityRetry and update startRetryIndex
+		// 如果切换到新分组，重置 priorityRetry 并更新 startRetryIndex
+		if i > startGroupIndex {
+			priorityRetry = 0
+		}
+		logger.LogDebug(param.Ctx, "Cross-group selecting group: %s, priorityRetry: %d", group, priorityRetry)
+
+		channel, _ = model.GetRandomSatisfiedChannel(group, param.ModelName, priorityRetry)
+		if channel == nil {
+			// Current group has no available channel for this model, try next group
+			// 当前分组没有该模型的可用渠道，尝试下一个分组
+			logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", group, param.ModelName, priorityRetry)
+			// 重置状态以尝试下一个分组
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
+			// Reset retry counter so outer loop can continue for next group
+			// 重置重试计数器，以便外层循环可以为下一个分组继续
+			param.SetRetry(0)
+			continue
+		}
+		common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, group)
+		selectGroup = group
+		logger.LogDebug(param.Ctx, "Cross-group selected group: %s", group)
+
+		// Prepare state for next retry
+		// 为下一次重试准备状态
+		if crossGroupRetry && priorityRetry >= common.RetryTimes {
+			// Current group has exhausted all retries, prepare to switch to next group
+			// This request still uses current group, but next retry will use next group
+			// 当前分组已用完所有重试次数，准备切换到下一个分组
+			// 本次请求仍使用当前分组，但下次重试将使用下一个分组
+			logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group for next retry", group, priorityRetry, common.RetryTimes)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+			// Reset retry counter so outer loop can continue for next group
+			// 重置重试计数器，以便外层循环可以为下一个分组继续
+			param.SetRetry(0)
+			param.ResetRetryNextTry()
+		} else {
+			// Stay in current group, save current state
+			// 保持在当前分组，保存当前状态
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
+		}
+		break
+	}
+	return channel, selectGroup
+}
+
+// resolveSelectGroups 判断本次请求是否为"多分组令牌"模式。
+// 当 context 中 ContextKeyTokenGroups 存在且元素 >=2 时，返回该有序列表与 true；
+// 否则返回 nil, false（走原有 auto / 单分组逻辑）。
+func resolveSelectGroups(ctx *gin.Context, tokenGroup string) ([]string, bool) {
+	v, exists := common.GetContextKey(ctx, constant.ContextKeyTokenGroups)
+	if !exists {
+		return nil, false
+	}
+	groups, ok := v.([]string)
+	if !ok || len(groups) < 2 {
+		return nil, false
+	}
+	return groups, true
 }

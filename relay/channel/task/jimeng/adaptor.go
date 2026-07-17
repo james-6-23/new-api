@@ -2,19 +2,15 @@ package jimeng
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/common/volcsign"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/samber/lo"
 
@@ -283,99 +279,8 @@ func (a *TaskAdaptor) signRequest(req *http.Request, accessKey, secretKey string
 		bodyBytes = []byte{}
 	}
 
-	payloadHash := sha256.Sum256(bodyBytes)
-	hexPayloadHash := hex.EncodeToString(payloadHash[:])
-
-	t := time.Now().UTC()
-	xDate := t.Format("20060102T150405Z")
-	shortDate := t.Format("20060102")
-
-	req.Header.Set("Host", req.URL.Host)
-	req.Header.Set("X-Date", xDate)
-	req.Header.Set("X-Content-Sha256", hexPayloadHash)
-
-	// Sort and encode query parameters to create canonical query string
-	queryParams := req.URL.Query()
-	sortedKeys := make([]string, 0, len(queryParams))
-	for k := range queryParams {
-		sortedKeys = append(sortedKeys, k)
-	}
-	sort.Strings(sortedKeys)
-	var queryParts []string
-	for _, k := range sortedKeys {
-		values := queryParams[k]
-		sort.Strings(values)
-		for _, v := range values {
-			queryParts = append(queryParts, fmt.Sprintf("%s=%s", url.QueryEscape(k), url.QueryEscape(v)))
-		}
-	}
-	canonicalQueryString := strings.Join(queryParts, "&")
-
-	headersToSign := map[string]string{
-		"host":             req.URL.Host,
-		"x-date":           xDate,
-		"x-content-sha256": hexPayloadHash,
-	}
-	if req.Header.Get("Content-Type") != "" {
-		headersToSign["content-type"] = req.Header.Get("Content-Type")
-	}
-
-	var signedHeaderKeys []string
-	for k := range headersToSign {
-		signedHeaderKeys = append(signedHeaderKeys, k)
-	}
-	sort.Strings(signedHeaderKeys)
-
-	var canonicalHeaders strings.Builder
-	for _, k := range signedHeaderKeys {
-		canonicalHeaders.WriteString(k)
-		canonicalHeaders.WriteString(":")
-		canonicalHeaders.WriteString(strings.TrimSpace(headersToSign[k]))
-		canonicalHeaders.WriteString("\n")
-	}
-	signedHeaders := strings.Join(signedHeaderKeys, ";")
-
-	canonicalRequest := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s",
-		req.Method,
-		req.URL.Path,
-		canonicalQueryString,
-		canonicalHeaders.String(),
-		signedHeaders,
-		hexPayloadHash,
-	)
-
-	hashedCanonicalRequest := sha256.Sum256([]byte(canonicalRequest))
-	hexHashedCanonicalRequest := hex.EncodeToString(hashedCanonicalRequest[:])
-
-	region := "cn-north-1"
-	serviceName := "cv"
-	credentialScope := fmt.Sprintf("%s/%s/%s/request", shortDate, region, serviceName)
-	stringToSign := fmt.Sprintf("HMAC-SHA256\n%s\n%s\n%s",
-		xDate,
-		credentialScope,
-		hexHashedCanonicalRequest,
-	)
-
-	kDate := hmacSHA256([]byte(secretKey), []byte(shortDate))
-	kRegion := hmacSHA256(kDate, []byte(region))
-	kService := hmacSHA256(kRegion, []byte(serviceName))
-	kSigning := hmacSHA256(kService, []byte("request"))
-	signature := hex.EncodeToString(hmacSHA256(kSigning, []byte(stringToSign)))
-
-	authorization := fmt.Sprintf("HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-		accessKey,
-		credentialScope,
-		signedHeaders,
-		signature,
-	)
-	req.Header.Set("Authorization", authorization)
-	return nil
-}
-
-func hmacSHA256(key []byte, data []byte) []byte {
-	h := hmac.New(sha256.New, key)
-	h.Write(data)
-	return h.Sum(nil)
+	// 即梦走火山引擎 cv 服务，region=cn-north-1。
+	return volcsign.SignRequest(req, bodyBytes, accessKey, secretKey, "cn-north-1", "cv")
 }
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*requestPayload, error) {

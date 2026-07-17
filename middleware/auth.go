@@ -390,21 +390,26 @@ func TokenAuth() func(c *gin.Context) {
 		userCache.WriteContext(c)
 
 		userGroup := userCache.Group
-		tokenGroup := token.Group
-		if tokenGroup != "" {
-			// check common.UserUsableGroups[userGroup]
-			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
+		tokenGroups := token.GetGroups()
+		usableGroups := service.GetUserUsableGroups(userGroup)
+		// 逐个校验 token 绑定的每个分组都在用户可用分组内，且未被弃用
+		for _, g := range tokenGroups {
+			if _, ok := usableGroups[g]; !ok {
+				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", g))
 				return
 			}
-			// check group in common.GroupRatio
-			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
-				if tokenGroup != "auto" {
-					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
-					return
-				}
+			if !ratio_setting.ContainsGroupRatio(g) && g != "auto" {
+				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", g))
+				return
 			}
-			userGroup = tokenGroup
+		}
+		if len(tokenGroups) >= 2 {
+			// 多分组令牌：写入有序列表，初始 using group 取首个分组
+			common.SetContextKey(c, constant.ContextKeyTokenGroups, tokenGroups)
+			userGroup = tokenGroups[0]
+		} else if len(tokenGroups) == 1 {
+			// 单分组（含 auto）：等价原行为，覆盖 userGroup
+			userGroup = tokenGroups[0]
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 

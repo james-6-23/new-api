@@ -199,6 +199,14 @@ export const channelFormSchema = z
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    // BytePlus overseas asset library (stored in settings JSON; VolcEngine/DoubaoVideo)
+    byteplus_asset_enabled: z.boolean().optional(),
+    byteplus_access_key: z.string().optional(),
+    byteplus_secret_key: z.string().optional(),
+    byteplus_asset_group_id: z.string().optional(),
+    byteplus_project_name: z.string().optional(),
+    byteplus_region: z.string().optional(),
+    byteplus_moderation_skip: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if ([3, 8, 36, 45].includes(data.type) && !data.base_url?.trim()) {
@@ -259,6 +267,32 @@ export const channelFormSchema = z
         'Vertex AI API Key mode does not support batch creation'
       )
     }
+
+    // BytePlus asset library: when enabled on VolcEngine/DoubaoVideo channels,
+    // access key / secret key / group id are required.
+    if ([45, 54].includes(data.type) && data.byteplus_asset_enabled) {
+      if (!data.byteplus_access_key?.trim()) {
+        addRequiredIssue(
+          ctx,
+          'byteplus_access_key',
+          'Access Key is required when BytePlus asset upload is enabled'
+        )
+      }
+      if (!data.byteplus_secret_key?.trim()) {
+        addRequiredIssue(
+          ctx,
+          'byteplus_secret_key',
+          'Secret Key is required when BytePlus asset upload is enabled'
+        )
+      }
+      if (!data.byteplus_asset_group_id?.trim()) {
+        addRequiredIssue(
+          ctx,
+          'byteplus_asset_group_id',
+          'Asset Group ID is required when BytePlus asset upload is enabled'
+        )
+      }
+    }
   })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -316,6 +350,14 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
+  // BytePlus overseas asset library
+  byteplus_asset_enabled: false,
+  byteplus_access_key: '',
+  byteplus_secret_key: '',
+  byteplus_asset_group_id: '',
+  byteplus_project_name: 'default',
+  byteplus_region: 'ap-southeast-1',
+  byteplus_moderation_skip: true,
 }
 
 // ============================================================================
@@ -370,6 +412,13 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
+  let bytePlusAssetEnabled = false
+  let bytePlusAccessKey = ''
+  let bytePlusSecretKey = ''
+  let bytePlusAssetGroupId = ''
+  let bytePlusProjectName = 'default'
+  let bytePlusRegion = 'ap-southeast-1'
+  let bytePlusModerationSkip = true
 
   if (channel.settings) {
     try {
@@ -394,6 +443,13 @@ export function transformChannelToFormDefaults(
       )
         ? parsed.upstream_model_update_ignored_models.join(',')
         : ''
+      bytePlusAssetEnabled = parsed.byteplus_asset_enabled === true
+      bytePlusAccessKey = parsed.byteplus_access_key || ''
+      bytePlusSecretKey = parsed.byteplus_secret_key || ''
+      bytePlusAssetGroupId = parsed.byteplus_asset_group_id || ''
+      bytePlusProjectName = parsed.byteplus_project_name || 'default'
+      bytePlusRegion = parsed.byteplus_region || 'ap-southeast-1'
+      bytePlusModerationSkip = parsed.byteplus_moderation_skip !== false
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
@@ -443,6 +499,14 @@ export function transformChannelToFormDefaults(
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
+    // BytePlus overseas asset library
+    byteplus_asset_enabled: bytePlusAssetEnabled,
+    byteplus_access_key: bytePlusAccessKey,
+    byteplus_secret_key: bytePlusSecretKey,
+    byteplus_asset_group_id: bytePlusAssetGroupId,
+    byteplus_project_name: bytePlusProjectName,
+    byteplus_region: bytePlusRegion,
+    byteplus_moderation_skip: bytePlusModerationSkip,
   }
 }
 
@@ -503,6 +567,35 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.aws_key_type = formData.aws_key_type || 'ak_sk'
   } else if ('aws_key_type' in settingsObj) {
     delete settingsObj.aws_key_type
+  }
+
+  // BytePlus overseas asset library for VolcEngine (45) / DoubaoVideo (54).
+  const bytePlusKeys = [
+    'byteplus_asset_enabled',
+    'byteplus_access_key',
+    'byteplus_secret_key',
+    'byteplus_asset_group_id',
+    'byteplus_project_name',
+    'byteplus_region',
+    'byteplus_moderation_skip',
+  ]
+  if ([45, 54].includes(formData.type)) {
+    settingsObj.byteplus_asset_enabled = formData.byteplus_asset_enabled === true
+    settingsObj.byteplus_access_key = (formData.byteplus_access_key || '').trim()
+    settingsObj.byteplus_secret_key = (formData.byteplus_secret_key || '').trim()
+    settingsObj.byteplus_asset_group_id = (
+      formData.byteplus_asset_group_id || ''
+    ).trim()
+    settingsObj.byteplus_project_name =
+      (formData.byteplus_project_name || '').trim() || 'default'
+    settingsObj.byteplus_region =
+      (formData.byteplus_region || '').trim() || 'ap-southeast-1'
+    settingsObj.byteplus_moderation_skip =
+      formData.byteplus_moderation_skip !== false
+  } else {
+    for (const k of bytePlusKeys) {
+      if (k in settingsObj) delete settingsObj[k]
+    }
   }
 
   // Field passthrough controls:

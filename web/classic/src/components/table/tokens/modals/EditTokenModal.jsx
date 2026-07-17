@@ -79,7 +79,7 @@ const EditTokenModal = (props) => {
     model_limits_enabled: false,
     model_limits: [],
     allow_ips: '',
-    group: '',
+    group: [],
     cross_group_retry: false,
     tokenCount: 1,
   });
@@ -169,6 +169,11 @@ const EditTokenModal = (props) => {
       } else {
         data.model_limits = [];
       }
+      if (typeof data.group === 'string') {
+        data.group = data.group
+          ? data.group.split(',').map((g) => g.trim()).filter(Boolean)
+          : [];
+      }
       data.remain_amount = Number(
         quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
       );
@@ -217,6 +222,17 @@ const EditTokenModal = (props) => {
 
   const submit = async (values) => {
     setLoading(true);
+    const groupArr = Array.isArray(values.group)
+      ? values.group
+      : values.group
+        ? [values.group]
+        : [];
+    const normalizedGroup = {
+      group: groupArr.join(','),
+      cross_group_retry: groupArr.includes('auto')
+        ? !!values.cross_group_retry
+        : groupArr.length >= 2,
+    };
     if (isEdit) {
       let { tokenCount: _tc, ...localInputs } = values;
       localInputs.remain_quota = localInputs.unlimited_quota
@@ -240,6 +256,7 @@ const EditTokenModal = (props) => {
       localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
       let res = await API.put(`/api/token/`, {
         ...localInputs,
+        ...normalizedGroup,
         id: parseInt(props.editingToken.id),
       });
       const { success, message } = res.data;
@@ -282,6 +299,7 @@ const EditTokenModal = (props) => {
         }
         localInputs.model_limits = localInputs.model_limits.join(',');
         localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
+        Object.assign(localInputs, normalizedGroup);
         let res = await API.post(`/api/token/`, localInputs);
         const { success, message } = res.data;
         if (success) {
@@ -387,8 +405,9 @@ const EditTokenModal = (props) => {
                       <Form.Select
                         field='group'
                         label={t('令牌分组')}
-                        placeholder={t('令牌分组，默认为用户的分组')}
+                        placeholder={t('令牌分组，默认为用户的分组（可多选）')}
                         optionList={groups}
+                        multiple
                         renderOptionItem={renderGroupOption}
                         filter={(input, option) => {
                           const q = input.toLowerCase();
@@ -397,6 +416,16 @@ const EditTokenModal = (props) => {
                             (typeof option.label === 'string' &&
                               option.label.toLowerCase().includes(q))
                           );
+                        }}
+                        onChange={(val) => {
+                          // auto 与具体分组互斥
+                          let next = Array.isArray(val) ? val : [val];
+                          if (next.includes('auto') && next.length > 1) {
+                            // 若新增了 auto，则只留 auto；否则移除 auto
+                            const last = next[next.length - 1];
+                            next = last === 'auto' ? ['auto'] : next.filter((v) => v !== 'auto');
+                          }
+                          formApiRef.current?.setValue('group', next);
                         }}
                         showClear
                         style={{ width: '100%' }}
@@ -413,7 +442,10 @@ const EditTokenModal = (props) => {
                   <Col
                     span={24}
                     style={{
-                      display: values.group === 'auto' ? 'block' : 'none',
+                      display:
+                        Array.isArray(values.group) && values.group.includes('auto')
+                          ? 'block'
+                          : 'none',
                     }}
                   >
                     <Form.Switch
@@ -424,6 +456,21 @@ const EditTokenModal = (props) => {
                         '开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道',
                       )}
                     />
+                  </Col>
+                  <Col
+                    span={24}
+                    style={{
+                      display:
+                        Array.isArray(values.group) &&
+                        values.group.length >= 2 &&
+                        !values.group.includes('auto')
+                          ? 'block'
+                          : 'none',
+                    }}
+                  >
+                    <Text type='tertiary'>
+                      {t('已选择多个分组：将自动按顺序跨分组重试')}
+                    </Text>
                   </Col>
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.DatePicker

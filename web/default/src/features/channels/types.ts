@@ -105,6 +105,14 @@ export interface ChannelOtherSettings {
   upstream_model_update_ignored_models?: string[]
   upstream_model_update_last_check_time?: number
   upstream_model_update_last_detected_models?: string[]
+  // BytePlus overseas asset library (CreateAsset pre-upload)
+  byteplus_asset_enabled?: boolean
+  byteplus_access_key?: string
+  byteplus_secret_key?: string
+  byteplus_asset_group_id?: string
+  byteplus_project_name?: string
+  byteplus_region?: string
+  byteplus_moderation_skip?: boolean
 }
 
 // ============================================================================

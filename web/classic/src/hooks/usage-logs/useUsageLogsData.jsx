@@ -392,9 +392,23 @@ export const useLogsData = () => {
         });
       }
       if (logs[i].request_id) {
+        const rid = logs[i].request_id;
         expandDataLocal.push({
           key: t('Request ID'),
-          value: logs[i].request_id,
+          value: (
+            <span
+              style={{ cursor: 'pointer', color: 'var(--semi-color-primary)' }}
+              onClick={() => {
+                if (formApi) {
+                  formApi.setValue('request_id', rid);
+                }
+                refresh();
+              }}
+              title={t('点击筛选该请求的全部计费记录')}
+            >
+              {rid}
+            </span>
+          ),
         });
       }
       if (other?.ws || other?.audio) {
@@ -512,6 +526,12 @@ export const useLogsData = () => {
         }
       }
       if (logs[i].type === 6) {
+        if (other?.billing_stage || other?.task_id) {
+          expandDataLocal.push({
+            key: t('计费过程'),
+            value: renderTaskBillingProcess(other, logs[i].content),
+          });
+        }
         if (other?.task_id) {
           expandDataLocal.push({
             key: t('任务ID'),

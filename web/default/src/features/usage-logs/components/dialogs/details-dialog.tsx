@@ -398,6 +398,71 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   )
 }
 
+function VideoPricingBreakdown(props: { log: UsageLog; other: LogOtherData }) {
+  const { t } = useTranslation()
+  const { log, other } = props
+  const unit = other.video_unit_price
+  if (unit == null || !Number.isFinite(unit)) return null
+
+  const tokens = other.video_tokens || log.completion_tokens || 0
+  const gr =
+    other.user_group_ratio != null &&
+    Number.isFinite(other.user_group_ratio) &&
+    other.user_group_ratio !== -1
+      ? other.user_group_ratio
+      : (other.group_ratio ?? 1)
+  const fmtPrice = (usd: number) =>
+    formatBillingCurrencyFromUSD(usd, {
+      digitsLarge: 4,
+      digitsSmall: 6,
+      abbreviate: false,
+    })
+
+  const tierLabelMap: Record<string, string> = {
+    base: t('480p / 720p'),
+    '1080p': '1080p',
+    '4k': '4K',
+  }
+
+  const rows: Array<{ label: string; value: string }> = []
+  if (other.video_resolution_tier) {
+    rows.push({
+      label: t('Resolution Tier'),
+      value: tierLabelMap[other.video_resolution_tier] ?? other.video_resolution_tier,
+    })
+  }
+  rows.push({
+    label: t('Video Input'),
+    value: other.video_has_input ? t('Yes') : t('No'),
+  })
+  rows.push({ label: t('Unit Price'), value: `${fmtPrice(unit)}/M` })
+  if (tokens > 0) {
+    rows.push({ label: t('Billed Tokens'), value: tokens.toLocaleString() })
+  }
+  rows.push({ label: t('Group Ratio'), value: `${gr.toFixed(4)}x` })
+
+  // 计费公式仅在有真实 token 数量且有完整费用锚点时渲染。
+  // PRE-CONSUME 行：tokens=0 且 actual_quota 缺失 → 不渲染，避免左右不一致。
+  // SETTLEMENT DELTA 行：actual_quota 为完整费用，tokens 完整 → 渲染并一致。
+  const fullQuota = other.actual_quota ?? log.quota
+  const showFormula = tokens > 0 && other.actual_quota != null
+
+  return (
+    <DetailSection label={t('Video Pricing')}>
+      {rows.map((row, idx) => (
+        <DetailRow key={idx} label={row.label} value={row.value} mono />
+      ))}
+      {showFormula && (
+        <DetailRow
+          label={t('Billing Formula')}
+          value={`${fmtPrice(unit)}/M × ${tokens.toLocaleString()} ÷ 1,000,000 × ${gr.toFixed(4)} = ${formatLogQuota(fullQuota)}`}
+          mono
+        />
+      )}
+    </DetailSection>
+  )
+}
+
 interface DetailsDialogProps {
   log: UsageLog
   isAdmin: boolean
@@ -966,6 +1031,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
               other={other}
               isAdmin={props.isAdmin}
             />
+          )}
+
+          {/* Video pricing breakdown (dreamina-seedance2 etc.) */}
+          {isConsume && other && !isViolation && (
+            <VideoPricingBreakdown log={props.log} other={other} />
           )}
 
           {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}

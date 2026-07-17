@@ -41,6 +41,44 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastDetectedModels []string      `json:"upstream_model_update_last_detected_models,omitempty"` // 上次检测到的可加入模型
 	UpstreamModelUpdateLastRemovedModels  []string      `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string      `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
+
+	// BytePlus 海外素材库（CreateAsset 预上传）。仅海外火山方舟/豆包视频渠道按需启用：
+	// 开启后，向上游提交视频生成前会把请求中的参考媒体（公网 URL）预上传到素材库，
+	// 拿到 asset://<id> 再发起生成，以稳定走素材库、规避真人脸/内容预过滤拦截。
+	BytePlusAssetEnabled   bool   `json:"byteplus_asset_enabled,omitempty"`   // 总开关
+	BytePlusAccessKey      string `json:"byteplus_access_key,omitempty"`      // AK（素材库签名用，与视频生成的 Bearer Key 独立）
+	BytePlusSecretKey      string `json:"byteplus_secret_key,omitempty"`      // SK
+	BytePlusAssetGroupId   string `json:"byteplus_asset_group_id,omitempty"`  // 管理员预建的 GroupId
+	BytePlusProjectName    string `json:"byteplus_project_name,omitempty"`    // 资源项目名，默认 "default"
+	BytePlusRegion         string `json:"byteplus_region,omitempty"`          // 区域，默认 "ap-southeast-1"
+	BytePlusModerationSkip *bool  `json:"byteplus_moderation_skip,omitempty"` // 是否跳过内容预过滤，默认 true（Skip）
+}
+
+const (
+	defaultBytePlusRegion      = "ap-southeast-1"
+	defaultBytePlusProjectName = "default"
+)
+
+// ResolveBytePlusAsset 返回带默认值的 BytePlus 素材库有效配置，
+// 避免默认值散落在调用方。region 默认 ap-southeast-1，project 默认 default，
+// skipModeration 默认 true（即传 Moderation.Strategy=Skip）。
+func (s *ChannelOtherSettings) ResolveBytePlusAsset() (region, project string, skipModeration bool) {
+	region = defaultBytePlusRegion
+	project = defaultBytePlusProjectName
+	skipModeration = true
+	if s == nil {
+		return
+	}
+	if s.BytePlusRegion != "" {
+		region = s.BytePlusRegion
+	}
+	if s.BytePlusProjectName != "" {
+		project = s.BytePlusProjectName
+	}
+	if s.BytePlusModerationSkip != nil {
+		skipModeration = *s.BytePlusModerationSkip
+	}
+	return
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

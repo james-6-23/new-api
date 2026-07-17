@@ -574,13 +574,15 @@ func RelayTask(c *gin.Context) {
 		if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
 			common.SysError("settle task billing error: " + settleErr.Error())
 		}
-		service.LogTaskConsumption(c, relayInfo)
 
 		task := model.InitTask(result.Platform, relayInfo)
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
+		task.PrivateData.RequestId = c.GetString(common.RequestIdKey)
+		// 预扣费日志：在任务创建后记录，携带 task.TaskID 以便与结算/退款行关联。
+		service.LogTaskConsumption(c, relayInfo, task.TaskID)
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
 			ModelPrice:      relayInfo.PriceData.ModelPrice,
 			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
@@ -588,6 +590,7 @@ func RelayTask(c *gin.Context) {
 			OtherRatios:     relayInfo.PriceData.OtherRatios,
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			VideoBilling:    relayInfo.PriceData.VideoBilling,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

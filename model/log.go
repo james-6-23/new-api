@@ -358,6 +358,7 @@ type RecordTaskBillingLogParams struct {
 	Quota     int
 	TokenId   int
 	Group     string
+	RequestId string
 	Other     map[string]interface{}
 }
 
@@ -384,6 +385,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		ChannelId: params.ChannelId,
 		TokenId:   params.TokenId,
 		Group:     params.Group,
+		RequestId: params.RequestId,
 		Other:     common.MapToJsonStr(params.Other),
 	}
 	err := LOG_DB.Create(log).Error
@@ -532,7 +534,10 @@ type Stat struct {
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
-	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
+	// 消耗额度按净消费统计:消费(LogTypeConsume)计正,退款(LogTypeRefund)计负,
+	// 使统计更真实反映实际消耗。退款日志 Quota 存正数(见 service/task_billing.go),
+	// 故用 CASE WHEN 取负累加。CASE WHEN / IN 在 SQLite/MySQL/PostgreSQL 均兼容。
+	tx := LOG_DB.Table("logs").Select("sum(case when type = ? then -quota else quota end) quota", LogTypeRefund)
 
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
@@ -568,7 +573,9 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
 	}
 
-	tx = tx.Where("type = ?", LogTypeConsume)
+	// 消耗额度：消费与退款两类都纳入(退款在上面的 SELECT 里取负冲抵);
+	// RPM/TPM 仍只统计消费(退款日志不带 tokens)。
+	tx = tx.Where("type IN ?", []int{LogTypeConsume, LogTypeRefund})
 	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
 
 	// 只统计最近60秒的rpm和tpm

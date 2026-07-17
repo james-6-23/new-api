@@ -16,7 +16,8 @@ import (
 
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
 // 实际扣费已由 BillingSession（PreConsumeBilling + SettleBilling）完成。
-func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
+// taskID 为已创建任务的公开 ID，用于把预扣行与后续结算/退款行关联（展示用）。
+func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, taskID string) {
 	tokenName := c.GetString("token_name")
 	logContent := fmt.Sprintf("操作 %s", info.Action)
 	// 支持任务仅按次计费
@@ -37,12 +38,25 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	}
 	other := make(map[string]interface{})
 	other["is_task"] = true
+	other["billing_stage"] = "pre_consume"
+	if taskID != "" {
+		other["task_id"] = taskID
+	}
 	other["request_path"] = c.Request.URL.Path
 	other["model_price"] = info.PriceData.ModelPrice
 	if info.PriceData.ModelRatio > 0 {
 		other["model_ratio"] = info.PriceData.ModelRatio
 	}
 	other["group_ratio"] = info.PriceData.GroupRatioInfo.GroupRatio
+	if vb := info.PriceData.VideoBilling; vb != nil {
+		other["video_resolution_tier"] = vb.ResolutionTier
+		other["video_has_input"] = vb.HasVideoInput
+		if info.PriceData.ModelRatio > 0 {
+			other["video_unit_price"] = info.PriceData.ModelRatio * 2.0 * vb.PricingRatio
+		} else {
+			other["video_unit_price"] = vb.BaseUnitUSDPerM * vb.PricingRatio
+		}
+	}
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
@@ -130,6 +144,20 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 				other[k] = v
 			}
 		}
+		if vb := bc.VideoBilling; vb != nil {
+			other["video_resolution_tier"] = vb.ResolutionTier
+			other["video_has_input"] = vb.HasVideoInput
+			// 有效单价(含管理员加价)= 基准单价 × 倍率 × (modelRatio / (基准单价/2))
+			// 简化:有效单价 = modelRatio * 2 * PricingRatio
+			if bc.ModelRatio > 0 {
+				other["video_unit_price"] = bc.ModelRatio * 2.0 * vb.PricingRatio
+			} else {
+				other["video_unit_price"] = vb.BaseUnitUSDPerM * vb.PricingRatio
+			}
+			if vb.VideoTokens > 0 {
+				other["video_tokens"] = vb.VideoTokens
+			}
+		}
 	}
 	props := task.Properties
 	if props.UpstreamModelName != "" && props.UpstreamModelName != props.OriginModelName {
@@ -168,6 +196,7 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
 	other["reason"] = reason
+	other["billing_stage"] = "refund"
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 		UserId:    task.UserId,
 		LogType:   model.LogTypeRefund,
@@ -177,6 +206,7 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 		Quota:     quota,
 		TokenId:   task.PrivateData.TokenId,
 		Group:     task.Group,
+		RequestId: task.PrivateData.RequestId,
 		Other:     other,
 	})
 }
@@ -231,6 +261,11 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	other["task_id"] = task.TaskID
 	other["pre_consumed_quota"] = preConsumedQuota
 	other["actual_quota"] = actualQuota
+	if quotaDelta > 0 {
+		other["billing_stage"] = "settle"
+	} else {
+		other["billing_stage"] = "refund"
+	}
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 		UserId:    task.UserId,
 		LogType:   logType,
@@ -240,6 +275,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		Quota:     logQuota,
 		TokenId:   task.PrivateData.TokenId,
 		Group:     task.Group,
+		RequestId: task.PrivateData.RequestId,
 		Other:     other,
 	})
 }
@@ -313,6 +349,10 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 
 	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * otherMultiplier（饱和转换，防止溢出成负数）
 	actualQuota := common.QuotaFromFloat(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
+
+	if bc != nil && bc.VideoBilling != nil {
+		bc.VideoBilling.VideoTokens = totalTokens
+	}
 
 	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason)

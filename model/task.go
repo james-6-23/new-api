@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 )
 
 type TaskStatus string
@@ -124,6 +125,7 @@ type TaskPrivateData struct {
 	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
 	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
+	RequestId      string              `json:"request_id,omitempty"`      // 原始请求 ID，用于关联预扣/结算/退款日志
 	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
 	// 媒体转存相关字段
 	StorageURL        string `json:"storage_url,omitempty"`         // CloudPaste 转存后的访问 URL（下载链接）
@@ -134,12 +136,13 @@ type TaskPrivateData struct {
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
 type TaskBillingContext struct {
-	ModelPrice      float64            `json:"model_price,omitempty"`       // 模型单价
-	GroupRatio      float64            `json:"group_ratio,omitempty"`       // 分组倍率
-	ModelRatio      float64            `json:"model_ratio,omitempty"`       // 模型倍率
-	OtherRatios     map[string]float64 `json:"other_ratios,omitempty"`      // 附加倍率（时长、分辨率等）
-	OriginModelName string             `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
-	PerCallBilling  bool               `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
+	ModelPrice      float64                    `json:"model_price,omitempty"`       // 模型单价
+	GroupRatio      float64                    `json:"group_ratio,omitempty"`       // 分组倍率
+	ModelRatio      float64                    `json:"model_ratio,omitempty"`       // 模型倍率
+	OtherRatios     map[string]float64         `json:"other_ratios,omitempty"`      // 附加倍率（时长、分辨率等）
+	OriginModelName string                     `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
+	PerCallBilling  bool                       `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
+	VideoBilling    *types.VideoBillingDisplay `json:"video_billing,omitempty"`     // 视频计费展示快照
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）

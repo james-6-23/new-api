@@ -45,8 +45,8 @@ export type ApiKeyGroupOption = {
 
 type ApiKeyGroupComboboxProps = {
   options: ApiKeyGroupOption[]
-  value?: string
-  onValueChange: (value: string) => void
+  value?: string[]
+  onValueChange: (value: string[]) => void
   placeholder?: string
   disabled?: boolean
 }
@@ -105,7 +105,8 @@ export function ApiKeyGroupCombobox({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
-  const selectedOption = options.find((option) => option.value === value)
+  const selected = value ?? []
+  const selectedOptions = options.filter((o) => selected.includes(o.value))
 
   const filteredOptions = useMemo(() => {
     const search = searchValue.trim().toLowerCase()
@@ -123,9 +124,20 @@ export function ApiKeyGroupCombobox({
   }, [options, searchValue])
 
   const handleSelect = (selectedValue: string) => {
-    onValueChange(selectedValue)
-    setOpen(false)
+    const current = value ?? []
+    let next: string[]
+    if (current.includes(selectedValue)) {
+      next = current.filter((v) => v !== selectedValue)
+    } else if (selectedValue === 'auto') {
+      // 选 auto 时清空其它分组（互斥）
+      next = ['auto']
+    } else {
+      // 选具体分组时移除 auto（互斥）
+      next = [...current.filter((v) => v !== 'auto'), selectedValue]
+    }
+    onValueChange(next)
     setSearchValue('')
+    // 多选不自动关闭弹层，便于连续勾选
   }
 
   return (
@@ -145,16 +157,10 @@ export function ApiKeyGroupCombobox({
         <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
           <span className='min-w-0'>
             <span className='block truncate font-medium'>
-              {selectedOption?.label || placeholder || t('Select a group')}
+              {selectedOptions.length > 0
+                ? selectedOptions.map((o) => o.label).join(', ')
+                : placeholder || t('Select groups')}
             </span>
-            {selectedOption?.desc && (
-              <span className='text-muted-foreground block truncate text-[11px] sm:text-xs'>
-                {selectedOption.desc}
-              </span>
-            )}
-          </span>
-          <span className='hidden sm:block'>
-            <GroupRatioBadge ratio={selectedOption?.ratio} />
           </span>
         </span>
         <ChevronsUpDown className='h-4 w-4 shrink-0 opacity-50' />
@@ -184,7 +190,7 @@ export function ApiKeyGroupCombobox({
                   <Check
                     className={cn(
                       'mt-0.5 h-4 w-4',
-                      value === option.value ? 'opacity-100' : 'opacity-0'
+                      selected.includes(option.value) ? 'opacity-100' : 'opacity-0'
                     )}
                   />
                   <span className='min-w-0 flex-1'>
