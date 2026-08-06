@@ -96,7 +96,7 @@ export interface CurrencyFormatOptions {
   minimumNonZero?: number
 }
 
-type DisplayMeta =
+export type DisplayMeta =
   | {
       kind: 'currency'
       symbol: string
@@ -196,7 +196,16 @@ function getDisplayMeta(config: CurrencyConfig): DisplayMeta {
   }
 }
 
-function getBillingDisplayMeta(config: CurrencyConfig): DisplayMeta {
+/**
+ * Like {@link getDisplayMeta}, but never returns the `tokens` kind: monetary
+ * displays (pricing, billing, cost reports) fall back to USD, because an
+ * invoice amount expressed in tokens is meaningless.
+ *
+ * Exported so feature code that formats money outside these helpers (e.g. the
+ * cost-accounting charts, which drive VChart axis/tooltip formatters directly)
+ * can resolve the same symbol + rate this module uses internally.
+ */
+export function getBillingDisplayMeta(config: CurrencyConfig): DisplayMeta {
   const meta = getDisplayMeta(config)
   if (meta.kind === 'tokens') {
     return {

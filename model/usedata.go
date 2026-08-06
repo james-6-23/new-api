@@ -64,6 +64,31 @@ func LogQuotaData(userId int, username string, modelName string, quota int, crea
 	logQuotaDataCache(userId, username, modelName, quota, createdAt, tokenUsed)
 }
 
+// LogQuotaDataAdjustment 把异步任务的结算差额/退款镜像进数据看板：只调金额
+// （正=补扣、负=退款冲抵），不增加请求计数（预扣时已计 1 次）。
+func LogQuotaDataAdjustment(userId int, username string, modelName string, quotaDelta int, createdAt int64) {
+	if quotaDelta == 0 {
+		return
+	}
+	createdAt = createdAt - (createdAt % 3600)
+
+	CacheQuotaDataLock.Lock()
+	defer CacheQuotaDataLock.Unlock()
+	key := fmt.Sprintf("%d-%s-%s-%d", userId, username, modelName, createdAt)
+	if quotaData, ok := CacheQuotaData[key]; ok {
+		quotaData.Quota += quotaDelta
+		return
+	}
+	CacheQuotaData[key] = &QuotaData{
+		UserID:    userId,
+		Username:  username,
+		ModelName: modelName,
+		CreatedAt: createdAt,
+		Count:     0,
+		Quota:     quotaDelta,
+	}
+}
+
 func SaveQuotaDataCache() {
 	CacheQuotaDataLock.Lock()
 	defer CacheQuotaDataLock.Unlock()

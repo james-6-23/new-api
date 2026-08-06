@@ -405,7 +405,13 @@ function renderCompactDetailSummary(summarySegments) {
       {segments.map((segment, index) => (
         <Typography.Text
           key={`${segment.text}-${index}`}
-          type={segment.tone === 'secondary' ? 'tertiary' : undefined}
+          type={
+            segment.tone === 'danger'
+              ? 'danger'
+              : segment.tone === 'secondary'
+                ? 'tertiary'
+                : undefined
+          }
           size={segment.tone === 'secondary' ? 'small' : undefined}
           style={{
             display: 'block',
@@ -437,6 +443,12 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     return null;
   }
 
+  // seedance 失败任务：报错信息置顶（红色），退款行已隐藏，错误必须在主行可见。
+  const failSegments =
+    record.task_info?.status === 'FAILURE' && record.task_info.fail_reason
+      ? [{ text: record.task_info.fail_reason, tone: 'danger' }]
+      : [];
+
   if (
     other?.violation_fee === true ||
     Boolean(other?.violation_fee_code) ||
@@ -464,13 +476,16 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
   const summaryOpts = { ...other, displayMode: billingDisplayMode, outputMode: 'segments' };
 
   if (other?.billing_mode === 'tiered_expr') {
-    return { segments: renderTieredModelPriceSimple(summaryOpts) };
+    return { segments: [...failSegments, ...renderTieredModelPriceSimple(summaryOpts)] };
   }
 
   return {
-    segments: other?.claude
-      ? renderModelPriceSimple({ ...summaryOpts, provider: 'claude' })
-      : renderModelPriceSimple({ ...summaryOpts, provider: 'openai' }),
+    segments: [
+      ...failSegments,
+      ...(other?.claude
+        ? renderModelPriceSimple({ ...summaryOpts, provider: 'claude' })
+        : renderModelPriceSimple({ ...summaryOpts, provider: 'openai' })),
+    ],
   };
 }
 
@@ -790,12 +805,17 @@ export const getLogsColumns = ({
       title: t('输出'),
       dataIndex: 'completion_tokens',
       render: (text, record, index) => {
-        return parseInt(text) > 0 &&
+        // seedance 视频任务：输出 tokens 从 task_info 补齐（预扣行本身为 0）。
+        const tokens =
+          parseInt(text) > 0
+            ? parseInt(text)
+            : record.task_info?.output_tokens || 0;
+        return tokens > 0 &&
           (record.type === 0 ||
             record.type === 2 ||
             record.type === 5 ||
             record.type === 6) ? (
-          <>{<span> {text} </span>}</>
+          <>{<span> {tokens} </span>}</>
         ) : (
           <></>
         );
@@ -824,6 +844,29 @@ export const getLogsColumns = ({
             <Tooltip content={`${t('由订阅抵扣')}：${renderQuota(text, 6)}`}>
               <span>{renderBillingTag(record, t)}</span>
             </Tooltip>
+          );
+        }
+        // seedance 任务三态费用：进行中不显示预扣金额；成功/失败显示实扣净额，
+        // 失败追加已退款角标；UNKNOWN 落回普通显示。
+        const taskInfo = record.task_info;
+        if (taskInfo && taskInfo.status !== 'UNKNOWN') {
+          if (taskInfo.status === 'SUCCESS') {
+            return <>{renderQuota(taskInfo.final_quota || 0, 6)}</>;
+          }
+          if (taskInfo.status === 'FAILURE') {
+            return (
+              <Space>
+                {renderQuota(taskInfo.final_quota || 0, 6)}
+                <Tag color='red' shape='circle' size='small'>
+                  {t('已退款')}
+                </Tag>
+              </Space>
+            );
+          }
+          return (
+            <Tag color='grey' shape='circle' size='small'>
+              {t('生成中')}
+            </Tag>
           );
         }
         return <>{renderQuota(text, 6)}</>;
@@ -896,6 +939,40 @@ export const getLogsColumns = ({
           }
         }
         return isAdminUser ? <div>{content}</div> : <></>;
+      },
+    },
+    {
+      // seedance 视频任务态：圆形进度环（环心百分比）+ 中文状态（非任务行留空）。
+      // 位于详情列之前，普通用户可见。
+      key: COLUMN_KEYS.TASK_STATUS,
+      title: t('状态'),
+      dataIndex: 'task_info',
+      render: (taskInfo) => {
+        if (!taskInfo) return <></>;
+        // 四态中文彩色 Tag（排队中/生成中/成功/失败），进行中附带百分比。
+        const pct = parseInt(taskInfo.progress || '0', 10) || 0;
+        const map = {
+          SUCCESS: { color: 'green', label: t('成功') },
+          FAILURE: { color: 'red', label: t('失败') },
+          IN_PROGRESS: {
+            color: 'blue',
+            label: pct > 0 ? `${t('生成中')} ${pct}%` : t('生成中'),
+          },
+          SUBMITTED: {
+            color: 'amber',
+            label: pct > 0 ? `${t('排队中')} ${pct}%` : t('排队中'),
+          },
+          QUEUED: {
+            color: 'amber',
+            label: pct > 0 ? `${t('排队中')} ${pct}%` : t('排队中'),
+          },
+        };
+        const item = map[taskInfo.status] || { color: 'grey', label: t('未知') };
+        return (
+          <Tag color={item.color} shape='circle' size='small'>
+            {item.label}
+          </Tag>
+        );
       },
     },
     {

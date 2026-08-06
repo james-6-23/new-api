@@ -159,23 +159,24 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 					modelRatio, hasRatioSetting, _ := ratio_setting.GetModelRatio(modelName)
 					// 只有配置了倍率(非固定价格)时才按 token 重新计费
 					if hasRatioSetting && modelRatio > 0 {
-						// 获取用户和组的倍率信息
-						group := task.Group
-						if group == "" {
-							user, err := model.GetUserById(task.UserId, false)
-							if err == nil {
-								group = user.Group
-							}
+						// 分组倍率查表语义与 HandleGroupRatio / RecalculateTaskQuotaByTokens
+						// 保持一致：task.Group 存的是 UsingGroup（令牌分组），UserGroup 需从
+						// user 表取，专属倍率按 (UserGroup, UsingGroup) 二维查询，未命中再
+						// 回退一维分组倍率。
+						usingGroup := task.Group
+						userGroup := ""
+						if user, err := model.GetUserById(task.UserId, false); err == nil {
+							userGroup = user.Group
 						}
-						if group != "" {
-							groupRatio := ratio_setting.GetGroupRatio(group)
-							userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
-
+						if usingGroup == "" {
+							usingGroup = userGroup
+						}
+						if usingGroup != "" {
 							var finalGroupRatio float64
-							if hasUserGroupRatio {
-								finalGroupRatio = userGroupRatio
+							if r, ok := ratio_setting.GetGroupGroupRatio(userGroup, usingGroup); ok {
+								finalGroupRatio = r
 							} else {
-								finalGroupRatio = groupRatio
+								finalGroupRatio = ratio_setting.GetGroupRatio(usingGroup)
 							}
 
 							// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio（饱和转换，防止溢出成负数）

@@ -75,7 +75,9 @@ func TestCreateAndWait_Failed(t *testing.T) {
 		case "CreateAsset":
 			_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"r1"},"Result":{"Id":"asset-bad"}}`))
 		case "GetAsset":
-			_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"r2"},"Result":{"Id":"asset-bad","Status":"Failed"}}`))
+			// 审核拒绝：上游把原因放在 Result 的扩展字段里（字段名不固定），
+			// 错误必须带出响应体原文，不能只报 processing failed。
+			_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"r2"},"Result":{"Id":"asset-bad","Status":"Failed","StatusMessage":"The request failed because the input image may contain sensitive information. Request ID: 2026xx_asset-bad"}}`))
 		}
 	}))
 	defer srv.Close()
@@ -84,6 +86,9 @@ func TestCreateAndWait_Failed(t *testing.T) {
 	_, err := cl.CreateAndWait(context.Background(), "https://example.com/i.jpg", "Image")
 	if err == nil || !strings.Contains(err.Error(), "processing failed") {
 		t.Fatalf("expected processing failed error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "sensitive information") {
+		t.Fatalf("error must carry the upstream rejection detail, got %v", err)
 	}
 }
 

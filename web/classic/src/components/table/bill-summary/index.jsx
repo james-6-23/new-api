@@ -51,6 +51,7 @@ const BillSummary = () => {
       token_name: v.token_name || undefined,
       model_name: v.model_name || undefined,
       exchange_rate: v.exchange_rate || undefined,
+      granularity: v.granularity || 'day',
     };
     if (isAdminUser) {
       p.username = v.username || undefined;
@@ -95,6 +96,7 @@ const BillSummary = () => {
       const s = buildQuery(params);
       s.append('with_detail', values.with_detail ? '1' : '0');
       s.append('detail_split_model', values.with_detail && values.detail_split_model ? '1' : '0');
+      s.append('bill_mode', values.bill_mode === 'external' ? 'external' : 'internal');
       const path = isAdminUser ? '/api/log/bill/export' : '/api/log/self/bill/export';
       const res = await API.get(`${path}?${s.toString()}`, { responseType: 'blob' });
       downloadBlobAsFile(new Blob([res.data]), `bill-summary-${Date.now()}.xlsx`);

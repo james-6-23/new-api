@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/task/seedance"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
@@ -143,59 +144,14 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling 检测请求 metadata 中是否包含视频输入，返回视频折扣 OtherRatio。
+// EstimateBilling 计算 Seedance 2.0 视频计费的 OtherRatios 并写入展示快照。
+// 模型识别、视频/分辨率检测与定价统一走共享包 seedance(与 sora 适配器同一套精确矩阵),
+// 覆盖海外 dreamina-* 与国内 doubao-* 两种命名。非 Seedance 2.0 模型返回 nil。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	if IsDreaminaSeedance2(info.OriginModelName) {
-		ratio, disp, ok := dreaminaVideoBilling(c, info)
-		if !ok {
-			return nil
-		}
-		d := disp
-		info.PriceData.VideoBilling = &d
-		if ratio != 1.0 {
-			return map[string]float64{"video_pricing": ratio}
-		}
-		return nil
-	}
-	req, err := relaycommon.GetTaskRequest(c)
-	if err != nil {
-		return nil
-	}
-	if hasVideoInMetadata(req.Metadata) {
-		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
-			return map[string]float64{"video_input": ratio}
-		}
+	if seedance.IsSeedance2(info.OriginModelName) {
+		return seedance.EstimateBilling(c, info)
 	}
 	return nil
-}
-
-// hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，
-// 避免构建完整的上游 requestPayload。
-func hasVideoInMetadata(metadata map[string]interface{}) bool {
-	if metadata == nil {
-		return false
-	}
-	contentRaw, ok := metadata["content"]
-	if !ok {
-		return false
-	}
-	contentSlice, ok := contentRaw.([]interface{})
-	if !ok {
-		return false
-	}
-	for _, item := range contentSlice {
-		itemMap, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if itemMap["type"] == "video_url" {
-			return true
-		}
-		if _, has := itemMap["video_url"]; has {
-			return true
-		}
-	}
-	return false
 }
 
 // BuildRequestBody converts request into Doubao specific format.

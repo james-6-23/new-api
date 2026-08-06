@@ -1,12 +1,30 @@
 package dto
 
+type ChannelSubSupplier struct {
+	Name      string  `json:"name"`
+	CostRatio float64 `json:"cost_ratio,omitempty"` // 该子供应商自己的 CNY:USD 倍率
+}
+
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	ForceFormat            bool    `json:"force_format,omitempty"`
+	ThinkingToContent      bool    `json:"thinking_to_content,omitempty"`
+	Proxy                  string  `json:"proxy"`
+	PassThroughBodyEnabled bool    `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt           string  `json:"system_prompt,omitempty"`
+	SystemPromptOverride   bool    `json:"system_prompt_override,omitempty"`
+	// CostRatio 渠道成本倍率（CNY : USD）。成本核算用：上游每消耗刊例 $1 记成本 ¥CostRatio。
+	// 0/缺省 = 未填写（成本按 0 计并在报表警示），不代表上游免费。
+	CostRatio float64 `json:"cost_ratio,omitempty"`
+	// CostMode 成本计价方式：""/"ratio"=按倍率（CostRatio，CNY:USD）；"discount"=按成本折扣
+	// （成本¥ = 刊例$ × CostDiscount × 查询汇率）。
+	CostMode string `json:"cost_mode,omitempty"`
+	// CostDiscount 成本折扣（如 0.8 = 刊例价 8 折），仅 CostMode=="discount" 时生效。
+	CostDiscount float64 `json:"cost_discount,omitempty"`
+	// IsAggregator 聚合渠道标记（背后是自建聚合系统，二期可同步其子供应商成本）。
+	IsAggregator bool `json:"is_aggregator,omitempty"`
+	// SubSuppliers 聚合渠道背后的子供应商配置（名称+各自倍率）。仅配置与展示；
+	// 报表成本仍按渠道级倍率/折扣计算（日志无法归属到子供应商）。
+	SubSuppliers []ChannelSubSupplier `json:"sub_suppliers,omitempty"`
 }
 
 type VertexKeyType string
@@ -52,6 +70,11 @@ type ChannelOtherSettings struct {
 	BytePlusProjectName    string `json:"byteplus_project_name,omitempty"`    // 资源项目名，默认 "default"
 	BytePlusRegion         string `json:"byteplus_region,omitempty"`          // 区域，默认 "ap-southeast-1"
 	BytePlusModerationSkip *bool  `json:"byteplus_moderation_skip,omitempty"` // 是否跳过内容预过滤，默认 true（Skip）
+
+	// 第三方 Seedance 渠道（model.service-inference.ai）素材库预上传总开关。
+	// 开启后提交视频生成前把参考媒体（公网 URL）预上传到素材库，换 asset://<id> 再提交。
+	// 鉴权复用渠道 Bearer key；素材组按渠道自动创建/复用。
+	Seedance3rdAssetEnabled bool `json:"seedance3rd_asset_enabled,omitempty"`
 }
 
 const (

@@ -21,6 +21,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -176,9 +177,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
 			bodyMap["model"] = info.UpstreamModelName
 			if newBody, err := common.Marshal(bodyMap); err == nil {
+				// 持久化上游请求体到 task.Properties.Input：使用日志据此展示
+				// 用户请求的 分辨率/宽高比/秒数 等真实参数。
+				info.UpstreamRequestBody = newBody
 				return bytes.NewReader(newBody), nil
 			}
 		}
+		info.UpstreamRequestBody = cachedBody
 		return bytes.NewReader(cachedBody), nil
 	}
 
@@ -363,6 +368,12 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	var err error
 	if data, err = sjson.SetBytes(data, "id", task.TaskID); err != nil {
 		return nil, errors.Wrap(err, "set id failed")
+	}
+	// 上游错误信息脱敏后透传（URL/IP/域名 mask），其余字段原样返回。
+	if msg := gjson.GetBytes(data, "error.message"); msg.Exists() && msg.String() != "" {
+		if data, err = sjson.SetBytes(data, "error.message", common.MaskSensitiveInfo(msg.String())); err != nil {
+			return nil, errors.Wrap(err, "mask error message failed")
+		}
 	}
 	return data, nil
 }

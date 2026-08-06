@@ -290,3 +290,16 @@ func MaskSensitiveInfo(str string) string {
 
 	return str
 }
+
+// upstreamRequestIdRe 匹配上游报错文本中的 "Request ID: xxx"（大小写变体均可）。
+var upstreamRequestIdRe = regexp.MustCompile(`(?i)(request\s*id:?\s*)([A-Za-z0-9_\-]+)`)
+
+// ReplaceUpstreamRequestId 把上游报错里的 Request ID 替换为我们系统的 request id：
+// 客户排查凭据应是系统 ID（可在日志按 request_id 检索），上游内部 ID 对客户无用
+// 且泄露上游细节。rid 为空时保留原文。
+func ReplaceUpstreamRequestId(msg, rid string) string {
+	if rid == "" || msg == "" {
+		return msg
+	}
+	return upstreamRequestIdRe.ReplaceAllString(msg, "${1}"+rid)
+}

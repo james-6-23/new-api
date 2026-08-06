@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 )
 
 func TestBuildBillSummaryPage_PagingAndTotals(t *testing.T) {
@@ -61,5 +62,30 @@ func TestBuildBillSummaryPage_PagingAndTotals(t *testing.T) {
 	page3 := buildBillSummaryPage(agg, 7.3, 9, 2)
 	if len(page3.Items) != 0 || page3.Total != 3 {
 		t.Fatalf("page 3 wrong: len=%d total=%d", len(page3.Items), page3.Total)
+	}
+}
+
+// 计费记录/请求数/刊例价金额透出到查询 DTO（settle 补扣行不计请求数）。
+func TestBuildBillSummaryPage_CountsAndListAmount(t *testing.T) {
+	agg := newBillSummaryAgg()
+	agg.addBatch([]*model.Log{
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 10), Username: "a", ChannelId: 1, TokenName: "tk", ModelName: "m",
+			Quota: 1000, PromptTokens: 10, Other: `{"model_ratio":10,"group_ratio":0.5}`},
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 11), Username: "a", ChannelId: 1, TokenName: "tk", ModelName: "m",
+			Quota: 200, Other: `{"billing_stage":"settle","group_ratio":0.5}`},
+	})
+	page := buildBillSummaryPage(agg, 7.3, 1, 20)
+	if len(page.Items) != 1 {
+		t.Fatalf("items = %d, want 1", len(page.Items))
+	}
+	it := page.Items[0]
+	if it.BillingRecords != 2 || it.RequestCount != 1 {
+		t.Fatalf("item counts = %d/%d, want 2/1", it.BillingRecords, it.RequestCount)
+	}
+	if it.ListAmountUSD != 0.0048 { // (2000+400)/500000
+		t.Fatalf("item list amount = %v, want 0.0048", it.ListAmountUSD)
+	}
+	if page.Summary.TotalBillingRecords != 2 || page.Summary.TotalRequestCount != 1 || page.Summary.TotalListAmountUSD != 0.0048 {
+		t.Fatalf("summary = %+v", page.Summary)
 	}
 }

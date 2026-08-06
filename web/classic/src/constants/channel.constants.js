@@ -194,6 +194,7 @@ export const CHANNEL_OPTIONS = [
     color: 'violet',
     label: 'OpenAI Video',
   },
+  { value: 59, color: 'purple', label: 'seedance(第三方)' },
 ];
 
 // Channel types that support upstream model list fetching in UI.

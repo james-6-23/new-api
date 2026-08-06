@@ -28,6 +28,9 @@ func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens i
 	if info == nil {
 		return
 	}
+	// RPM 在 Record() 之前自增：Record() 在采集开关关闭时提前返回，
+	// 放在其后会让实时 RPM 在采集关闭时恒为 0。
+	IncrRpm()
 	now := time.Now()
 	hasTtft := info.IsStream && info.HasSendResponse()
 	ttftMs := int64(0)

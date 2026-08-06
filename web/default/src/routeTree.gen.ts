@@ -47,8 +47,10 @@ import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
+import { Route as AuthenticatedCostIndexRouteImport } from './routes/_authenticated/cost/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedBillManagementIndexRouteImport } from './routes/_authenticated/bill-management/index'
+import { Route as AuthenticatedAvailabilityIndexRouteImport } from './routes/_authenticated/availability/index'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -268,6 +270,11 @@ const AuthenticatedDashboardIndexRoute =
     path: '/dashboard/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCostIndexRoute = AuthenticatedCostIndexRouteImport.update({
+  id: '/cost/',
+  path: '/cost/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedChannelsIndexRoute =
   AuthenticatedChannelsIndexRouteImport.update({
     id: '/channels/',
@@ -278,6 +285,12 @@ const AuthenticatedBillManagementIndexRoute =
   AuthenticatedBillManagementIndexRouteImport.update({
     id: '/bill-management/',
     path: '/bill-management/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAvailabilityIndexRoute =
+  AuthenticatedAvailabilityIndexRouteImport.update({
+    id: '/availability/',
+    path: '/availability/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedUsageLogsSectionRoute =
@@ -430,8 +443,10 @@ export interface FileRoutesByFullPath {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/availability/': typeof AuthenticatedAvailabilityIndexRoute
   '/bill-management/': typeof AuthenticatedBillManagementIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/cost/': typeof AuthenticatedCostIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
   '/models/': typeof AuthenticatedModelsIndexRoute
@@ -489,8 +504,10 @@ export interface FileRoutesByTo {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/availability': typeof AuthenticatedAvailabilityIndexRoute
   '/bill-management': typeof AuthenticatedBillManagementIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
+  '/cost': typeof AuthenticatedCostIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
@@ -552,8 +569,10 @@ export interface FileRoutesById {
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/_authenticated/availability/': typeof AuthenticatedAvailabilityIndexRoute
   '/_authenticated/bill-management/': typeof AuthenticatedBillManagementIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/_authenticated/cost/': typeof AuthenticatedCostIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
@@ -614,8 +633,10 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/availability/'
     | '/bill-management/'
     | '/channels/'
+    | '/cost/'
     | '/dashboard/'
     | '/keys/'
     | '/models/'
@@ -673,8 +694,10 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/availability'
     | '/bill-management'
     | '/channels'
+    | '/cost'
     | '/dashboard'
     | '/keys'
     | '/models'
@@ -735,8 +758,10 @@ export interface FileRouteTypes {
     | '/_authenticated/errors/$error'
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
+    | '/_authenticated/availability/'
     | '/_authenticated/bill-management/'
     | '/_authenticated/channels/'
+    | '/_authenticated/cost/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
     | '/_authenticated/models/'
@@ -1054,6 +1079,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/cost/': {
+      id: '/_authenticated/cost/'
+      path: '/cost'
+      fullPath: '/cost/'
+      preLoaderRoute: typeof AuthenticatedCostIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/channels/': {
       id: '/_authenticated/channels/'
       path: '/channels'
@@ -1066,6 +1098,13 @@ declare module '@tanstack/react-router' {
       path: '/bill-management'
       fullPath: '/bill-management/'
       preLoaderRoute: typeof AuthenticatedBillManagementIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/availability/': {
+      id: '/_authenticated/availability/'
+      path: '/availability'
+      fullPath: '/availability/'
+      preLoaderRoute: typeof AuthenticatedAvailabilityIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/usage-logs/$section': {
@@ -1302,8 +1341,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
+  AuthenticatedAvailabilityIndexRoute: typeof AuthenticatedAvailabilityIndexRoute
   AuthenticatedBillManagementIndexRoute: typeof AuthenticatedBillManagementIndexRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
+  AuthenticatedCostIndexRoute: typeof AuthenticatedCostIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
@@ -1325,8 +1366,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
+  AuthenticatedAvailabilityIndexRoute: AuthenticatedAvailabilityIndexRoute,
   AuthenticatedBillManagementIndexRoute: AuthenticatedBillManagementIndexRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
+  AuthenticatedCostIndexRoute: AuthenticatedCostIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
   AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,

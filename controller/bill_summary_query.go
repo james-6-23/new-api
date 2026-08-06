@@ -18,6 +18,9 @@ type billSummaryItemDTO struct {
 	ChannelId           int     `json:"channel_id"`
 	TokenName           string  `json:"token_name"`
 	ModelName           string  `json:"model_name"`
+	BillingRecords      int     `json:"billing_records"`
+	RequestCount        int     `json:"request_count"`
+	ListAmountUSD       float64 `json:"list_amount_usd"`
 	AmountUSD           float64 `json:"amount_usd"`
 	ExchangeRate        float64 `json:"exchange_rate"`
 	AmountCNY           float64 `json:"amount_cny"`
@@ -28,6 +31,9 @@ type billSummaryItemDTO struct {
 }
 
 type billSummaryTotalsDTO struct {
+	TotalBillingRecords      int     `json:"total_billing_records"`
+	TotalRequestCount        int     `json:"total_request_count"`
+	TotalListAmountUSD       float64 `json:"total_list_amount_usd"`
 	TotalAmountUSD           float64 `json:"total_amount_usd"`
 	TotalAmountCNY           float64 `json:"total_amount_cny"`
 	TotalPromptTokens        int     `json:"total_prompt_tokens"`
@@ -54,6 +60,9 @@ func buildBillSummaryPage(agg *billSummaryAgg, exchangeRate float64, page, pageS
 		usd := roundTo6(float64(r.Quota) / common.QuotaPerUnit)
 		totals.TotalAmountUSD += usd
 		totals.TotalAmountCNY += roundTo6(usd * exchangeRate)
+		totals.TotalBillingRecords += r.BillingRecords
+		totals.TotalRequestCount += r.RequestCount
+		totals.TotalListAmountUSD += roundTo6(r.ListQuota / common.QuotaPerUnit)
 		totals.TotalPromptTokens += r.PromptTokens
 		totals.TotalCompletionTokens += r.CompletionTokens
 		totals.TotalCacheReadTokens += r.CacheReadTokens
@@ -61,6 +70,7 @@ func buildBillSummaryPage(agg *billSummaryAgg, exchangeRate float64, page, pageS
 	}
 	totals.TotalAmountUSD = roundTo6(totals.TotalAmountUSD)
 	totals.TotalAmountCNY = roundTo6(totals.TotalAmountCNY)
+	totals.TotalListAmountUSD = roundTo6(totals.TotalListAmountUSD)
 
 	start := (page - 1) * pageSize
 	if start < 0 {
@@ -76,11 +86,14 @@ func buildBillSummaryPage(agg *billSummaryAgg, exchangeRate float64, page, pageS
 			r := agg.rows[k]
 			usd := roundTo6(float64(r.Quota) / common.QuotaPerUnit)
 			items = append(items, billSummaryItemDTO{
-				Date:                k.Day,
+				Date:                billPeriodLabel(k.Day, agg.granularity),
 				Username:            k.Username,
 				ChannelId:           k.ChannelId,
 				TokenName:           k.TokenName,
 				ModelName:           k.ModelName,
+				BillingRecords:      r.BillingRecords,
+				RequestCount:        r.RequestCount,
+				ListAmountUSD:       roundTo6(r.ListQuota / common.QuotaPerUnit),
 				AmountUSD:           usd,
 				ExchangeRate:        exchangeRate,
 				AmountCNY:           roundTo6(usd * exchangeRate),
@@ -128,6 +141,7 @@ func QueryBillSummaryAll(c *gin.Context) {
 	rate := billSummaryRate(c)
 
 	agg := newBillSummaryAgg()
+	agg.granularity = normalizeBillGranularity(c.Query("granularity"))
 	maxRows := model.LogExportMaxRows("xlsx")
 	_, err := model.GetAllLogsForExport(model.LogTypeUnknown, start, end,
 		c.Query("model_name"), c.Query("username"), c.Query("token_name"),
@@ -155,6 +169,7 @@ func QueryBillSummarySelf(c *gin.Context) {
 	rate := billSummaryRate(c)
 
 	agg := newBillSummaryAgg()
+	agg.granularity = normalizeBillGranularity(c.Query("granularity"))
 	maxRows := model.LogExportMaxRows("xlsx")
 	_, err := model.GetUserLogsForExport(userId, model.LogTypeUnknown, start, end,
 		c.Query("model_name"), c.Query("token_name"), c.Query("group"), "", maxRows,

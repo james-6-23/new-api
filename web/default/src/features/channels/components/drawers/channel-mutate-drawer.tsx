@@ -24,11 +24,16 @@ import {
   useCallback,
   useRef,
 } from 'react'
-import { type SubmitErrorHandler, useForm } from 'react-hook-form'
+import {
+  type SubmitErrorHandler,
+  useFieldArray,
+  useForm,
+} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowRight,
+  Building2,
   HelpCircle,
   Loader2,
   Sparkles,
@@ -43,10 +48,13 @@ import {
   Route,
   Settings,
   SlidersHorizontal,
+  Users,
   Wand2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
@@ -140,6 +148,7 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
+  hasSupplierSettingsErrors,
 } from '../../lib'
 import {
   collectInvalidStatusCodeEntries,
@@ -162,6 +171,7 @@ import {
   ChannelBasicSection,
   ChannelEditorLoadingState,
   ChannelModelsSection,
+  ChannelSupplierSection,
 } from './sections'
 
 type ChannelMutateDrawerProps = {
@@ -194,11 +204,17 @@ const MODEL_MAPPING_PREVIEW_FALLBACK: Array<{
 }> = [{ source: 'client-model', target: 'upstream-model' }]
 
 const ADVANCED_SETTINGS_EXPANDED_KEY = 'channel-advanced-settings-expanded'
+const SUPPLIER_SETTINGS_EXPANDED_KEY = 'channel-supplier-settings-expanded'
 const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8
 
 function readAdvancedSettingsPreference(): boolean {
   if (typeof window === 'undefined') return false
   return window.localStorage.getItem(ADVANCED_SETTINGS_EXPANDED_KEY) === 'true'
+}
+
+function readSupplierSettingsPreference(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem(SUPPLIER_SETTINGS_EXPANDED_KEY) === 'true'
 }
 
 function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
@@ -220,6 +236,16 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
     values.upstream_model_update_ignored_models?.trim()
+  )
+}
+
+function hasSupplierSettingsValues(values: ChannelFormValues): boolean {
+  return Boolean(
+    values.cost_ratio != null ||
+    values.cost_mode === 'discount' ||
+    values.cost_discount != null ||
+    values.is_aggregator ||
+    (values.sub_suppliers && values.sub_suppliers.length > 0)
   )
 }
 
@@ -297,10 +323,13 @@ export function ChannelMutateDrawer({
     ((action: MissingModelsAction) => void) | null
   >(null)
   const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false)
+  const [supplierSettingsOpen, setSupplierSettingsOpen] = useState(false)
   const [paramOverrideEditorOpen, setParamOverrideEditorOpen] = useState(false)
 
   const isEditing = Boolean(currentRow)
   const channelId = currentRow?.id ?? null
+  const currentUser = useAuthStore((state) => state.auth.user)
+  const isCostRatioVisible = (currentUser?.role ?? 0) >= ROLE.SUPER_ADMIN
 
   // Fetch channel details if editing
   const { data: channelData, isLoading: isChannelLoading } = useQuery({
@@ -359,6 +388,12 @@ export function ChannelMutateDrawer({
     defaultValues: CHANNEL_FORM_DEFAULT_VALUES,
   })
 
+  const {
+    fields: subSupplierFields,
+    append: appendSubSupplier,
+    remove: removeSubSupplier,
+  } = useFieldArray({ control: form.control, name: 'sub_suppliers' })
+
   // Watch form values for conditional rendering
   const multiKeyMode = form.watch('multi_key_mode')
   const multiKeyType = form.watch('multi_key_type')
@@ -374,6 +409,8 @@ export function ChannelMutateDrawer({
   const upstreamModelUpdateCheckEnabled = form.watch(
     'upstream_model_update_check_enabled'
   )
+  const costMode = form.watch('cost_mode')
+  const isAggregatorChannel = form.watch('is_aggregator')
   const currentSettings = form.watch('settings')
   const {
     unlocked: doubaoApiEditUnlocked,
@@ -592,6 +629,9 @@ export function ChannelMutateDrawer({
       setAdvancedSettingsOpen(
         readAdvancedSettingsPreference() || hasAdvancedSettingsValues(defaults)
       )
+      setSupplierSettingsOpen(
+        readSupplierSettingsPreference() || hasSupplierSettingsValues(defaults)
+      )
       // Store initial values for comparison
       initialModelsRef.current = parseModelsString(
         channelData.data.models || ''
@@ -602,6 +642,7 @@ export function ChannelMutateDrawer({
     } else if (!isEditing) {
       form.reset(CHANNEL_FORM_DEFAULT_VALUES)
       setAdvancedSettingsOpen(false)
+      setSupplierSettingsOpen(false)
       initialModelsRef.current = []
       initialModelMappingRef.current = ''
       initialStatusCodeMappingRef.current = ''
@@ -1044,14 +1085,27 @@ export function ChannelMutateDrawer({
     }
   }, [])
 
+  const handleSupplierSettingsOpenChange = useCallback((nextOpen: boolean) => {
+    setSupplierSettingsOpen(nextOpen)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(
+        SUPPLIER_SETTINGS_EXPANDED_KEY,
+        String(nextOpen)
+      )
+    }
+  }, [])
+
   const onInvalid: SubmitErrorHandler<ChannelFormValues> = useCallback(
     (errors) => {
       if (hasAdvancedSettingsErrors(errors)) {
         handleAdvancedSettingsOpenChange(true)
       }
+      if (hasSupplierSettingsErrors(errors)) {
+        handleSupplierSettingsOpenChange(true)
+      }
       toast.error(t('Please fix the highlighted fields before saving'))
     },
-    [handleAdvancedSettingsOpenChange, t]
+    [handleAdvancedSettingsOpenChange, handleSupplierSettingsOpenChange, t]
   )
 
   // Handle drawer close
@@ -1061,6 +1115,7 @@ export function ChannelMutateDrawer({
       if (!v) {
         form.reset(CHANNEL_FORM_DEFAULT_VALUES)
         setAdvancedSettingsOpen(false)
+        setSupplierSettingsOpen(false)
       }
     },
     [onOpenChange, form]
@@ -1566,6 +1621,40 @@ export function ChannelMutateDrawer({
                             />
                           </>
                         )}
+                      </div>
+                    )}
+
+                    {/* Seedance(第三方) asset pre-upload (type 59) */}
+                    {[59].includes(currentType) && (
+                      <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                        <SubHeading
+                          title={t('Seedance(第三方) Asset Library')}
+                          icon={<SlidersHorizontal className='h-3.5 w-3.5' />}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='seedance3rd_asset_enabled'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 px-1 py-2'>
+                              <div className='space-y-0.5'>
+                                <FormLabel className='text-sm'>
+                                  {t('Seedance 3rd-party asset preupload')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Before submitting, upload reference media to the asset library and replace it with asset://id. Avoids real-face / content pre-filter interception.'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
                       </div>
                     )}
 
@@ -3548,6 +3637,268 @@ export function ChannelMutateDrawer({
                       )}
                     </div>
                   </ChannelAdvancedSection>
+
+                  {isCostRatioVisible && (
+                    <ChannelSupplierSection
+                      open={supplierSettingsOpen}
+                      onOpenChange={handleSupplierSettingsOpenChange}
+                    >
+                      {/* ── Pricing Mode ── */}
+                      <div className={sideDrawerSectionClassName()}>
+                        <CardHeading
+                          title={t('Pricing Mode')}
+                          icon={<Settings className='h-4 w-4' />}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='cost_mode'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Pricing Mode')}</FormLabel>
+                              <Select
+                                value={field.value || 'ratio'}
+                                onValueChange={(value) => field.onChange(value)}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectGroup>
+                                    <SelectItem value='ratio'>
+                                      {t('Cost Ratio (CNY per USD)')}
+                                    </SelectItem>
+                                    <SelectItem value='discount'>
+                                      {t('Cost Discount')}
+                                    </SelectItem>
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {costMode === 'discount' ? (
+                          <FormField
+                            control={form.control}
+                            name='cost_discount'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Cost Discount')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    min={0}
+                                    step={0.01}
+                                    placeholder={t('e.g., 0.8')}
+                                    value={field.value ?? ''}
+                                    onChange={(e) => {
+                                      const raw = e.target.value
+                                      field.onChange(
+                                        raw === '' ? undefined : Number(raw)
+                                      )
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(
+                                    'Cost = list price × discount × exchange rate. 0.8 means 80% of list price.'
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ) : (
+                          <FormField
+                            control={form.control}
+                            name='cost_ratio'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  {t('Cost Ratio (CNY per USD)')}
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    min={0}
+                                    step={0.01}
+                                    placeholder={t('e.g., 6.5')}
+                                    value={field.value ?? ''}
+                                    onChange={(e) => {
+                                      const raw = e.target.value
+                                      field.onChange(
+                                        raw === '' ? undefined : Number(raw)
+                                      )
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(
+                                    'Used by cost accounting. Leave empty if unknown.'
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                      </div>
+
+                      {/* ── Aggregator ── */}
+                      <div className={sideDrawerSectionClassName()}>
+                        <CardHeading
+                          title={t('Aggregator Channel')}
+                          icon={<Building2 className='h-4 w-4' />}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='is_aggregator'
+                          render={({ field }) => (
+                            <FormItem
+                              className={sideDrawerSwitchItemClassName()}
+                            >
+                              <div className='flex flex-col gap-0.5'>
+                                <FormLabel>
+                                  {t('Aggregator Channel')}
+                                </FormLabel>
+                                <FormDescription className='text-xs'>
+                                  {t(
+                                    'This channel routes to multiple upstream sub-suppliers'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        {isAggregatorChannel && (
+                          <div className='flex flex-col gap-3'>
+                            <SubHeading
+                              title={t('Sub-supplier')}
+                              icon={<Users className='h-3.5 w-3.5' />}
+                            />
+                            {subSupplierFields.length > 0 ? (
+                              <div className='flex flex-col gap-2'>
+                                <div className='grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-medium'>
+                                  <div>{t('Sub-supplier')}</div>
+                                  <div>{t('Cost Ratio (CNY per USD)')}</div>
+                                  <div className='w-10'></div>
+                                </div>
+                                {subSupplierFields.map((fieldItem, index) => (
+                                  <div
+                                    key={fieldItem.id}
+                                    className='grid grid-cols-[1fr_1fr_auto] gap-2'
+                                  >
+                                    <FormField
+                                      control={form.control}
+                                      name={`sub_suppliers.${index}.name`}
+                                      render={({ field }) => (
+                                        <Input
+                                          placeholder={t('Sub-supplier')}
+                                          {...field}
+                                        />
+                                      )}
+                                    />
+                                    <FormField
+                                      control={form.control}
+                                      name={`sub_suppliers.${index}.cost_ratio`}
+                                      render={({ field }) => (
+                                        <Input
+                                          type='number'
+                                          min={0}
+                                          step={0.01}
+                                          placeholder={t('e.g., 6.5')}
+                                          value={field.value ?? ''}
+                                          onChange={(e) => {
+                                            const raw = e.target.value
+                                            field.onChange(
+                                              raw === ''
+                                                ? undefined
+                                                : Number(raw)
+                                            )
+                                          }}
+                                        />
+                                      )}
+                                    />
+                                    <Button
+                                      type='button'
+                                      variant='ghost'
+                                      size='icon'
+                                      onClick={() => removeSubSupplier(index)}
+                                      className='h-10 w-10'
+                                      aria-label={t('Remove')}
+                                    >
+                                      <Trash2
+                                        className='h-4 w-4'
+                                        aria-hidden='true'
+                                      />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className='text-muted-foreground flex h-16 items-center justify-center rounded-md border border-dashed text-sm'>
+                                {t('No sub-suppliers configured yet.')}
+                              </div>
+                            )}
+                            <div className='flex flex-col gap-2 sm:flex-row'>
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                onClick={() =>
+                                  appendSubSupplier({
+                                    name: '',
+                                    cost_ratio: undefined,
+                                  })
+                                }
+                                className='flex-1'
+                              >
+                                <Plus
+                                  className='mr-2 h-4 w-4'
+                                  aria-hidden='true'
+                                />
+                                {t('Add supplier')}
+                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={<span className='flex-1' />}
+                                >
+                                  <Button
+                                    type='button'
+                                    variant='outline'
+                                    size='sm'
+                                    disabled
+                                    className='pointer-events-none w-full'
+                                  >
+                                    <RefreshCw
+                                      className='mr-2 h-4 w-4'
+                                      aria-hidden='true'
+                                    />
+                                    {t('Sync from upstream')}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side='top'>
+                                  {t(
+                                    'Available after aggregator API integration'
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </ChannelSupplierSection>
+                  )}
                 </>
               )}
             </form>

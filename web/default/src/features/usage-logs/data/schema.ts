@@ -22,6 +22,28 @@ For commercial licensing, please contact support@quantumnous.com
  */
 import { z } from 'zod'
 
+// seedance 视频任务预扣行的查询时增强载荷（后端 model.LogTaskInfo）。
+// 存在时使用日志把该行渲染为"单行任务视图"：状态列、进度条、三态费用与详情区块。
+export const logTaskInfoSchema = z.object({
+  status: z.string(),
+  progress: z.string().optional(),
+  fail_reason: z.string().optional(),
+  task_id: z.string().optional(),
+  upstream_task_id: z.string().optional(),
+  pre_quota: z.number().default(0),
+  final_quota: z.number().default(0),
+  output_tokens: z.number().optional(),
+  resolution_tier: z.string().optional(),
+  resolution: z.string().optional(),
+  ratio: z.string().optional(),
+  duration_s: z.number().optional(),
+  has_input: z.boolean().default(false),
+  effective_ratio: z.number().optional(),
+  is_user_ratio: z.boolean().optional(),
+})
+
+export type LogTaskInfo = z.infer<typeof logTaskInfoSchema>
+
 // Usage log schema
 export const usageLogSchema = z.object({
   id: z.number(),
@@ -45,6 +67,7 @@ export const usageLogSchema = z.object({
   other: z.string().default(''),
   request_id: z.string().default(''),
   upstream_request_id: z.string().default(''),
+  task_info: logTaskInfoSchema.nullish(),
 })
 
 export type UsageLog = z.infer<typeof usageLogSchema>

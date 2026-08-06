@@ -86,6 +86,16 @@ export interface ChannelSettings {
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  // Cost accounting: CNY per USD of upstream list-price usage. 0/absent = unset.
+  cost_ratio?: number
+  // Supplier settings: pricing mode ('' | 'ratio' defaults to cost_ratio behavior; 'discount' uses cost_discount).
+  cost_mode?: '' | 'ratio' | 'discount'
+  // Cost accounting: discount multiplier applied to upstream list-price rate. 0/absent = unset.
+  cost_discount?: number
+  // Whether this channel aggregates multiple upstream sub-suppliers.
+  is_aggregator?: boolean
+  // Sub-supplier breakdown for aggregator channels.
+  sub_suppliers?: Array<{ name: string; cost_ratio?: number }>
 }
 
 export interface ChannelOtherSettings {
@@ -113,6 +123,8 @@ export interface ChannelOtherSettings {
   byteplus_project_name?: string
   byteplus_region?: string
   byteplus_moderation_skip?: boolean
+  // Seedance(第三方) asset pre-upload (channel type 59)
+  seedance3rd_asset_enabled?: boolean
 }
 
 // ============================================================================

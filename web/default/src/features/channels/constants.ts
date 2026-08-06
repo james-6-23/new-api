@@ -76,6 +76,8 @@ export const CHANNEL_TYPES = {
   55: 'Sora',
   56: 'Replicate',
   57: 'ChatGPT Subscription (Codex)',
+  58: 'OpenAI Video',
+  59: 'seedance(第三方)',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [

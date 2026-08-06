@@ -192,7 +192,14 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	// 2. 退还令牌额度
 	taskAdjustTokenQuota(ctx, task, -quota)
 
-	// 3. 记录日志
+	// 3. 统计口径回冲：数据面板 quota_data、用户/渠道 used_quota 与预扣对称，
+	// 否则三处统计只记预扣、数字虚高（请求计数不回冲，预扣时已计 1 次）。
+	username, _ := model.GetUsernameById(task.UserId, false)
+	model.LogQuotaDataAdjustment(task.UserId, username, taskModelName(task), -quota, common.GetTimestamp())
+	model.UpdateUserUsedQuotaDelta(task.UserId, -quota)
+	model.UpdateChannelUsedQuota(task.ChannelId, -quota)
+
+	// 4. 记录日志
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
 	other["reason"] = reason
@@ -251,12 +258,19 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	if quotaDelta > 0 {
 		logType = model.LogTypeConsume
 		logQuota = quotaDelta
-		model.UpdateUserUsedQuotaAndRequestCount(task.UserId, quotaDelta)
+		// 补扣只调金额：请求计数在预扣时已计 1 次，结算不重复计数。
+		model.UpdateUserUsedQuotaDelta(task.UserId, quotaDelta)
 		model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
 	} else {
 		logType = model.LogTypeRefund
 		logQuota = -quotaDelta
+		// 退款冲抵 used_quota（请求计数不动，预扣时已计 1 次）。
+		model.UpdateUserUsedQuotaDelta(task.UserId, quotaDelta)
+		model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
 	}
+	// 数据面板镜像：补扣为正、退款为负，保证柱状图为净额口径。
+	username, _ := model.GetUsernameById(task.UserId, false)
+	model.LogQuotaDataAdjustment(task.UserId, username, taskModelName(task), quotaDelta, common.GetTimestamp())
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
 	other["pre_consumed_quota"] = preConsumedQuota

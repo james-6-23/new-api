@@ -77,6 +77,36 @@ type logPricingInfo struct {
 	CacheCreationRatio5m  float64 `json:"cache_creation_ratio_5m"`
 	CacheCreationTokens1h int     `json:"cache_creation_tokens_1h"`
 	CacheCreationRatio1h  float64 `json:"cache_creation_ratio_1h"`
+	CacheWriteTokens      int     `json:"cache_write_tokens"`
+	Frt                   float64 `json:"frt"` // 首字延迟毫秒；<=0 视为未记录
+
+	// 上游 usage 语义，决定 prompt_tokens 是否已含缓存 tokens：
+	// "anthropic" → 不含（Claude 原厂 input_tokens 与 cache 互斥）；
+	// 其余（含缺失的旧日志）→ 含。Claude 为最终上游格式时 claude=true，
+	// 老日志可能只有后者，故两者取或。写入点见 service/text_quota.go。
+	UsageSemantic string `json:"usage_semantic"`
+	Claude        bool   `json:"claude"`
+
+	// Tiered-expression billing keys written by InjectTieredBillingInfo.
+	// expr_b64 is the base64 expression; matched_tier names the tier that
+	// actually billed this request (see pkg/billingexpr/expr.md).
+	BillingMode string `json:"billing_mode"`
+	ExprB64     string `json:"expr_b64"`
+	MatchedTier string `json:"matched_tier"`
+
+	// Async-task billing keys (seedance-style pre-consume → settle/refund),
+	// written by LogTaskConsumption / RecalculateTaskQuota / RefundTaskQuota.
+	IsTask           bool    `json:"is_task"`
+	BillingStage     string  `json:"billing_stage"` // pre_consume | settle | refund
+	TaskId           string  `json:"task_id"`
+	PreConsumedQuota float64 `json:"pre_consumed_quota"`
+	ActualQuota      float64 `json:"actual_quota"`
+	Reason           string  `json:"reason"`
+	VideoUnitPrice   float64 `json:"video_unit_price"`
+	VideoTokens      float64 `json:"video_tokens"`
+	VideoInput       float64 `json:"video_input"` // video-input discount ratio, shown only when present
+	VideoResolution  string  `json:"video_resolution_tier"`
+	VideoHasInput    bool    `json:"video_has_input"`
 }
 
 const billingDisclaimer = "仅供参考，以实际扣费为准"
@@ -90,12 +120,23 @@ func buildBillingText(log *model.Log) string {
 	if log == nil {
 		return billingMissingPlaceholder
 	}
+	// seedance 单行化导出：预扣行携带 TaskInfo 时输出任务全过程（状态/
+	// 预扣→实扣/失败原因/任务 ID），settle/refund 行已在导出批次中剔除。
+	if log.TaskInfo != nil {
+		return buildTaskInfoBillingText(log)
+	}
 	if strings.TrimSpace(log.Other) == "" {
 		return billingMissingPlaceholder
 	}
 	var info logPricingInfo
 	if err := common.UnmarshalJsonStr(log.Other, &info); err != nil {
 		return billingMissingPlaceholder
+	}
+
+	// Async-task rows (pre-consume / settle / refund) carry their own stage
+	// formulas — the token-ratio reconstruction below would be meaningless.
+	if text, ok := buildTaskBillingText(log, &info); ok {
+		return text
 	}
 
 	totalUSD := float64(log.Quota) / common.QuotaPerUnit
@@ -177,6 +218,154 @@ func isValidGroupRatio(r float64) bool {
 		return false
 	}
 	return r != -1
+}
+
+// seedanceTaskStatusLabel 把任务状态映射为导出文本用的中文标签。
+func seedanceTaskStatusLabel(status string) string {
+	switch status {
+	case string(model.TaskStatusSuccess):
+		return "成功"
+	case string(model.TaskStatusFailure):
+		return "失败"
+	case string(model.TaskStatusInProgress):
+		return "生成中"
+	case string(model.TaskStatusSubmitted), string(model.TaskStatusQueued):
+		return "排队中"
+	default:
+		return "未知"
+	}
+}
+
+// buildTaskInfoBillingText 渲染 seedance 单行化导出的计费过程：任务状态、
+// 预扣→实扣净额、输出 tokens、失败原因与任务 ID（上游 ID 仅 admin 路径有值）。
+func buildTaskInfoBillingText(log *model.Log) string {
+	ti := log.TaskInfo
+	quotaUSD := func(q int) string { return "$" + formatPrice(float64(q)/common.QuotaPerUnit) }
+	lines := []string{
+		fmt.Sprintf("视频任务：%s（进度 %s）", seedanceTaskStatusLabel(ti.Status), ti.Progress),
+	}
+	settleLine := fmt.Sprintf("预扣 %s → 实扣 %s", quotaUSD(ti.PreQuota), quotaUSD(ti.FinalQuota))
+	if ti.Status == string(model.TaskStatusFailure) && ti.FinalQuota == 0 {
+		settleLine += "（已退款）"
+	}
+	lines = append(lines, settleLine)
+	if ti.OutputTokens > 0 {
+		lines = append(lines, fmt.Sprintf("输出 %d tokens", ti.OutputTokens))
+	}
+	if ti.FailReason != "" {
+		lines = append(lines, "失败原因 "+ti.FailReason)
+	}
+	if ti.TaskId != "" {
+		lines = append(lines, "任务 "+ti.TaskId)
+	}
+	if ti.UpstreamTaskId != "" {
+		lines = append(lines, "上游任务 "+ti.UpstreamTaskId)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// applySeedanceExportMerge 把原始日志导出批次单行化：seedance 的 settle/refund
+// 行剔除；带 TaskInfo 的预扣行费用改写为实扣净额、输出 tokens 落列（导出行是
+// 一次性流式对象，就地改写安全）。其余行原样透传。
+func applySeedanceExportMerge(batch []*model.Log) []*model.Log {
+	out := batch[:0]
+	for _, log := range batch {
+		if strings.Contains(log.ModelName, "seedance") &&
+			(strings.Contains(log.Other, `"billing_stage":"settle"`) || strings.Contains(log.Other, `"billing_stage":"refund"`)) {
+			continue
+		}
+		if ti := log.TaskInfo; ti != nil {
+			log.Quota = ti.FinalQuota
+			if log.CompletionTokens == 0 && ti.OutputTokens > 0 {
+				log.CompletionTokens = ti.OutputTokens
+			}
+		}
+		out = append(out, log)
+	}
+	return out
+}
+
+// buildTaskBillingText renders the stage-specific billing breakdown for async
+// task rows (pre-consume → settle/refund, e.g. seedance video tasks). Wording
+// mirrors the frontend renderTaskBillingProcess so exports match the log page.
+// ok=false means the row is not a task row and the ratio-based path applies.
+func buildTaskBillingText(log *model.Log, info *logPricingInfo) (string, bool) {
+	isPre := info.BillingStage == "pre_consume" || (info.BillingStage == "" && info.IsTask)
+	isSettle := !isPre && (info.BillingStage == "settle" || info.BillingStage == "refund" || info.TaskId != "")
+	if !isPre && !isSettle {
+		return "", false
+	}
+
+	ratioLabel := "分组倍率"
+	groupRatio := info.GroupRatio
+	if isValidGroupRatio(info.UserGroupRatio) && info.UserGroupRatio > 0 {
+		ratioLabel = "专属倍率"
+		groupRatio = info.UserGroupRatio
+	}
+	unitUSD := info.VideoUnitPrice
+	if unitUSD == 0 {
+		unitUSD = info.ModelRatio * 2.0
+	}
+	vpart := ""
+	if info.VideoInput > 0 && info.VideoInput != 1 {
+		vpart = " × 视频折扣 " + formatRatio(info.VideoInput)
+	}
+	quotaUSD := func(q float64) string { return "$" + formatPrice(q/common.QuotaPerUnit) }
+
+	var lines []string
+	if isSettle {
+		pre, actual := info.PreConsumedQuota, info.ActualQuota
+		if pre == 0 && actual == 0 {
+			// 失败全额退款(RefundTaskQuota)：无差额字段，退还整行金额。
+			lines = append(lines, "任务退款：退还预扣 "+quotaUSD(float64(log.Quota)))
+			reason := info.Reason
+			if reason == "" {
+				reason = log.Content
+			}
+			if reason != "" {
+				lines = append(lines, "原因 "+reason)
+			}
+		} else {
+			if info.VideoTokens > 0 && unitUSD > 0 {
+				lines = append(lines, fmt.Sprintf("实际结算 = %d tokens × 单价 $%s / 1M tokens × %s %s%s = 应扣 %s",
+					int(info.VideoTokens), formatPrice(unitUSD), ratioLabel, formatRatio(groupRatio), vpart, quotaUSD(actual)))
+			}
+			delta, label := actual-pre, "补扣"
+			if delta < 0 {
+				label, delta = "退款", -delta
+			}
+			lines = append(lines, fmt.Sprintf("预扣 %s → 实扣 %s，%s %s",
+				quotaUSD(pre), quotaUSD(actual), label, quotaUSD(delta)))
+		}
+		if info.TaskId != "" {
+			lines = append(lines, "任务 "+info.TaskId)
+		}
+		return strings.Join(lines, "\n"), true
+	}
+
+	// 预扣阶段：估算金额 + 单价与倍率，结算前仅供参考。
+	lines = append(lines, "任务预扣费（估算，任务完成后按实际用量结算，多退少补）")
+	lines = append(lines, "预扣金额 "+quotaUSD(float64(log.Quota)))
+	if info.VideoUnitPrice > 0 {
+		unitLine := fmt.Sprintf("单价 $%s / 1M tokens", formatPrice(unitUSD))
+		if info.VideoResolution != "" {
+			hasInput := "不含视频输入"
+			if info.VideoHasInput {
+				hasInput = "含视频输入"
+			}
+			unitLine += fmt.Sprintf("（%s，%s）", info.VideoResolution, hasInput)
+		}
+		lines = append(lines, fmt.Sprintf("%s × %s %s%s", unitLine, ratioLabel, formatRatio(groupRatio), vpart))
+	} else if info.ModelPrice > 0 {
+		lines = append(lines, fmt.Sprintf("按次价格 $%s × %s %s", formatPrice(info.ModelPrice), ratioLabel, formatRatio(groupRatio)))
+	} else if info.ModelRatio > 0 {
+		lines = append(lines, fmt.Sprintf("单价 $%s / 1M tokens × %s %s%s", formatPrice(unitUSD), ratioLabel, formatRatio(groupRatio), vpart))
+	}
+	if info.TaskId != "" {
+		lines = append(lines, "任务 "+info.TaskId)
+	}
+	lines = append(lines, billingDisclaimer)
+	return strings.Join(lines, "\n"), true
 }
 
 // formatPrice renders a USD amount the way the frontend does — six fractional
@@ -277,6 +466,43 @@ func resolveExportColumns(raw string) []logExportColumn {
 // Numeric tokens are returned as int (so Excel treats them as numbers); the
 // rest are strings. The billing column is the only one that contains \n —
 // rendering callers must apply a WrapText style to it.
+// cacheCreationTokensOf 归一化单条日志的缓存创建 tokens。
+//
+// `cache_creation_tokens` 本身就是总量（Anthropic 的 cache_creation_input_tokens
+// 恒等于 ephemeral_5m + ephemeral_1h，见 dto/claude.go），`_5m`/`_1h` 是它的拆分
+// 项——三者相加会在存在拆分时翻倍。计费侧 service/text_quota.go 的
+// cacheWriteTokensTotal 用的是 max(总量, 5m+1h)，并把结果写进 `cache_write_tokens`；
+// 这里优先读该字段，缺失的旧日志退回同样的 max 语义。
+func cacheCreationTokensOf(info *logPricingInfo) int {
+	if info == nil {
+		return 0
+	}
+	if info.CacheWriteTokens > 0 {
+		return info.CacheWriteTokens
+	}
+	if split := info.CacheCreationTokens5m + info.CacheCreationTokens1h; split > info.CacheCreationTokens {
+		return split
+	}
+	return info.CacheCreationTokens
+}
+
+// promptTokensExcludingCache 把 Log.PromptTokens 归一化为「非缓存输入 tokens」，
+// 使 输入+输出+缓存读取+缓存创建 恒等于总 tokens，且跨渠道可加。
+//
+// Claude 语义（usage_semantic=anthropic / claude=true）的 prompt_tokens 与缓存
+// 互斥，原样返回；OpenAI/Gemini/DeepSeek 等的 prompt_tokens 已含缓存读取，需减去
+// （与计费侧 service/text_quota.go 的 baseTokens 分叉口径一致）。缓存创建对后者
+// 不计入 prompt_tokens，故不减。裁剪到 0 以防脏日志导致负数。
+func promptTokensExcludingCache(promptTokens int, cacheReadTokens int, info *logPricingInfo) int {
+	if info != nil && (info.UsageSemantic == "anthropic" || info.Claude) {
+		return promptTokens
+	}
+	if n := promptTokens - cacheReadTokens; n > 0 {
+		return n
+	}
+	return 0
+}
+
 // getCacheTokensFromOther extracts a single integer field from Log.Other JSON.
 func getCacheTokensFromOther(log *model.Log, field string) int {
 	if log == nil || strings.TrimSpace(log.Other) == "" {
@@ -298,25 +524,11 @@ func getCacheTokensFromOther(log *model.Log, field string) int {
 	}
 }
 
-// getCacheCreationTokensFromOther sums all cache creation token variants
-// (legacy + 5m + 1h) to give a single "total cache creation tokens" number.
+// getCacheCreationTokensFromOther returns a single normalized "total cache
+// creation tokens" number for a log. See cacheCreationTokensOf for why the
+// variants must not simply be summed.
 func getCacheCreationTokensFromOther(log *model.Log) int {
-	if log == nil || strings.TrimSpace(log.Other) == "" {
-		return 0
-	}
-	var m map[string]any
-	if err := common.UnmarshalJsonStr(log.Other, &m); err != nil {
-		return 0
-	}
-	total := 0
-	for _, key := range []string{"cache_creation_tokens", "cache_creation_tokens_5m", "cache_creation_tokens_1h"} {
-		if v, ok := m[key]; ok {
-			if n, ok2 := v.(float64); ok2 {
-				total += int(n)
-			}
-		}
-	}
-	return total
+	return cacheCreationTokensOf(parseLogPricingInfo(log))
 }
 
 func cellValue(col logExportColumn, log *model.Log) any {
@@ -714,7 +926,11 @@ func ExportAllLogs(c *gin.Context) {
 	columns := resolveExportColumns(c.Query("columns"))
 
 	dispatchExport(c, columns, format, func(maxRows int, consume func([]*model.Log) error) (bool, error) {
-		return model.GetAllLogsForExport(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, maxRows, consume)
+		return model.GetAllLogsForExport(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, requestId, maxRows, func(batch []*model.Log) error {
+			// seedance 单行化：结算/退款行剔除、预扣行净额化（与使用日志页一致）。
+			model.EnrichSeedanceTaskLogs(batch, true)
+			return consume(applySeedanceExportMerge(batch))
+		})
 	})
 }
 
@@ -737,6 +953,10 @@ func ExportUserLogs(c *gin.Context) {
 	columns := resolveExportColumns(c.Query("columns"))
 
 	dispatchExport(c, columns, format, func(maxRows int, consume func([]*model.Log) error) (bool, error) {
-		return model.GetUserLogsForExport(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, group, requestId, maxRows, consume)
+		return model.GetUserLogsForExport(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, group, requestId, maxRows, func(batch []*model.Log) error {
+			// seedance 单行化：self 路径不暴露上游任务 ID。
+			model.EnrichSeedanceTaskLogs(batch, false)
+			return consume(applySeedanceExportMerge(batch))
+		})
 	})
 }

@@ -43,6 +43,7 @@ func TestMain(m *testing.M) {
 		&Ability{},
 		&TopUp{},
 		&Redemption{},
+		&QuotaData{},
 		&SubscriptionPlan{},
 		&SubscriptionOrder{},
 		&UserSubscription{},

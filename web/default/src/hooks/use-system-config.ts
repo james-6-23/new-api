@@ -40,6 +40,8 @@ interface StatusApiResponse {
     footer_html?: string
     demo_site_enabled?: boolean
     display_token_stat_enabled?: boolean
+    cost_accounting_enabled?: boolean
+    availability_monitor_enabled?: boolean
     display_in_currency?: boolean
     quota_display_type?: CurrencyDisplayType
     quota_per_unit?: number
@@ -97,6 +99,9 @@ export function mapStatusDataToConfig(
     footerHtml: data.footer_html,
     demoSiteEnabled: data.demo_site_enabled,
     displayTokenStatEnabled: data.display_token_stat_enabled,
+    costAccountingEnabled: data.cost_accounting_enabled ?? true,
+    // ?? true：旧后端不返回该字段时默认放行，避免升级过程中菜单误消失
+    availabilityMonitorEnabled: data.availability_monitor_enabled ?? true,
     currency,
   }
 }

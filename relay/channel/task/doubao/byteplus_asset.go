@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -108,6 +109,9 @@ type bytePlusEnvelope struct {
 		Id     string `json:"Id"`
 		Status string `json:"Status"`
 	} `json:"Result"`
+	// rawResult 保留 Result 原文：失败原因的字段名不固定（审核拒绝详情等），
+	// Failed 时整段带出供错误信息透传。
+	rawResult json.RawMessage
 }
 
 // CreateAndWait 上传单个素材并轮询到 Active，返回 assetId。
@@ -122,7 +126,7 @@ func (cl *bytePlusAssetClient) CreateAndWait(ctx context.Context, mediaURL, asse
 
 	deadline := time.Now().Add(cl.timeoutOrDefault())
 	for {
-		status, err := cl.getAsset(ctx, id)
+		status, detail, err := cl.getAsset(ctx, id)
 		if err != nil {
 			return "", err
 		}
@@ -130,6 +134,11 @@ func (cl *bytePlusAssetClient) CreateAndWait(ctx context.Context, mediaURL, asse
 		case "Active":
 			return id, nil
 		case "Failed":
+			// 审核拒绝等失败原因在 Result 的扩展字段里（字段名不固定），
+			// 带出响应体原文供排查（内容审核类拒绝对用户是关键信息）。
+			if detail != "" {
+				return "", errors.Errorf("byteplus asset %s processing failed: %s", id, detail)
+			}
 			return "", errors.Errorf("byteplus asset %s processing failed", id)
 		}
 		// Processing / 其它中间态：继续轮询。
@@ -163,17 +172,21 @@ func (cl *bytePlusAssetClient) createAsset(ctx context.Context, mediaURL, assetT
 	return env.Result.Id, nil
 }
 
-// getAsset 调用 GetAsset，返回 Status。
-func (cl *bytePlusAssetClient) getAsset(ctx context.Context, id string) (string, error) {
+// getAsset 调用 GetAsset，返回 Status 与失败详情（Result 原文，供 Failed 时排查）。
+func (cl *bytePlusAssetClient) getAsset(ctx context.Context, id string) (string, string, error) {
 	reqBody := map[string]any{
 		"Id":          id,
 		"ProjectName": cl.projectName,
 	}
 	env, err := cl.doAction(ctx, "GetAsset", reqBody)
 	if err != nil {
-		return "", errors.Wrap(err, "byteplus GetAsset failed")
+		return "", "", errors.Wrap(err, "byteplus GetAsset failed")
 	}
-	return env.Result.Status, nil
+	detail := ""
+	if len(env.rawResult) > 0 {
+		detail = truncate(env.rawResult, 512)
+	}
+	return env.Result.Status, detail, nil
 }
 
 // doAction 发起一次签名的 OpenAPI 调用并解析统一响应外壳。
@@ -213,6 +226,13 @@ func (cl *bytePlusAssetClient) doAction(ctx context.Context, action string, payl
 	var env bytePlusEnvelope
 	if err := common.Unmarshal(respBody, &env); err != nil {
 		return nil, errors.Wrapf(err, "unmarshal response failed (status %d, body: %s)", resp.StatusCode, truncate(respBody, 512))
+	}
+	// 保留 Result 原文（失败详情字段名不固定，Failed 时整段透传）。
+	var rawShell struct {
+		Result json.RawMessage `json:"Result"`
+	}
+	if err := common.Unmarshal(respBody, &rawShell); err == nil {
+		env.rawResult = rawShell.Result
 	}
 	if env.ResponseMetadata.Error != nil && env.ResponseMetadata.Error.Code != "" {
 		return nil, errors.Errorf("%s: %s", env.ResponseMetadata.Error.Code, env.ResponseMetadata.Error.Message)

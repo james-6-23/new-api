@@ -190,6 +190,56 @@ func TaskErrorWrapperLocal(err error, code string, statusCode int) *dto.TaskErro
 	return openaiErr
 }
 
+// taskUpstreamBodyPreviewLimit caps how much of an unparseable upstream body
+// is echoed back to the client.
+const taskUpstreamBodyPreviewLimit = 512
+
+// TaskErrorFromUpstreamBody 把任务提交时上游返回的非 200 响应转成给客户的
+// TaskError：提取真实的 message/code（OpenAI error 对象优先，通用字段兜底），
+// 全部过 MaskSensitiveInfo 脱敏。上游 401/403 属渠道凭证问题，不透传给客户
+// （避免误导客户排查自己的 key，也避免泄露渠道侧信息），改写为 503 + 固定提示，
+// 让重试逻辑照常换渠道。
+func TaskErrorFromUpstreamBody(statusCode int, body []byte) *dto.TaskError {
+	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
+		msg := "上游渠道认证失败，请联系管理员"
+		return &dto.TaskError{
+			Code:       "upstream_auth_failed",
+			Message:    msg,
+			StatusCode: http.StatusServiceUnavailable,
+			Error:      fmt.Errorf("upstream auth failed with status %d, body: %s", statusCode, common.LocalLogPreview(string(body))),
+		}
+	}
+
+	code := "upstream_error"
+	message := ""
+	var errResponse dto.GeneralErrorResponse
+	if err := common.Unmarshal(body, &errResponse); err == nil {
+		if oaiErr := errResponse.TryToOpenAIError(); oaiErr != nil {
+			message = oaiErr.Message
+			if c := fmt.Sprintf("%v", oaiErr.Code); c != "" && c != "<nil>" {
+				code = c
+			}
+		} else {
+			message = errResponse.ToMessage()
+		}
+	}
+	if message == "" {
+		// 非 JSON 或无可读字段：截断后作为 message 兜底。
+		message = string(body)
+		if len(message) > taskUpstreamBodyPreviewLimit {
+			message = message[:taskUpstreamBodyPreviewLimit] + "..."
+		}
+	}
+	message = common.MaskSensitiveInfo(message)
+
+	return &dto.TaskError{
+		Code:       code,
+		Message:    message,
+		StatusCode: statusCode,
+		Error:      fmt.Errorf("upstream status %d: %s", statusCode, message),
+	}
+}
+
 func TaskErrorWrapper(err error, code string, statusCode int) *dto.TaskError {
 	text := err.Error()
 	lowerText := strings.ToLower(text)

@@ -59,6 +59,9 @@ type Log struct {
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
 	Other             string `json:"other"`
+	// TaskInfo 是 seedance 视频任务预扣行在查询时挂载的任务态增强（不落库）：
+	// 状态/进度/净额/输出tokens/档位/秒数/参考视频/倍率/失败原因/上游ID(仅admin)。
+	TaskInfo *LogTaskInfo `json:"task_info,omitempty" gorm:"-"`
 }
 
 // don't use iota, avoid change log type value
@@ -394,6 +397,11 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
+// seedanceHiddenStageCond 把 seedance 任务的结算/退款行从分页列表隐藏：
+// 展示层合并为一条（预扣行 + task_info 增强），DB 数据与导出流式扫描不受影响。
+// 纯 LIKE 保证 SQLite/MySQL/PG 三库兼容；common.Marshal 生成的 JSON 无空格。
+const seedanceHiddenStageCond = `NOT (logs.model_name LIKE '%seedance%' AND (logs.other LIKE '%"billing_stage":"settle"%' OR logs.other LIKE '%"billing_stage":"refund"%'))`
+
 func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
@@ -429,6 +437,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
+	tx = tx.Where(seedanceHiddenStageCond)
 	err = tx.Model(&Log{}).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
@@ -478,6 +487,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		}
 	}
 
+	enrichSeedanceTaskLogs(logs, true)
 	return logs, total, err
 }
 
@@ -512,6 +522,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
+	tx = tx.Where(seedanceHiddenStageCond)
 	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
 	if err != nil {
 		common.SysError("failed to count user logs: " + err.Error())
@@ -523,6 +534,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		return nil, 0, errors.New("查询日志失败")
 	}
 
+	enrichSeedanceTaskLogs(logs, false)
 	formatUserLogs(logs, startIdx)
 	return logs, total, err
 }

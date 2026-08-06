@@ -1,0 +1,169 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/*
+ * 作用域样式：参考站的横幅/状态点/指标条在 Semi 组件里没有对应物，
+ * 只有这些视觉细节手写，布局仍交给 Semi 与 Tailwind。
+ */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 16px;
+}
+
+.bannerTitle {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.bannerDesc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--semi-color-text-2);
+}
+
+.dot {
+  position: relative;
+  display: inline-flex;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+}
+
+.dotCore {
+  position: relative;
+  display: inline-flex;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+}
+
+.dotPing {
+  position: absolute;
+  display: inline-flex;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  opacity: 0.6;
+  animation: availabilityPing 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes availabilityPing {
+  75%,
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* prefers-reduced-motion 下停掉呼吸动画，横幅仍有颜色区分 */
+@media (prefers-reduced-motion: reduce) {
+  .dotPing {
+    animation: none;
+  }
+}
+
+.rowDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.entityHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding-right: 4px;
+}
+
+.entityName {
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entityMeta {
+  font-size: 11px;
+  color: var(--semi-color-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.metricStrip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 窄屏隐藏指标摘要，避免与实体名挤在一行 */
+@media (max-width: 768px) {
+  .metricStrip {
+    display: none;
+  }
+}
+
+.metricCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.metricLabel {
+  font-size: 10px;
+  color: var(--semi-color-text-2);
+}
+
+.metricValue {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.rpmValue {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.rpmLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--semi-color-text-2);
+}
+
+.rpmHint {
+  font-size: 11px;
+  color: var(--semi-color-text-2);
+}
+
+.chartTitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--semi-color-text-2);
+  margin-bottom: 6px;
+}

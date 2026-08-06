@@ -1,10 +1,17 @@
 {
   "Assets and inference endpoint must be in the same project.": "Assets and inference endpoint must be in the same project.",
   "Before submitting to overseas BytePlus, upload reference media to the asset library and replace it with asset://id. Avoids real-face / content pre-filter interception.": "Before submitting to overseas BytePlus, upload reference media to the asset library and replace it with asset://id. Avoids real-face / content pre-filter interception.",
+  "Before submitting, upload reference media to the asset library and replace it with asset://id. Avoids real-face / content pre-filter interception.": "Before submitting, upload reference media to the asset library and replace it with asset://id. Avoids real-face / content pre-filter interception.",
   "Pre-create the asset group in the BytePlus console (sign the authorization letter on first use).": "Pre-create the asset group in the BytePlus console (sign the authorization letter on first use).",
   "Confirm and create": "Confirm and create",
   "Failed to fetch suggestion": "Failed to fetch suggestion",
   "Visible to you only on the next screen. Make sure to copy it before closing.": "Visible to you only on the next screen. Make sure to copy it before closing.",
   "A username, password, group and quota are pre-filled using your auto-create settings. Edit anything before confirming.": "A username, password, group and quota are pre-filled using your auto-create settings. Edit anything before confirming.",
-  "Copy these credentials and share them through your secure channel. They will not be shown again.": "Copy these credentials and share them through your secure channel. They will not be shown again."
+  "Copy these credentials and share them through your secure channel. They will not be shown again.": "Copy these credentials and share them through your secure channel. They will not be shown again.",
+  "Failed to load channel": "Failed to load channel",
+  "Failed to update cost ratio": "Failed to update cost ratio",
+  "… and {{n}} more rows omitted": "… and {{n}} more rows omitted",
+  "Report cost uses the channel-level pricing": "Report cost uses the channel-level pricing",
+  "Cost pricing mode, aggregator status, and sub-suppliers": "Cost pricing mode, aggregator status, and sub-suppliers",
+  "This channel routes to multiple upstream sub-suppliers": "This channel routes to multiple upstream sub-suppliers"
 }

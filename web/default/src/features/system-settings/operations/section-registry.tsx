@@ -38,6 +38,8 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+          CostAccountingEnabled: settings.CostAccountingEnabled,
+          AvailabilityMonitorEnabled: settings.AvailabilityMonitorEnabled,
         }}
       />
     ),

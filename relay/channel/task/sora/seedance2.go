@@ -1,209 +1,28 @@
 package sora
 
 import (
-	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relay/channel/task/seedance"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 
 	"github.com/gin-gonic/gin"
 )
 
-var seedance2ModelSet = map[string]struct{}{
-	"doubao-seedance-2-0-260128":      {},
-	"doubao-seedance-2-0-fast-260128": {},
-}
+// Seedance 2.0 的识别、检测与计费统一收敛到共享包 relay/channel/task/seedance
+// (单一事实来源,与 doubao 适配器共用同一套精确矩阵与 video_pricing 倍率)。
+// 本文件仅保留 sora 适配器需要的、语义与旧接口一致的薄封装。
 
+// IsSeedance2Model 判定是否为 Seedance 2.0 模型(委托共享包)。
 func IsSeedance2Model(name string) bool {
-	_, ok := seedance2ModelSet[name]
-	return ok
+	return seedance.IsSeedance2(name)
 }
 
+// estimateSeedance2Ratios 计算 Seedance 2.0 的 OtherRatios 并写入展示快照。
 func estimateSeedance2Ratios(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	req, err := relaycommon.GetTaskRequest(c)
-	if err != nil {
-		return nil
-	}
-	ratios := map[string]float64{}
-	hasVideo := hasVideoInRequest(c, &req)
-	if hasVideo {
-		if r, ok := GetVideoInputRatio(info.OriginModelName); ok {
-			ratios["video_input"] = r
-		}
-	}
-	if isResolution1080p(c, &req) {
-		if r, ok := Get1080pRatio(info.OriginModelName, hasVideo); ok {
-			ratios["resolution"] = r
-		}
-	}
-	if len(ratios) == 0 {
-		return nil
-	}
-	return ratios
+	return seedance.EstimateBilling(c, info)
 }
 
-var seedance2VideoInputRatio = map[string]float64{
-	"doubao-seedance-2-0-260128":      28.0 / 46.0,
-	"doubao-seedance-2-0-fast-260128": 22.0 / 37.0,
-}
-
-var seedance2Resolution1080pRatio = map[string]map[bool]float64{
-	"doubao-seedance-2-0-260128": {
-		false: 51.0 / 46.0,
-		true:  31.0 / 28.0,
-	},
-}
-
-func GetVideoInputRatio(model string) (float64, bool) {
-	r, ok := seedance2VideoInputRatio[model]
-	return r, ok
-}
-
-func Get1080pRatio(model string, hasVideo bool) (float64, bool) {
-	m, ok := seedance2Resolution1080pRatio[model]
-	if !ok {
-		return 0, false
-	}
-	r, ok := m[hasVideo]
-	return r, ok
-}
-
-func hasVideoInRequest(c *gin.Context, req *relaycommon.TaskSubmitReq) bool {
-	if req != nil && req.Metadata != nil {
-		if contentInMetadataHasVideo(req.Metadata["content"]) {
-			return true
-		}
-	}
-	if raw, ok := peekRawBody(c); ok {
-		var top struct {
-			Content []map[string]interface{} `json:"content"`
-		}
-		if err := common.Unmarshal(raw, &top); err == nil {
-			for _, item := range top.Content {
-				if item["type"] == "video_url" {
-					return true
-				}
-				if _, has := item["video_url"]; has {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-func contentInMetadataHasVideo(raw interface{}) bool {
-	arr, ok := raw.([]interface{})
-	if !ok {
-		return false
-	}
-	for _, item := range arr {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if m["type"] == "video_url" {
-			return true
-		}
-		if _, has := m["video_url"]; has {
-			return true
-		}
-	}
-	return false
-}
-
-// HasImageInRequest 检测 Seedance 2.0 这类走 OpenAI content[] 风格的请求
-// 是否带有图片输入。优先复用 TaskSubmitReq.HasImage()（涵盖
-// images / image_reference / image_references），未命中再扫描 metadata.content
-// 与 raw body 中 type=image_url 的项。
+// HasImageInRequest 检测请求是否含图片输入(委托共享包),
+// 用于把「文生视频」动作纠正为「图生视频」。
 func HasImageInRequest(c *gin.Context, req *relaycommon.TaskSubmitReq) bool {
-	if req != nil && req.HasImage() {
-		return true
-	}
-	if req != nil && req.Metadata != nil {
-		if contentInMetadataHasImage(req.Metadata["content"]) {
-			return true
-		}
-	}
-	if raw, ok := peekRawBody(c); ok {
-		var top struct {
-			Content []map[string]interface{} `json:"content"`
-		}
-		if err := common.Unmarshal(raw, &top); err == nil {
-			for _, item := range top.Content {
-				if item["type"] == "image_url" {
-					return true
-				}
-				if _, has := item["image_url"]; has {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-func contentInMetadataHasImage(raw interface{}) bool {
-	arr, ok := raw.([]interface{})
-	if !ok {
-		return false
-	}
-	for _, item := range arr {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if m["type"] == "image_url" {
-			return true
-		}
-		if _, has := m["image_url"]; has {
-			return true
-		}
-	}
-	return false
-}
-
-func isResolution1080p(c *gin.Context, req *relaycommon.TaskSubmitReq) bool {
-	if req != nil && req.Metadata != nil {
-		if is1080pValue(req.Metadata["resolution"]) {
-			return true
-		}
-	}
-	if req != nil && is1080pString(req.Size) {
-		return true
-	}
-	if raw, ok := peekRawBody(c); ok {
-		var top struct {
-			Resolution string `json:"resolution"`
-		}
-		if err := common.Unmarshal(raw, &top); err == nil && is1080pString(top.Resolution) {
-			return true
-		}
-	}
-	return false
-}
-
-func is1080pValue(v interface{}) bool {
-	s, ok := v.(string)
-	if !ok {
-		return false
-	}
-	return is1080pString(s)
-}
-
-func is1080pString(s string) bool {
-	return s == "1080p" || s == "1080P" || s == "1920x1080"
-}
-
-func peekRawBody(c *gin.Context) ([]byte, bool) {
-	if c == nil {
-		return nil, false
-	}
-	storage, err := common.GetBodyStorage(c)
-	if err != nil {
-		return nil, false
-	}
-	raw, err := storage.Bytes()
-	if err != nil || len(raw) == 0 {
-		return nil, false
-	}
-	return raw, true
+	return seedance.HasImageInput(c, req)
 }

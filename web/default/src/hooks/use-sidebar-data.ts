@@ -19,9 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   Box,
+  Calculator,
   CreditCard,
   FileText,
   FlaskConical,
+  HeartPulse,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -36,6 +38,9 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { type SidebarData } from '@/components/layout/types'
+import { useAuthStore } from '@/stores/auth-store'
+import { useSystemConfig } from '@/hooks/use-system-config'
+import { ROLE } from '@/lib/roles'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -45,6 +50,13 @@ import { type SidebarData } from '@/components/layout/types'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const userRole = useAuthStore((s) => s.auth.user?.role)
+  const isSuperAdmin = userRole !== undefined && userRole >= ROLE.SUPER_ADMIN
+  const isAdmin = userRole !== undefined && userRole >= ROLE.ADMIN
+  const { costAccountingEnabled, availabilityMonitorEnabled } =
+    useSystemConfig()
+  const showCostAccounting = isSuperAdmin && costAccountingEnabled !== false
+  const showAvailability = isAdmin && availabilityMonitorEnabled !== false
 
   return {
     navGroups: [
@@ -127,6 +139,24 @@ export function useSidebarData(): SidebarData {
             url: '/channels',
             icon: Radio,
           },
+          ...(showCostAccounting
+            ? [
+                {
+                  title: t('Cost Accounting'),
+                  url: '/cost' as const,
+                  icon: Calculator,
+                },
+              ]
+            : []),
+          ...(showAvailability
+            ? [
+                {
+                  title: t('Availability Monitor'),
+                  url: '/availability' as const,
+                  icon: HeartPulse,
+                },
+              ]
+            : []),
           {
             title: t('Models'),
             url: '/models/metadata',

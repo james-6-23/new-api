@@ -28,6 +28,8 @@ export interface BillExportParams {
   group?: string
   with_detail?: 0 | 1
   detail_split_model?: 0 | 1
+  bill_mode?: 'internal' | 'external'
+  granularity?: 'day' | 'week' | 'month'
   exchange_rate?: number
 }
 
@@ -68,6 +70,9 @@ export interface BillSummaryItem {
   channel_id: number
   token_name: string
   model_name: string
+  billing_records: number
+  request_count: number
+  list_amount_usd: number
   amount_usd: number
   exchange_rate: number
   amount_cny: number
@@ -78,6 +83,9 @@ export interface BillSummaryItem {
 }
 
 export interface BillSummaryTotals {
+  total_billing_records: number
+  total_request_count: number
+  total_list_amount_usd: number
   total_amount_usd: number
   total_amount_cny: number
   total_prompt_tokens: number

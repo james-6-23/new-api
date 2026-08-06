@@ -56,6 +56,7 @@ const (
 	ChannelTypeReplicate      = 56
 	ChannelTypeCodex          = 57
 	ChannelTypeAIGCVideo      = 58
+	ChannelTypeSeedance3rd    = 59
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -120,6 +121,7 @@ var ChannelBaseURLs = []string{
 	"https://api.replicate.com",                 //56
 	"https://chatgpt.com",                       //57
 	"",                                          //58 - OpenAI Video
+	"https://model.service-inference.ai",        //59 - Seedance (3rd party)
 }
 
 var ChannelTypeNames = map[int]string{
@@ -178,6 +180,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeReplicate:      "Replicate",
 	ChannelTypeCodex:          "ChatGPT Subscription (Codex)",
 	ChannelTypeAIGCVideo:      "OpenAI Video",
+	ChannelTypeSeedance3rd:    "seedance(第三方)",
 }
 
 func GetChannelTypeName(channelType int) string {

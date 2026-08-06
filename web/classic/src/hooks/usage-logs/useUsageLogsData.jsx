@@ -56,6 +56,7 @@ export const useLogsData = () => {
     GROUP: 'group',
     TYPE: 'type',
     MODEL: 'model',
+    TASK_STATUS: 'task_status',
     USE_TIME: 'use_time',
     PROMPT: 'prompt',
     COMPLETION: 'completion',
@@ -120,6 +121,7 @@ export const useLogsData = () => {
       [COLUMN_KEYS.GROUP]: true,
       [COLUMN_KEYS.TYPE]: true,
       [COLUMN_KEYS.MODEL]: true,
+      [COLUMN_KEYS.TASK_STATUS]: true,
       [COLUMN_KEYS.USE_TIME]: true,
       [COLUMN_KEYS.PROMPT]: true,
       [COLUMN_KEYS.COMPLETION]: true,
@@ -554,6 +556,69 @@ export const useLogsData = () => {
           key: t('请求路径'),
           value: other.request_path,
         });
+      }
+      // seedance 视频任务单行化：task_info 由后端查询时挂载（状态/参数/结算）。
+      const taskInfo = logs[i].task_info;
+      if (taskInfo) {
+        const tierLabelMap = {
+          base: '480p / 720p',
+          '1080p': '1080p',
+          '4k': '4K',
+        };
+        // 请求参数真实值（来自用户原始请求）优先；缺失时回退计费档位。
+        if (taskInfo.resolution) {
+          expandDataLocal.push({ key: t('分辨率'), value: taskInfo.resolution });
+        } else if (taskInfo.resolution_tier) {
+          expandDataLocal.push({
+            key: t('分辨率档位'),
+            value: tierLabelMap[taskInfo.resolution_tier] || taskInfo.resolution_tier,
+          });
+        }
+        if (taskInfo.ratio) {
+          expandDataLocal.push({ key: t('宽高比'), value: taskInfo.ratio });
+        }
+        if (taskInfo.duration_s > 0) {
+          expandDataLocal.push({ key: t('生成秒数'), value: `${taskInfo.duration_s}s` });
+        }
+        expandDataLocal.push({
+          key: t('参考视频'),
+          value: taskInfo.has_input ? t('是') : t('否'),
+        });
+        if (taskInfo.output_tokens > 0) {
+          expandDataLocal.push({
+            key: t('输出 tokens'),
+            value: String(taskInfo.output_tokens),
+          });
+        }
+        if (taskInfo.effective_ratio > 0) {
+          expandDataLocal.push({
+            key: taskInfo.is_user_ratio ? t('专属倍率') : t('分组倍率'),
+            value: String(taskInfo.effective_ratio),
+          });
+        }
+        expandDataLocal.push({
+          key: t('预扣 → 实扣'),
+          value: `${renderQuota(taskInfo.pre_quota || 0, 6)} → ${renderQuota(taskInfo.final_quota || 0, 6)}`,
+        });
+        if (taskInfo.fail_reason) {
+          expandDataLocal.push({
+            key: t('失败原因'),
+            value: (
+              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+                {taskInfo.fail_reason}
+              </div>
+            ),
+          });
+        }
+        if (taskInfo.task_id) {
+          expandDataLocal.push({ key: t('任务ID'), value: taskInfo.task_id });
+        }
+        if (taskInfo.upstream_task_id) {
+          expandDataLocal.push({
+            key: t('上游任务ID'),
+            value: taskInfo.upstream_task_id,
+          });
+        }
       }
       if (isAdminUser && other?.stream_status) {
         const ss = other.stream_status;

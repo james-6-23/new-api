@@ -64,3 +64,27 @@ export function hasAdvancedSettingsErrors(
     isAdvancedSettingsField(fieldName)
   )
 }
+
+const SUPPLIER_SETTINGS_FIELDS = new Set<FieldPath<ChannelFormValues>>([
+  'cost_ratio',
+  'cost_mode',
+  'cost_discount',
+  'is_aggregator',
+  'sub_suppliers',
+])
+
+export function isSupplierSettingsField(
+  fieldName: string
+): fieldName is FieldPath<ChannelFormValues> {
+  return SUPPLIER_SETTINGS_FIELDS.has(
+    fieldName as FieldPath<ChannelFormValues>
+  )
+}
+
+export function hasSupplierSettingsErrors(
+  errors: ChannelFormErrorMap
+): boolean {
+  return Object.keys(errors).some((fieldName) =>
+    isSupplierSettingsField(fieldName)
+  )
+}

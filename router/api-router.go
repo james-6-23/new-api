@@ -25,6 +25,12 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
+		availabilityRoute := apiRouter.Group("/status/availability")
+		availabilityRoute.Use(middleware.AvailabilityMonitorEnabled(), middleware.AdminAuth())
+		{
+			availabilityRoute.GET("", controller.GetAvailabilityStatus)
+			availabilityRoute.GET("/rpm", controller.GetAvailabilityRpm)
+		}
 		apiRouter.GET("/notice", controller.GetNotice)
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)
@@ -226,6 +232,15 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			ratioSyncRoute.GET("/channels", controller.GetSyncableChannels)
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
+		}
+		costRoute := apiRouter.Group("/cost")
+		costRoute.Use(middleware.CostAccountingEnabled())
+		costRoute.Use(middleware.RootAuth())
+		{
+			costRoute.GET("/overview", controller.GetCostOverview)
+			costRoute.GET("/users", controller.GetCostByUsers)
+			costRoute.GET("/models", controller.GetCostByModels)
+			costRoute.GET("/channels", controller.GetCostByChannels)
 		}
 		channelRoute := apiRouter.Group("/channel")
 		channelRoute.Use(middleware.AdminAuth())

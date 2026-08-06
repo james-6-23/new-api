@@ -213,6 +213,10 @@ func InitDB() (err error) {
 func InitLogDB() (err error) {
 	if os.Getenv("LOG_SQL_DSN") == "" {
 		LOG_DB = DB
+		if common.IsMasterNode {
+			// 日志与主库同库：主库迁移已完成，可直接触发一次性回填（异步、幂等）。
+			BackfillSeedanceTaskLogs()
+		}
 		return
 	}
 	db, err := chooseDB("LOG_SQL_DSN", true)
@@ -240,6 +244,10 @@ func InitLogDB() (err error) {
 		}
 		common.SysLog("database migration started")
 		err = migrateLOGDB()
+		if err == nil {
+			// 独立日志库迁移完成后触发一次性回填（异步、幂等）。
+			BackfillSeedanceTaskLogs()
+		}
 		return err
 	} else {
 		common.FatalLog(err)

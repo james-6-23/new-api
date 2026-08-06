@@ -552,10 +552,12 @@ func RelayTask(c *gin.Context) {
 		}
 
 		if !taskErr.LocalError {
+			// 错误日志由循环外的 recordTaskErrorLog 统一落一条汇总行，
+			// 这里禁用 processChannelError 内的记录，避免重试时逐渠道重复写。
 			processChannelError(c,
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
 					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
-				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
+				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode, types.ErrOptionWithNoRecordErrorLog()))
 		}
 
 		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
@@ -612,16 +614,109 @@ func RelayTask(c *gin.Context) {
 	}
 
 	if taskErr != nil {
+		recordTaskErrorLog(c, taskErr)
 		respondTaskError(c, taskErr)
 	}
 }
 
-// respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
+// recordTaskErrorLog 把任务提交失败写入错误日志（type=5）。任务路径此前不写
+// 错误日志，上游报错只回给客户端，使用日志里无迹可循（预扣退款也不落行），
+// 视频任务提交被上游拒绝时用户无从排查。任务提交失败与计费直接相关（预扣后
+// 静默退款）且低频，因此不受 ERROR_LOG_ENABLED 开关限制、始终记录——该环境
+// 变量默认关闭，若沿用开关此日志在多数部署中永远不会出现。
+func recordTaskErrorLog(c *gin.Context, taskErr *dto.TaskError) {
+	if taskErr == nil || taskErr.LocalError {
+		// 本地错误（参数校验/额度不足等）与聊天路径口径一致，不写错误日志。
+		return
+	}
+	userId := c.GetInt("id")
+	tokenName := c.GetString("token_name")
+	modelName := c.GetString("original_model")
+	if modelName == "" {
+		modelName = c.GetString("model")
+	}
+	tokenId := c.GetInt("token_id")
+	userGroup := c.GetString("group")
+	channelId := c.GetInt("channel_id")
+	other := make(map[string]interface{})
+	if c.Request != nil && c.Request.URL != nil {
+		other["request_path"] = c.Request.URL.Path
+	}
+	other["error_type"] = "task_error"
+	other["error_code"] = taskErr.Code
+	other["status_code"] = taskErr.StatusCode
+	other["channel_id"] = channelId
+	other["channel_name"] = c.GetString("channel_name")
+	other["channel_type"] = c.GetInt("channel_type")
+	adminInfo := make(map[string]interface{})
+	adminInfo["use_channel"] = c.GetStringSlice("use_channel")
+	other["admin_info"] = adminInfo
+	startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
+	if startTime.IsZero() {
+		startTime = time.Now()
+	}
+	useTimeSeconds := int(time.Since(startTime).Seconds())
+	model.RecordErrorLog(c, userId, channelId, modelName, tokenName,
+		buildTaskErrorLogContent(taskErr, c.GetString(common.RequestIdKey)),
+		tokenId, useTimeSeconds, false, userGroup, other)
+}
+
+// buildTaskErrorLogContent 组装任务错误日志内容：与聊天错误日志同格式
+// （status_code=N, 完整上游报错文字），上游 Request ID 换成系统 request id；
+// 消息为空才落回 error_code 兜底。上游本身也是网关时其 message 可能已带
+// "status_code=" 前缀（同族网关的兜底文案会原样透传回来），不重复叠加。
+func buildTaskErrorLogContent(taskErr *dto.TaskError, requestId string) string {
+	msg := common.MaskSensitiveInfo(taskErr.Message)
+	msg = replaceUpstreamRequestId(msg, requestId)
+	if msg == "" {
+		return fmt.Sprintf("status_code=%d, error_code=%s", taskErr.StatusCode, taskErr.Code)
+	}
+	if strings.HasPrefix(msg, "status_code=") {
+		return msg
+	}
+	return fmt.Sprintf("status_code=%d, %s", taskErr.StatusCode, msg)
+}
+
+// replaceUpstreamRequestId 把上游报错里的 Request ID 替换为我们系统的 request id：
+// 客户排查凭据应是系统 ID（可在日志按 request_id 检索），上游内部 ID 对客户无用
+// 且泄露上游细节。rid 为空时保留原文。
+func replaceUpstreamRequestId(msg, rid string) string {
+	return common.ReplaceUpstreamRequestId(msg, rid)
+}
+
+// respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）。
+// OpenAI 形状端点（/v1/videos*）输出标准 OpenAI 错误格式 {"error":{...}}，
+// 其余任务端点保持原 TaskError 形状（向后兼容）。
 func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
+	taskErr.Message = replaceUpstreamRequestId(taskErr.Message, c.GetString(common.RequestIdKey))
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/videos") {
+		c.JSON(taskErr.StatusCode, gin.H{
+			"error": gin.H{
+				"message": taskErr.Message,
+				"type":    taskErrorTypeForStatus(taskErr.StatusCode),
+				"code":    taskErr.Code,
+			},
+		})
+		return
+	}
 	c.JSON(taskErr.StatusCode, taskErr)
+}
+
+// taskErrorTypeForStatus 按 HTTP 状态码映射 OpenAI 错误 type。
+func taskErrorTypeForStatus(statusCode int) string {
+	switch {
+	case statusCode == http.StatusTooManyRequests:
+		return "rate_limit_error"
+	case statusCode >= 500:
+		return "upstream_error"
+	case statusCode >= 400:
+		return "invalid_request_error"
+	default:
+		return "api_error"
+	}
 }
 
 func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError, retryTimes int) bool {

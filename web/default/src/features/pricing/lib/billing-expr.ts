@@ -265,6 +265,7 @@ function parseTierBody(bodyStr: string): Record<string, number> {
   return tier
 }
 
+// Mirrored in Go by pkg/billingexpr/tiers.go ParseTiers — keep both in sync.
 export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
   if (!exprStr) return []
   try {

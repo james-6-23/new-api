@@ -27,6 +27,14 @@ func GetAllLogs(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 上游任务 ID 仅超级管理员可见：普通管理员与用户一样只拿公开 task id。
+	if c.GetInt("role") < common.RoleRootUser {
+		for _, log := range logs {
+			if log.TaskInfo != nil {
+				log.TaskInfo.UpstreamTaskId = ""
+			}
+		}
+	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
