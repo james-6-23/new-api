@@ -289,9 +289,13 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&ChannelCostVersion{},
 	)
 	if err != nil {
 		return err
+	}
+	if err := seedChannelCostVersions(); err != nil {
+		common.SysError("seedChannelCostVersions: " + err.Error())
 	}
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {

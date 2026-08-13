@@ -226,6 +226,7 @@ const EditChannelModal = (props) => {
     byteplus_project_name: 'default',
     byteplus_region: 'ap-southeast-1',
     byteplus_moderation_skip: true,
+    asset_provider: 'byteplus',
     // 第三方 Seedance 渠道（渠道类型 59）素材库预上传总开关
     seedance3rd_asset_enabled: false,
     // 供应商设置（仅 root 可见/编辑，非 root 通过 originalChannelSettingRef 保留原值）
@@ -269,7 +270,6 @@ const EditChannelModal = (props) => {
   const [useManualInput, setUseManualInput] = useState(false); // 是否使用手动输入模式
   const [keyMode, setKeyMode] = useState('append'); // 密钥模式：replace（覆盖）或 append（追加）
   const [isEnterpriseAccount, setIsEnterpriseAccount] = useState(false); // 是否为企业账户
-  const [doubaoApiEditUnlocked, setDoubaoApiEditUnlocked] = useState(false); // 豆包渠道自定义 API 地址隐藏入口
   const redirectModelList = useMemo(() => {
     const mapping = inputs.model_mapping;
     if (typeof mapping !== 'string') return [];
@@ -447,7 +447,6 @@ const EditChannelModal = (props) => {
     localStorage.setItem(ADVANCED_SETTINGS_EXPANDED_KEY, String(open));
   };
   const formContainerRef = useRef(null);
-  const doubaoApiClickCountRef = useRef(0);
   const initialBaseUrlRef = useRef('');
   const initialModelsRef = useRef([]);
   const initialModelMappingRef = useRef('');
@@ -515,20 +514,6 @@ const EditChannelModal = (props) => {
     setShow2FAVerifyModal(false);
     setVerifyCode('');
     setVerifyLoading(false);
-  };
-
-  const handleApiConfigSecretClick = () => {
-    if (inputs.type !== 45) return;
-    const next = doubaoApiClickCountRef.current + 1;
-    doubaoApiClickCountRef.current = next;
-    if (next >= 10) {
-      setDoubaoApiEditUnlocked((unlocked) => {
-        if (!unlocked) {
-          showInfo(t('已解锁豆包自定义 API 地址编辑'));
-        }
-        return true;
-      });
-    }
   };
 
   // 渠道额外设置状态
@@ -714,6 +699,7 @@ const EditChannelModal = (props) => {
             'dreamina-seedance-2-0-260128',
             'dreamina-seedance-2-0-fast-260128',
             'dreamina-seedance-2-0-mini-260615',
+            'dreamina-seedance-2-5-260628',
           ];
           break;
         case 45:
@@ -1021,6 +1007,7 @@ const EditChannelModal = (props) => {
             parsedSettings.byteplus_region || 'ap-southeast-1';
           data.byteplus_moderation_skip =
             parsedSettings.byteplus_moderation_skip !== false;
+          data.asset_provider = parsedSettings.asset_provider || 'byteplus';
           // 读取第三方 Seedance 素材库预上传设置
           data.seedance3rd_asset_enabled =
             parsedSettings.seedance3rd_asset_enabled === true;
@@ -1050,6 +1037,7 @@ const EditChannelModal = (props) => {
           data.byteplus_project_name = 'default';
           data.byteplus_region = 'ap-southeast-1';
           data.byteplus_moderation_skip = true;
+          data.asset_provider = 'byteplus';
           data.seedance3rd_asset_enabled = false;
         }
       } else {
@@ -1076,6 +1064,7 @@ const EditChannelModal = (props) => {
         data.byteplus_project_name = 'default';
         data.byteplus_region = 'ap-southeast-1';
         data.byteplus_moderation_skip = true;
+        data.asset_provider = 'byteplus';
         data.seedance3rd_asset_enabled = false;
       }
 
@@ -1367,13 +1356,6 @@ const EditChannelModal = (props) => {
   };
 
   useEffect(() => {
-    if (inputs.type !== 45) {
-      doubaoApiClickCountRef.current = 0;
-      setDoubaoApiEditUnlocked(false);
-    }
-  }, [inputs.type]);
-
-  useEffect(() => {
     const modelMap = new Map();
 
     originModelOptions.forEach((option) => {
@@ -1508,9 +1490,6 @@ const EditChannelModal = (props) => {
     setKeyMode('append');
     // 重置企业账户状态
     setIsEnterpriseAccount(false);
-    // 重置豆包隐藏入口状态
-    setDoubaoApiEditUnlocked(false);
-    doubaoApiClickCountRef.current = 0;
     setModelSearchValue('');
     // 重置高级设置折叠状态
     setAdvancedSettingsOpen(false);
@@ -1927,6 +1906,7 @@ const EditChannelModal = (props) => {
       'byteplus_project_name',
       'byteplus_region',
       'byteplus_moderation_skip',
+      'asset_provider',
     ];
     if ([45, 54].includes(localInputs.type)) {
       settings.byteplus_asset_enabled =
@@ -1946,6 +1926,7 @@ const EditChannelModal = (props) => {
         (localInputs.byteplus_region || '').trim() || 'ap-southeast-1';
       settings.byteplus_moderation_skip =
         localInputs.byteplus_moderation_skip !== false;
+      settings.asset_provider = localInputs.asset_provider || 'byteplus';
     } else {
       bytePlusKeys.forEach((k) => {
         if (k in settings) delete settings[k];
@@ -2886,12 +2867,14 @@ const EditChannelModal = (props) => {
                       </>
                     )}
 
-                    {/* BytePlus 海外素材库（火山方舟 45 / 豆包视频 54） */}
+                    {/* 素材库预上传（火山方舟 45 / 豆包视频 54）：
+                        总开关同时控制官方 BytePlus 与第三方素材库，文案保持中立。
+                        字段名 byteplus_asset_enabled 是已落库的 settings key，不可改名。 */}
                     {[45, 54].includes(inputs.type) && (
                       <>
                         <Form.Switch
                           field='byteplus_asset_enabled'
-                          label={t('启用 BytePlus 素材库预上传（海外）')}
+                          label={t('启用素材库预上传')}
                           checkedText={t('开')}
                           uncheckedText={t('关')}
                           value={inputs.byteplus_asset_enabled === true}
@@ -2902,37 +2885,62 @@ const EditChannelModal = (props) => {
                             )
                           }
                           extraText={t(
-                            '提交到海外 BytePlus 前，先把参考图片/视频上传到素材库并替换为 asset://id，避免真人人脸 / 内容预审被拦截',
+                            '提交上游前，先把参考图片/视频上传到素材库并替换为 asset://id，避免真人人脸 / 内容预审被拦截',
                           )}
                         />
                         {inputs.byteplus_asset_enabled && (
                           <>
-                            <Form.Input
-                              field='byteplus_access_key'
-                              label={t('Access Key (AK)')}
-                              mode='password'
-                              placeholder={t('用于素材库签名的 BytePlus AccessKey')}
-                              value={inputs.byteplus_access_key || ''}
+                            <Form.Select
+                              field='asset_provider'
+                              label={t('素材库供应商')}
+                              optionList={[
+                                { value: 'byteplus', label: t('官方（BytePlus）') },
+                                { value: 'cloudwise', label: t('第三方（云智）') },
+                              ]}
+                              value={inputs.asset_provider || 'byteplus'}
                               onChange={(value) =>
                                 handleChannelOtherSettingsChange(
-                                  'byteplus_access_key',
+                                  'asset_provider',
                                   value,
                                 )
                               }
+                              style={{ width: '100%' }}
                             />
-                            <Form.Input
-                              field='byteplus_secret_key'
-                              label={t('Secret Key (SK)')}
-                              mode='password'
-                              placeholder={t('用于素材库签名的 BytePlus SecretKey')}
-                              value={inputs.byteplus_secret_key || ''}
-                              onChange={(value) =>
-                                handleChannelOtherSettingsChange(
-                                  'byteplus_secret_key',
-                                  value,
-                                )
-                              }
-                            />
+                            {(inputs.asset_provider || 'byteplus') === 'cloudwise' && (
+                              <Text type='tertiary'>
+                                {t('第三方素材库复用本渠道的 API 地址和密钥鉴权')}
+                              </Text>
+                            )}
+                            {(inputs.asset_provider || 'byteplus') !== 'cloudwise' && (
+                              <>
+                                <Form.Input
+                                  field='byteplus_access_key'
+                                  label={t('Access Key (AK)')}
+                                  mode='password'
+                                  placeholder={t('用于素材库签名的 BytePlus AccessKey')}
+                                  value={inputs.byteplus_access_key || ''}
+                                  onChange={(value) =>
+                                    handleChannelOtherSettingsChange(
+                                      'byteplus_access_key',
+                                      value,
+                                    )
+                                  }
+                                />
+                                <Form.Input
+                                  field='byteplus_secret_key'
+                                  label={t('Secret Key (SK)')}
+                                  mode='password'
+                                  placeholder={t('用于素材库签名的 BytePlus SecretKey')}
+                                  value={inputs.byteplus_secret_key || ''}
+                                  onChange={(value) =>
+                                    handleChannelOtherSettingsChange(
+                                      'byteplus_secret_key',
+                                      value,
+                                    )
+                                  }
+                                />
+                              </>
+                            )}
                             <Form.Input
                               field='byteplus_asset_group_id'
                               label={t('素材组 ID')}
@@ -2948,33 +2956,37 @@ const EditChannelModal = (props) => {
                                 '需先在 BytePlus 控制台创建素材组（首次使用需签署授权函）',
                               )}
                             />
-                            <Form.Input
-                              field='byteplus_project_name'
-                              label={t('Project 名称')}
-                              placeholder='default'
-                              value={inputs.byteplus_project_name || ''}
-                              onChange={(value) =>
-                                handleChannelOtherSettingsChange(
-                                  'byteplus_project_name',
-                                  value,
-                                )
-                              }
-                              extraText={t(
-                                '素材与推理接入点必须属于同一个 Project',
-                              )}
-                            />
-                            <Form.Input
-                              field='byteplus_region'
-                              label={t('地域 (Region)')}
-                              placeholder='ap-southeast-1'
-                              value={inputs.byteplus_region || ''}
-                              onChange={(value) =>
-                                handleChannelOtherSettingsChange(
-                                  'byteplus_region',
-                                  value,
-                                )
-                              }
-                            />
+                            {(inputs.asset_provider || 'byteplus') !== 'cloudwise' && (
+                              <>
+                                <Form.Input
+                                  field='byteplus_project_name'
+                                  label={t('Project 名称')}
+                                  placeholder='default'
+                                  value={inputs.byteplus_project_name || ''}
+                                  onChange={(value) =>
+                                    handleChannelOtherSettingsChange(
+                                      'byteplus_project_name',
+                                      value,
+                                    )
+                                  }
+                                  extraText={t(
+                                    '素材与推理接入点必须属于同一个 Project',
+                                  )}
+                                />
+                                <Form.Input
+                                  field='byteplus_region'
+                                  label={t('地域 (Region)')}
+                                  placeholder='ap-southeast-1'
+                                  value={inputs.byteplus_region || ''}
+                                  onChange={(value) =>
+                                    handleChannelOtherSettingsChange(
+                                      'byteplus_region',
+                                      value,
+                                    )
+                                  }
+                                />
+                              </>
+                            )}
                             <Form.Switch
                               field='byteplus_moderation_skip'
                               label={t('关闭内容预审（content filter）')}
@@ -3543,7 +3555,7 @@ const EditChannelModal = (props) => {
 
                   {/* API Configuration Section */}
                   {showApiConfigCard && (
-                    <div onClick={handleApiConfigSecretClick}>
+                    <div>
 
                       {inputs.type === 40 && (
                         <Banner
@@ -3664,7 +3676,7 @@ const EditChannelModal = (props) => {
                         inputs.type !== 8 &&
                         inputs.type !== 22 &&
                         inputs.type !== 36 &&
-                        (inputs.type !== 45 || doubaoApiEditUnlocked) && (
+                        inputs.type !== 45 && (
                           <div>
                             <Form.Input
                               field='base_url'
@@ -3720,15 +3732,17 @@ const EditChannelModal = (props) => {
                         </div>
                       )}
 
-                      {inputs.type === 45 && !doubaoApiEditUnlocked && (
+                      {inputs.type === 45 && (
                         <div>
                           <Form.Select
                             field='base_url'
                             label={t('API地址')}
-                            placeholder={t('请选择API地址')}
+                            placeholder={t('请选择或输入API地址')}
                             onChange={(value) =>
                               handleInputChange('base_url', value)
                             }
+                            filter={selectFilter}
+                            allowCreate
                             optionList={[
                               {
                                 value: 'https://ark.cn-beijing.volces.com',
@@ -3740,13 +3754,15 @@ const EditChannelModal = (props) => {
                                 label:
                                   'https://ark.ap-southeast.bytepluses.com',
                               },
-                              {
-                                value: DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL,
-                                label: doubaoCodingPlanOptionLabel,
-                                disabled: !canKeepDeprecatedDoubaoCodingPlan,
-                              },
+                              ...(canKeepDeprecatedDoubaoCodingPlan
+                                ? [
+                                    {
+                                      value: DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL,
+                                      label: doubaoCodingPlanOptionLabel,
+                                    },
+                                  ]
+                                : []),
                             ]}
-                            defaultValue='https://ark.cn-beijing.volces.com'
                             disabled={isIonetLocked}
                           />
                         </div>

@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
@@ -48,11 +49,9 @@ func updateVideoTaskAll(ctx context.Context, platform constant.TaskPlatform, cha
 	if adaptor == nil {
 		return fmt.Errorf("video adaptor not found")
 	}
-	info := &relaycommon.RelayInfo{}
-	info.ChannelMeta = &relaycommon.ChannelMeta{
-		ChannelBaseUrl: cacheGetChannel.GetBaseURL(),
-	}
-	info.ApiKey = cacheGetChannel.Key
+	// 与 service.updateVideoTasks 走同一个构造器,保证轮询链路带上渠道配置
+	// (缺 ChannelOtherSettings 会让按渠道配置分流上游路径的适配器查询到错误路径)。
+	info := service.BuildVideoPollingRelayInfo(cacheGetChannel)
 	adaptor.Init(info)
 	for _, taskId := range taskIds {
 		if err := updateVideoSingleTask(ctx, adaptor, cacheGetChannel, taskId, taskM); err != nil {

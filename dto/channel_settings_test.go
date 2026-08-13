@@ -94,3 +94,77 @@ func TestChannelSettingsSupplierFieldsRoundTrip(t *testing.T) {
 		t.Fatalf("zero sub_suppliers must be omitted, got %s", data)
 	}
 }
+
+func TestResolveAssetProvider(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"empty defaults to byteplus", "", AssetProviderBytePlus},
+		{"explicit byteplus", "byteplus", AssetProviderBytePlus},
+		{"explicit cloudwise", "cloudwise", AssetProviderCloudwise},
+		{"unknown falls back to byteplus", "wat", AssetProviderBytePlus},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := ChannelOtherSettings{AssetProvider: tc.in}
+			if got := s.ResolveAssetProvider(); got != tc.want {
+				t.Errorf("ResolveAssetProvider() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestResolveAssetGroupId pins the provider scoping of the stored group id: an id
+// minted by one asset library is meaningless to the other, so a marker that names a
+// different provider makes the stored id read as absent (the caller then bootstraps a
+// fresh group instead of destroying the operator's id on the first rotation).
+func TestResolveAssetGroupId(t *testing.T) {
+	cases := []struct {
+		name          string
+		provider      string
+		groupProvider string
+		groupId       string
+		want          string
+	}{
+		// Existing rows predate the marker; they must keep working untouched.
+		{"absent marker keeps stored id (legacy byteplus row)", "", "", "bp-1", "bp-1"},
+		{"absent marker keeps stored id on cloudwise too", AssetProviderCloudwise, "", "cw-1", "cw-1"},
+		{"matching marker keeps stored id", AssetProviderCloudwise, AssetProviderCloudwise, "cw-1", "cw-1"},
+		{"byteplus marker with empty provider still matches (empty means byteplus)", "", AssetProviderBytePlus, "bp-1", "bp-1"},
+		{"byteplus id under cloudwise reads as absent", AssetProviderCloudwise, AssetProviderBytePlus, "bp-1", ""},
+		{"cloudwise id under byteplus reads as absent", AssetProviderBytePlus, AssetProviderCloudwise, "cw-1", ""},
+		{"no group id at all", AssetProviderCloudwise, AssetProviderCloudwise, "", ""},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			s := ChannelOtherSettings{
+				AssetProvider:        tc.provider,
+				AssetGroupProvider:   tc.groupProvider,
+				BytePlusAssetGroupId: tc.groupId,
+			}
+			if got := s.ResolveAssetGroupId(); got != tc.want {
+				t.Errorf("ResolveAssetGroupId() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+
+	t.Run("nil receiver is empty", func(t *testing.T) {
+		var s *ChannelOtherSettings
+		if got := s.ResolveAssetGroupId(); got != "" {
+			t.Errorf("ResolveAssetGroupId() = %q, want empty", got)
+		}
+	})
+
+	t.Run("marker is omitted when unset", func(t *testing.T) {
+		data, err := common.Marshal(ChannelOtherSettings{})
+		if err != nil {
+			t.Fatalf("Marshal: %v", err)
+		}
+		if strings.Contains(string(data), "asset_group_provider") {
+			t.Fatalf("empty asset_group_provider must be omitted, got %s", data)
+		}
+	})
+}

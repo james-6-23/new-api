@@ -15,6 +15,8 @@ func TestIsSeedance2(t *testing.T) {
 		"doubao-seedance-2-0-260128",
 		"doubao-seedance-2-0-fast-260128",
 		"doubao-seedance-2-0-mini-260615",
+		"dreamina-seedance-2-5-260628",
+		"doubao-seedance-2-5-260628",
 	} {
 		if !IsSeedance2(m) {
 			t.Fatalf("expected %s to be seedance2", m)
@@ -60,6 +62,11 @@ func TestDreaminaCellUnit(t *testing.T) {
 		{"dreamina-seedance-2-0-fast-260128", "1080p", false, 5.6},
 		{"dreamina-seedance-2-0-mini-260615", "base", true, 2.1},
 		{"dreamina-seedance-2-0-mini-260615", "1080p", true, 2.1},
+		// 2.5 仅 480p/720p:1080p/4k 均回退 base
+		{"dreamina-seedance-2-5-260628", "base", false, 10.7},
+		{"dreamina-seedance-2-5-260628", "base", true, 6.4},
+		{"dreamina-seedance-2-5-260628", "1080p", true, 6.4},
+		{"dreamina-seedance-2-5-260628", "4k", false, 10.7},
 	}
 	for _, tc := range cases {
 		got, _, ok := CellUnit(tc.model, tc.tier, tc.hasVideo)
@@ -101,6 +108,12 @@ func TestDoubaoRatioEquivalence(t *testing.T) {
 		{"doubao-seedance-2-0-mini-260615", "base", true, 14.0 / 23.0},
 		{"doubao-seedance-2-0-mini-260615", "1080p", false, 1.0},
 		{"doubao-seedance-2-0-mini-260615", "1080p", true, 14.0 / 23.0},
+		// 2.5: 官方价 不含视频 70 / 含视频 42,不支持 1080p/4k(回退 base)
+		{"doubao-seedance-2-5-260628", "base", false, 1.0},
+		{"doubao-seedance-2-5-260628", "base", true, 42.0 / 70.0},
+		{"doubao-seedance-2-5-260628", "1080p", false, 1.0},
+		{"doubao-seedance-2-5-260628", "1080p", true, 42.0 / 70.0},
+		{"doubao-seedance-2-5-260628", "4k", true, 42.0 / 70.0},
 	}
 	for _, tc := range cases {
 		ratio, _, ok := PricingRatio(tc.model, tc.tier, tc.hasVideo)

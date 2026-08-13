@@ -3,25 +3,17 @@ package doubao
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/common/volcsign"
-	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/pkg/cachex"
-	"github.com/QuantumNous/new-api/service"
 
-	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
-	"github.com/samber/hot"
 )
 
 // BytePlus 素材库（CreateAsset / GetAsset）调用封装。
@@ -43,11 +35,11 @@ const (
 )
 
 // bytePlusAssetClient 封装"上传单个媒体 URL → 轮询到 Active → 返回 assetId"。
+// groupId 已从客户端状态移除；调用方通过 CreateAndWait 的 groupID 参数传入。
 type bytePlusAssetClient struct {
 	ak, sk         string
 	region         string
 	projectName    string
-	groupId        string
 	skipModeration bool
 	httpClient     *http.Client
 
@@ -83,7 +75,7 @@ func (cl *bytePlusAssetClient) baseEndpoint() string {
 	return fmt.Sprintf("https://ark.%s.byteplusapi.com", cl.region)
 }
 
-// createAssetRequest 是 CreateAsset 的请求体。
+// createAssetRequest is the request body for CreateAsset.
 type createAssetRequest struct {
 	GroupId     string                 `json:"GroupId"`
 	URL         string                 `json:"URL"`
@@ -96,7 +88,7 @@ type createAssetModeration struct {
 	Strategy string `json:"Strategy"`
 }
 
-// bytePlusEnvelope 是 Volcengine OpenAPI 的统一响应外壳。
+// bytePlusEnvelope is the unified response envelope for Volcengine OpenAPI calls.
 type bytePlusEnvelope struct {
 	ResponseMetadata struct {
 		RequestId string `json:"RequestId"`
@@ -109,14 +101,77 @@ type bytePlusEnvelope struct {
 		Id     string `json:"Id"`
 		Status string `json:"Status"`
 	} `json:"Result"`
-	// rawResult 保留 Result 原文：失败原因的字段名不固定（审核拒绝详情等），
-	// Failed 时整段带出供错误信息透传。
+	// rawResult preserves the raw Result field; field names in failure payloads
+	// (e.g. moderation rejection details) are not fixed, so we carry the whole
+	// blob for transparent error reporting.
 	rawResult json.RawMessage
 }
 
-// CreateAndWait 上传单个素材并轮询到 Active，返回 assetId。
-func (cl *bytePlusAssetClient) CreateAndWait(ctx context.Context, mediaURL, assetType string) (string, error) {
-	id, err := cl.createAsset(ctx, mediaURL, assetType)
+// createAssetGroupRequest is the request body for CreateAssetGroup.
+type createAssetGroupRequest struct {
+	Name        string `json:"Name"`
+	ProjectName string `json:"ProjectName,omitempty"`
+}
+
+// CreateGroup creates a new BytePlus asset group and returns its id.
+func (cl *bytePlusAssetClient) CreateGroup(ctx context.Context, name string) (string, error) {
+	reqBody := createAssetGroupRequest{
+		Name:        name,
+		ProjectName: cl.projectName,
+	}
+	env, err := cl.doAction(ctx, "CreateAssetGroup", reqBody)
+	if err != nil {
+		return "", errors.Wrap(err, "byteplus CreateAssetGroup failed")
+	}
+	if env.Result.Id == "" {
+		return "", errors.New("byteplus CreateAssetGroup returned empty group id")
+	}
+	return env.Result.Id, nil
+}
+
+// groupExhaustedCodes are BytePlus error codes that indicate the asset group is
+// full, invalid, or otherwise unusable for new uploads. The upstream API
+// documentation contains no error-code table, so these are conservative guesses
+// based on code names — not confirmed documented values.
+//
+// Design intent:
+//   - Unknown codes return false (permissive-false): unrecognised errors surface
+//     directly to the operator, which is far safer than creating junk groups on
+//     every unrelated error. When a genuine group-full code is observed in
+//     production logs, add it here.
+//   - Do NOT add a bare/generic quota or rate-limit code (e.g. "QuotaExceeded",
+//     "ThrottlingException", "RateLimitExceeded"). Such codes cannot be
+//     distinguished from API-level call-rate throttling. Under sustained load
+//     that would trigger a new CreateAssetGroup call on every throttled request —
+//     a runaway group-creation loop against the upstream account.
+//
+// Every entry below is unambiguously group-scoped (the code name contains
+// "Group", "GroupId", or "GroupCapacity").
+var groupExhaustedCodes = map[string]bool{
+	"GroupFull":                   true,
+	"InvalidGroupId":              true,
+	"GroupNotFound":               true,
+	"AssetGroupCapacityExceeded":  true,
+	"InvalidParameter.GroupId":    true,
+	"ResourceNotFound.GroupId":    true,
+	"LimitExceeded.GroupCapacity": true,
+}
+
+// IsGroupExhausted returns true only when err is an *assetAPIError whose Code
+// positively matches a known group-unusable error. Returns false for auth
+// failures, moderation rejections, network errors, and anything unrecognised.
+func (cl *bytePlusAssetClient) IsGroupExhausted(err error) bool {
+	var apiErr *assetAPIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return groupExhaustedCodes[apiErr.Code]
+}
+
+// CreateAndWait uploads a single asset and polls until Active, returning assetId.
+// groupID is the BytePlus asset-library group to upload into.
+func (cl *bytePlusAssetClient) CreateAndWait(ctx context.Context, groupID, mediaURL, assetType string) (string, error) {
+	id, err := cl.createAsset(ctx, groupID, mediaURL, assetType)
 	if err != nil {
 		return "", err
 	}
@@ -141,7 +196,7 @@ func (cl *bytePlusAssetClient) CreateAndWait(ctx context.Context, mediaURL, asse
 			}
 			return "", errors.Errorf("byteplus asset %s processing failed", id)
 		}
-		// Processing / 其它中间态：继续轮询。
+		// Processing / other intermediate states: keep polling.
 		if time.Now().After(deadline) {
 			return "", errors.Errorf("byteplus asset %s not active within %s (last status: %s)", id, cl.timeoutOrDefault(), status)
 		}
@@ -153,10 +208,10 @@ func (cl *bytePlusAssetClient) CreateAndWait(ctx context.Context, mediaURL, asse
 	}
 }
 
-// createAsset 调用 CreateAsset，返回 asset id。
-func (cl *bytePlusAssetClient) createAsset(ctx context.Context, mediaURL, assetType string) (string, error) {
+// createAsset calls CreateAsset and returns the asset id.
+func (cl *bytePlusAssetClient) createAsset(ctx context.Context, groupID, mediaURL, assetType string) (string, error) {
 	reqBody := createAssetRequest{
-		GroupId:     cl.groupId,
+		GroupId:     groupID,
 		URL:         mediaURL,
 		AssetType:   assetType,
 		ProjectName: cl.projectName,
@@ -172,7 +227,7 @@ func (cl *bytePlusAssetClient) createAsset(ctx context.Context, mediaURL, assetT
 	return env.Result.Id, nil
 }
 
-// getAsset 调用 GetAsset，返回 Status 与失败详情（Result 原文，供 Failed 时排查）。
+// getAsset calls GetAsset, returning Status and failure detail (raw Result blob).
 func (cl *bytePlusAssetClient) getAsset(ctx context.Context, id string) (string, string, error) {
 	reqBody := map[string]any{
 		"Id":          id,
@@ -189,7 +244,8 @@ func (cl *bytePlusAssetClient) getAsset(ctx context.Context, id string) (string,
 	return env.Result.Status, detail, nil
 }
 
-// doAction 发起一次签名的 OpenAPI 调用并解析统一响应外壳。
+// doAction issues one signed OpenAPI call and parses the unified response envelope.
+// Structured upstream API errors (ResponseMetadata.Error) are returned as *assetAPIError.
 func (cl *bytePlusAssetClient) doAction(ctx context.Context, action string, payload any) (*bytePlusEnvelope, error) {
 	body, err := common.Marshal(payload)
 	if err != nil {
@@ -227,7 +283,8 @@ func (cl *bytePlusAssetClient) doAction(ctx context.Context, action string, payl
 	if err := common.Unmarshal(respBody, &env); err != nil {
 		return nil, errors.Wrapf(err, "unmarshal response failed (status %d, body: %s)", resp.StatusCode, truncate(respBody, 512))
 	}
-	// 保留 Result 原文（失败详情字段名不固定，Failed 时整段透传）。
+	// Preserve the raw Result blob (failure field names are not fixed; carry the
+	// whole thing so callers can report moderation-rejection details verbatim).
 	var rawShell struct {
 		Result json.RawMessage `json:"Result"`
 	}
@@ -235,146 +292,14 @@ func (cl *bytePlusAssetClient) doAction(ctx context.Context, action string, payl
 		env.rawResult = rawShell.Result
 	}
 	if env.ResponseMetadata.Error != nil && env.ResponseMetadata.Error.Code != "" {
-		return nil, errors.Errorf("%s: %s", env.ResponseMetadata.Error.Code, env.ResponseMetadata.Error.Message)
+		return nil, &assetAPIError{
+			Code:    env.ResponseMetadata.Error.Code,
+			Message: env.ResponseMetadata.Error.Message,
+			Raw:     common.MaskSensitiveInfo(string(respBody)),
+		}
 	}
 	if resp.StatusCode >= http.StatusBadRequest {
 		return nil, errors.Errorf("upstream returned status %d: %s", resp.StatusCode, truncate(respBody, 512))
 	}
 	return &env, nil
-}
-
-func truncate(b []byte, n int) string {
-	if len(b) <= n {
-		return string(b)
-	}
-	return string(b[:n]) + "..."
-}
-
-// assetCacheTTL 为 URL→assetId 映射缓存有效期。取较短值，覆盖典型批量请求即可，
-// 避免素材实际过期后仍命中旧映射。
-const assetCacheTTL = 6 * time.Hour
-
-// preuploadAssets 在开关开启时，把 payload.Content 中每个公网媒体 URL 预上传到
-// BytePlus 素材库，并就地替换为 asset://<id>。开关关闭时直接返回（零行为变更）。
-func (a *TaskAdaptor) preuploadAssets(c *gin.Context, payload *requestPayload) error {
-	s := a.otherSettings
-	if !s.BytePlusAssetEnabled {
-		return nil
-	}
-	if s.BytePlusAccessKey == "" || s.BytePlusSecretKey == "" || s.BytePlusAssetGroupId == "" {
-		return errors.New("byteplus asset upload enabled but access_key/secret_key/group_id is missing in channel settings")
-	}
-
-	region, project, skipMod := s.ResolveBytePlusAsset()
-
-	httpClient, err := service.GetHttpClientWithProxy(a.proxy)
-	if err != nil {
-		return errors.Wrap(err, "create http client for byteplus asset upload failed")
-	}
-
-	cl := &bytePlusAssetClient{
-		ak:             s.BytePlusAccessKey,
-		sk:             s.BytePlusSecretKey,
-		region:         region,
-		projectName:    project,
-		groupId:        s.BytePlusAssetGroupId,
-		skipModeration: skipMod,
-		httpClient:     httpClient,
-		endpoint:       a.endpointOverride,
-	}
-
-	ctx := c.Request.Context()
-	for i := range payload.Content {
-		item := &payload.Content[i]
-		media, assetType := pickMedia(item)
-		if media == nil {
-			continue // text 等无媒体条目
-		}
-		url := strings.TrimSpace(media.URL)
-		if url == "" {
-			continue
-		}
-		// 已是 asset:// 则幂等跳过（允许调用方自带 assetId）。
-		if strings.HasPrefix(url, "asset://") {
-			continue
-		}
-		// CreateAsset 只接受公网 URL，不支持 base64 / data:。
-		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-			return errors.Errorf("byteplus asset upload requires a public http(s) URL, got unsupported input for %s (base64/data URIs are not supported)", item.Type)
-		}
-
-		cacheKey := assetCacheKey(a.channelId, cl.groupId, project, url)
-		if assetID, ok := getCachedAssetID(cacheKey); ok {
-			media.URL = "asset://" + assetID
-			continue
-		}
-
-		assetID, err := cl.CreateAndWait(ctx, url, assetType)
-		if err != nil {
-			return errors.Wrapf(err, "preupload %s to byteplus asset library failed", item.Type)
-		}
-		setCachedAssetID(cacheKey, assetID)
-		media.URL = "asset://" + assetID
-	}
-	return nil
-}
-
-// pickMedia 返回 content item 中的媒体引用与对应 AssetType。
-func pickMedia(item *ContentItem) (*MediaURL, string) {
-	switch {
-	case item.ImageURL != nil:
-		return item.ImageURL, "Image"
-	case item.VideoURL != nil:
-		return item.VideoURL, "Video"
-	case item.AudioURL != nil:
-		return item.AudioURL, "Audio"
-	default:
-		return nil, ""
-	}
-}
-
-func assetCacheKey(channelId int, groupId, project, url string) string {
-	h := sha256.Sum256([]byte(fmt.Sprintf("%d|%s|%s|%s", channelId, groupId, project, url)))
-	return hex.EncodeToString(h[:])
-}
-
-// assetIDCache 复用项目统一缓存层（Redis 命中优先，否则内存回退），
-// 存 URL→assetId 映射，避免对同一参考媒体重复执行异步上传+轮询。
-var (
-	assetIDCache     *cachex.HybridCache[string]
-	assetIDCacheOnce sync.Once
-)
-
-func getAssetIDCache() *cachex.HybridCache[string] {
-	assetIDCacheOnce.Do(func() {
-		assetIDCache = cachex.NewHybridCache[string](cachex.HybridCacheConfig[string]{
-			Namespace: cachex.Namespace("byteplus_asset"),
-			Redis:     common.RDB,
-			RedisEnabled: func() bool {
-				return common.RedisEnabled && common.RDB != nil
-			},
-			RedisCodec: cachex.StringCodec{},
-			Memory: func() *hot.HotCache[string, string] {
-				return hot.NewHotCache[string, string](hot.LRU, 10_000).
-					WithTTL(assetCacheTTL).
-					WithJanitor().
-					Build()
-			},
-		})
-	})
-	return assetIDCache
-}
-
-func getCachedAssetID(key string) (string, bool) {
-	v, found, err := getAssetIDCache().Get(key)
-	if err != nil || !found {
-		return "", false
-	}
-	return v, true
-}
-
-func setCachedAssetID(key, assetID string) {
-	if err := getAssetIDCache().SetWithTTL(key, assetID, assetCacheTTL); err != nil {
-		logger.LogWarn(context.Background(), fmt.Sprintf("cache byteplus asset id failed: %s", err.Error()))
-	}
 }

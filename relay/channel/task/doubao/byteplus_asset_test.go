@@ -17,7 +17,6 @@ func newTestClient(endpoint string) *bytePlusAssetClient {
 		sk:             "sk",
 		region:         "ap-southeast-1",
 		projectName:    "default",
-		groupId:        "group-test",
 		skipModeration: true,
 		httpClient:     http.DefaultClient,
 		endpoint:       endpoint,
@@ -54,7 +53,7 @@ func TestCreateAndWait_ProcessingThenActive(t *testing.T) {
 	defer srv.Close()
 
 	cl := newTestClient(srv.URL)
-	id, err := cl.CreateAndWait(context.Background(), "https://example.com/i.jpg", "Image")
+	id, err := cl.CreateAndWait(context.Background(), "group-test", "https://example.com/i.jpg", "Image")
 	if err != nil {
 		t.Fatalf("CreateAndWait: %v", err)
 	}
@@ -83,7 +82,7 @@ func TestCreateAndWait_Failed(t *testing.T) {
 	defer srv.Close()
 
 	cl := newTestClient(srv.URL)
-	_, err := cl.CreateAndWait(context.Background(), "https://example.com/i.jpg", "Image")
+	_, err := cl.CreateAndWait(context.Background(), "group-test", "https://example.com/i.jpg", "Image")
 	if err == nil || !strings.Contains(err.Error(), "processing failed") {
 		t.Fatalf("expected processing failed error, got %v", err)
 	}
@@ -100,7 +99,7 @@ func TestCreateAndWait_UpstreamError(t *testing.T) {
 	defer srv.Close()
 
 	cl := newTestClient(srv.URL)
-	_, err := cl.CreateAndWait(context.Background(), "https://example.com/i.jpg", "Image")
+	_, err := cl.CreateAndWait(context.Background(), "group-test", "https://example.com/i.jpg", "Image")
 	if err == nil || !strings.Contains(err.Error(), "InvalidParameter") {
 		t.Fatalf("expected upstream error, got %v", err)
 	}
@@ -122,8 +121,30 @@ func TestCreateAndWait_Timeout(t *testing.T) {
 	// Use a context deadline rather than the package timeout to keep the test fast.
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
-	_, err := cl.CreateAndWait(ctx, "https://example.com/i.jpg", "Image")
+	_, err := cl.CreateAndWait(ctx, "group-test", "https://example.com/i.jpg", "Image")
 	if err == nil {
 		t.Fatal("expected timeout/cancel error, got nil")
+	}
+}
+
+// TestCreateGroup_EmptyId verifies that CreateGroup returns an explicit error
+// when the upstream replies with a success envelope carrying no id (e.g. {"Result":{}}).
+// Without this guard the caller would upload into group "", producing a confusing
+// downstream parameter error instead of a clear one.
+func TestCreateGroup_EmptyId(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Success envelope with no id in Result.
+		_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"r1"},"Result":{}}`))
+	}))
+	defer srv.Close()
+
+	cl := newTestClient(srv.URL)
+	id, err := cl.CreateGroup(context.Background(), "test-group")
+	if err == nil {
+		t.Fatalf("expected error for empty group id, got id=%q", id)
+	}
+	if !strings.Contains(err.Error(), "empty group id") {
+		t.Errorf("error should mention empty group id, got: %v", err)
 	}
 }

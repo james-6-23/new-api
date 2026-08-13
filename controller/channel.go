@@ -678,6 +678,9 @@ func AddChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 新建渠道也要落计价版本：漏掉这一步，渠道在首次编辑或重启前全程无版本，
+	// 成本报表会把它的流量算成 0 成本、100% 毛利。
+	appendNewChannelCostVersions(c, channels)
 	service.ResetProxyClientCache()
 	recordManageAudit(c, "channel.create", map[string]interface{}{
 		"name":  addChannelRequest.Channel.Name,
@@ -1011,6 +1014,15 @@ func UpdateChannel(c *gin.Context) {
 	}
 	model.InitChannelCache()
 	service.ResetProxyClientCache()
+	// 成本计价字段变化时追加一条 effective_from=now 的版本，让改价之后的日志按新价
+	// 计算、改价之前的历史仍按原价计算。放在 Update 成功之后：版本描述的是"已经生效
+	// 的价"，渠道没存进去就不该有对应版本。
+	if channel.Setting != nil {
+		var newSetting dto.ChannelSettings
+		if err := common.UnmarshalJsonStr(*channel.Setting, &newSetting); err == nil {
+			appendCostVersionIfChanged(c, channel.Id, &newSetting)
+		}
+	}
 	// 记录变更的字段名（语言无关的字段标识），密钥仅记录"已更换"绝不记录内容。
 	changedFields := make([]string, 0)
 	if channel.Status != originChannel.Status {

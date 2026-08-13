@@ -23,12 +23,17 @@ import {
   TabPane,
   Tag,
   Button,
+  Divider,
   Modal,
   InputNumber,
   Select,
   Typography,
 } from '@douyinfe/semi-ui';
-import { IconEdit, IconChevronDown, IconChevronRight } from '@douyinfe/semi-icons';
+import {
+  IconEdit,
+  IconChevronDown,
+  IconChevronRight,
+} from '@douyinfe/semi-icons';
 import CardTable from '../common/ui/CardTable';
 import { API, showError, showSuccess } from '../../helpers';
 import { mergeBreakdown, MERGE_VIEW_OPTIONS } from './costMerge';
@@ -39,6 +44,7 @@ import {
   getMoneyPrimaryCurrency,
 } from './costFormat';
 import { CostHelpHeader, CostHelpFormula, CostHelpNotes } from './CostHelp';
+import CostVersionPanel from './CostVersionPanel';
 import {
   CostRatioDiscountCell,
   RequestOutcomeCell,
@@ -95,18 +101,27 @@ const IDENTITY_FIELD_SIGNATURE = {
 };
 
 const isIdentityFieldCollapsed = (field, mode, keyFields) =>
-  mode !== 'detail' && !(keyFields || []).includes(IDENTITY_FIELD_SIGNATURE[field]);
+  mode !== 'detail' &&
+  !(keyFields || []).includes(IDENTITY_FIELD_SIGNATURE[field]);
 
 const renderIdentityFieldValue = (t, field, row) => {
   if (field === 'username') return row.username || '-';
   if (field === 'model_name') return row.model_name || '-';
   // field === 'channel'
   if (!row.channel_id) return t('未知渠道');
-  return row.channel_name ? `${row.channel_name}（#${row.channel_id}）` : `#${row.channel_id}`;
+  return row.channel_name
+    ? `${row.channel_name}（#${row.channel_id}）`
+    : `#${row.channel_id}`;
 };
 
 // ========== 统一的指标列（顶层行与展开明细行共用同一套渲染） ==========
-const buildMetricColumns = (t, exchangeRate, primaryCurrency, activeTab, onEditRatio) => [
+const buildMetricColumns = (
+  t,
+  exchangeRate,
+  primaryCurrency,
+  activeTab,
+  onEditRatio,
+) => [
   {
     key: 'list_usd',
     title: t('刊例价'),
@@ -136,8 +151,13 @@ const buildMetricColumns = (t, exchangeRate, primaryCurrency, activeTab, onEditR
         />
         <CostHelpNotes
           notes={[
-            t('用户/模型行跨多个渠道时显示 ≈ 加权值（成本 ÷ 刊例价），悬浮可看各渠道配置。'),
+            t(
+              '用户/模型行跨多个渠道时显示 ≈ 加权值（成本 ÷ 刊例价），悬浮可看各渠道配置。',
+            ),
             t('「未填写」表示该渠道未配置成本计价，成本按 0 计。'),
+            t(
+              '成本按各计价版本分段计算：区间内改过价的渠道带 ≈ 标记，标签显示当前生效价。',
+            ),
           ]}
         />
       </CostHelpHeader>
@@ -166,11 +186,16 @@ const buildMetricColumns = (t, exchangeRate, primaryCurrency, activeTab, onEditR
         />
         <CostHelpNotes
           notes={[
-            t('显示的是实际生效折扣（按额度加权），专属倍率与区间内换组/改倍率都已自动反映。'),
-            t('悬浮数值可与该分组当前配置的倍率作对比。'),
-            t('专属倍率为「用户分组×令牌分组」的二维覆盖，优先于分组倍率生效。'),
-            t('区间内没有刊例价（免费或未定价模型）时改为展示配置值。'),
-            t('行内没有单一用户（模型/供应商父行）时显示「-」。'),
+            t(
+              '显示的是实际生效折扣（按额度加权），专属倍率与区间内换组/改倍率都已自动反映。',
+            ),
+            t(
+              '专属倍率为「用户分组×令牌分组」的二维覆盖，优先于分组倍率生效。',
+            ),
+            t(
+              '区间内没有刊例价（免费或未定价模型）时显示「-」，此时折扣无从反推。',
+            ),
+            t('部分日志缺少定价字段时，悬浮会给出折扣信息的覆盖率。'),
           ]}
         />
       </CostHelpHeader>
@@ -242,7 +267,7 @@ const buildMetricColumns = (t, exchangeRate, primaryCurrency, activeTab, onEditR
         <CostHelpNotes
           notes={[
             t('收入为 0 时利润率按 0 显示。'),
-            t('成本倍率取渠道当前配置，不随历史变更回溯。'),
+            t('成本按各计价版本分段计算，改价不影响已发生区间。'),
           ]}
         />
       </CostHelpHeader>
@@ -251,7 +276,9 @@ const buildMetricColumns = (t, exchangeRate, primaryCurrency, activeTab, onEditR
     width: 100,
     render: (_, row) =>
       row.__isNote ? null : (
-        <span style={profitStyle(row.profit_rate)}>{percent(row.profit_rate)}</span>
+        <span style={profitStyle(row.profit_rate)}>
+          {percent(row.profit_rate)}
+        </span>
       ),
   },
   {
@@ -282,7 +309,8 @@ const buildMetricColumns = (t, exchangeRate, primaryCurrency, activeTab, onEditR
     title: t('缓存命中率'),
     align: 'right',
     width: 100,
-    render: (_, row) => (row.__isNote ? null : <span>{percent(row.cache_rate)}</span>),
+    render: (_, row) =>
+      row.__isNote ? null : <span>{percent(row.cache_rate)}</span>,
   },
   {
     key: 'avg_ttft_ms',
@@ -370,7 +398,9 @@ const CostTables = ({
     setSubSuppliersModal((s) => ({ ...s, visible: false }));
 
   const activeRatioValue =
-    ratioModal.mode === 'discount' ? ratioModal.discountValue : ratioModal.ratioValue;
+    ratioModal.mode === 'discount'
+      ? ratioModal.discountValue
+      : ratioModal.ratioValue;
   const isValidRatio =
     activeRatioValue !== null &&
     activeRatioValue !== undefined &&
@@ -439,7 +469,11 @@ const CostTables = ({
     });
 
   const dimensionTitle =
-    activeTab === 'users' ? t('用户') : activeTab === 'models' ? t('模型') : t('渠道');
+    activeTab === 'users'
+      ? t('用户')
+      : activeTab === 'models'
+        ? t('模型')
+        : t('渠道');
 
   // 父行的身份列内容（不含展开箭头）：三个维度各自的展示逻辑与原实现一致。
   const renderParentIdentityContent = (row) => {
@@ -559,14 +593,17 @@ const CostTables = ({
       if (row.__isNote) return null;
       if (row.__isChild) {
         if (activeTab === 'channels') return null;
-        if (isIdentityFieldCollapsed('channel', row.__mode, row.__keyFields)) return null;
+        if (isIdentityFieldCollapsed('channel', row.__mode, row.__keyFields))
+          return null;
         if (!row.channel_id) return null;
         return (
           <Button
             size='small'
             type='tertiary'
             theme='borderless'
-            onClick={() => onFilterByChannel && onFilterByChannel(row.channel_id)}
+            onClick={() =>
+              onFilterByChannel && onFilterByChannel(row.channel_id)
+            }
           >
             {t('只看该渠道')}
           </Button>
@@ -593,7 +630,13 @@ const CostTables = ({
   const columns = [
     dimensionColumn,
     ...channelExtraColumns,
-    ...buildMetricColumns(t, exchangeRate, primaryCurrency, activeTab, openRatioModal),
+    ...buildMetricColumns(
+      t,
+      exchangeRate,
+      primaryCurrency,
+      activeTab,
+      openRatioModal,
+    ),
     actionColumn,
   ];
 
@@ -621,11 +664,12 @@ const CostTables = ({
       const activeOption = options.find((o) => o.value === mode) || options[0];
       const mergedRows = mergeBreakdown(rawRows, activeOption.keyFields);
 
-      // 明细行补上自身字段带不动的身份挂载信息：
-      //  - 供应商维度：渠道身份折叠进了父行，把父行的渠道计价配置注入每个明细行
-      //    （成本倍率/折扣列因此能显示 2.5/倍率 而不是空）；
-      //  - 用户维度：明细行都属于父行用户，注入父行的用户折扣字段（顺带覆盖
-      //    合并视图丢掉挂载字段的情况）。
+      // 明细行补上自身字段带不动的身份挂载信息：供应商维度的渠道身份折叠进了
+      // 父行，把父行的渠道计价配置注入每个明细行（成本倍率/折扣列因此能显示
+      // 2.5/倍率 而不是空）。
+      //
+      // 用户维度不再注入：用户折扣改由明细行自己的 effective_discount 反推，
+      // 父行已没有配置字段可注入 —— 继续注入 undefined 会让折扣列整列空掉。
       const enrichChild = (bRow) => {
         if (activeTab === 'channels') {
           return {
@@ -635,17 +679,6 @@ const CostTables = ({
             cost_mode: record.cost_mode,
             cost_ratio: record.cost_ratio,
             cost_discount: record.cost_discount,
-            effective_ratio: record.effective_ratio,
-          };
-        }
-        if (activeTab === 'users') {
-          return {
-            ...bRow,
-            user_group: record.user_group,
-            group_ratio: record.group_ratio,
-            group_ratio_known: record.group_ratio_known,
-            group_ratio_special: record.group_ratio_special,
-            group_ratio_mixed: record.group_ratio_mixed,
           };
         }
         return bRow;
@@ -734,6 +767,8 @@ const CostTables = ({
 
       <Modal
         centered
+        width={640}
+        bodyStyle={{ maxHeight: '60vh', overflow: 'auto' }}
         visible={ratioModal.visible}
         onCancel={closeRatioModal}
         onOk={submitRatio}
@@ -776,11 +811,13 @@ const CostTables = ({
             min={0}
             step={0.01}
             value={ratioModal.ratioValue}
-            onChange={(value) => setRatioModal((s) => ({ ...s, ratioValue: value }))}
+            onChange={(value) =>
+              setRatioModal((s) => ({ ...s, ratioValue: value }))
+            }
           />
         )}
 
-        <div className='pt-2'>
+        <div className='pt-2 pb-1'>
           <Text type='tertiary' size='small'>
             {!isValidRatio
               ? t('请输入不小于 0 的倍率')
@@ -789,7 +826,8 @@ const CostTables = ({
                     d: ratioModal.discountValue,
                     rate: exchangeRate,
                     cny: (
-                      Number(ratioModal.discountValue) * Number(exchangeRate || 0)
+                      Number(ratioModal.discountValue) *
+                      Number(exchangeRate || 0)
                     ).toFixed(2),
                   })
                 : t('倍率 {{r}} → 上游每消耗刊例 $1 记成本 ¥{{cny}}', {
@@ -798,6 +836,22 @@ const CostTables = ({
                   })}
           </Text>
         </div>
+
+        <div className='pb-2'>
+          <Text type='tertiary' size='small'>
+            {t('保存后记录为一个新的计价版本，历史区间仍按当时的价核算。')}
+          </Text>
+        </div>
+
+        <Divider margin='8px' />
+
+        <CostVersionPanel
+          channelId={ratioModal.channelId}
+          visible={ratioModal.visible}
+          exchangeRate={exchangeRate}
+          t={t}
+          onChanged={onRatioUpdated}
+        />
       </Modal>
 
       <Modal

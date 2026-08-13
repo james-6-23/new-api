@@ -207,6 +207,12 @@ const ZERO_MONEY: CostMoney = {
   avg_ttft_ms: 0,
   effective_discount: 0,
   effective_discount_known: false,
+  effective_ratio: 0,
+  effective_ratio_known: false,
+  ratio_mixed: false,
+  discount_mixed: false,
+  discount_special: false,
+  discount_coverage: 0,
 }
 
 /**
@@ -241,22 +247,15 @@ export function mergeBreakdown(
           ? { channel_id: row.channel_id, channel_name: row.channel_name }
           : {}),
       }
-      // Fields that ride along with an identity survive a merge that KEEPS that
-      // identity: grouping by channel keeps the channel's pricing config;
-      // grouping by username keeps that user's discount. (All rows in a group
-      // share the identity, so first-row values are the group's values.)
+      // Config fields that ride along with an identity survive a merge that
+      // KEEPS that identity: grouping by channel keeps the channel's pricing
+      // config. (All rows in a group share the identity, so first-row values
+      // are the group's values.) The discount/ratio signals are not copied —
+      // they are derived from the summed money below.
       if (groupBy === 'channel') {
         acc.cost_mode = row.cost_mode
         acc.cost_ratio = row.cost_ratio
         acc.cost_discount = row.cost_discount
-        acc.effective_ratio = row.effective_ratio
-      }
-      if (groupBy === 'username') {
-        acc.user_group = row.user_group
-        acc.group_ratio = row.group_ratio
-        acc.group_ratio_known = row.group_ratio_known
-        acc.group_ratio_special = row.group_ratio_special
-        acc.group_ratio_mixed = row.group_ratio_mixed
       }
       groups.set(key, acc)
     }
@@ -275,6 +274,14 @@ export function mergeBreakdown(
     acc.error_count += row.error_count
     acc.frt_sum_ms = round6(acc.frt_sum_ms + row.frt_sum_ms)
     acc.frt_count += row.frt_count
+    // A signal that fired for any member fires for the merge. Coverage is a
+    // share, so it accumulates as an absolute list-price basis here and is
+    // turned back into a share once list_usd is final.
+    acc.ratio_mixed = acc.ratio_mixed || row.ratio_mixed
+    acc.discount_mixed = acc.discount_mixed || row.discount_mixed
+    acc.discount_special = acc.discount_special || row.discount_special
+    acc.discount_coverage =
+      (acc.discount_coverage ?? 0) + (row.discount_coverage ?? 0) * row.list_usd
   }
 
   const merged = Array.from(groups.values())
@@ -300,6 +307,20 @@ export function mergeBreakdown(
     acc.effective_discount = acc.effective_discount_known
       ? round6(acc.revenue_usd / acc.list_usd)
       : 0
+    acc.effective_ratio_known = acc.list_usd !== 0
+    acc.effective_ratio = acc.effective_ratio_known
+      ? round6(acc.cost_cny / acc.list_usd)
+      : 0
+    // Re-share the accumulated basis. Without this the merged row would report
+    // 0 coverage and warn that no spend has pricing info.
+    //
+    // Guarded on the sign, not just on truthiness: list_usd goes negative when
+    // the range holds a refund but not the charge it reverses, and Math.min has
+    // no lower bound — a negative denominator would surface as "-320% of spend
+    // has pricing info". Matches the backend's `> 0` gate in cost_stat.go.
+    const coverageBasis = acc.discount_coverage ?? 0
+    acc.discount_coverage =
+      acc.list_usd > 0 ? round6(Math.min(coverageBasis / acc.list_usd, 1)) : 0
   }
 
   merged.sort((a, b) => b.revenue_cny - a.revenue_cny)

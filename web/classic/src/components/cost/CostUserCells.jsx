@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 QuantumNous
+Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+
 import React from 'react';
-import { Button, Popover, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Popover, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { IconEdit } from '@douyinfe/semi-icons';
 import { effectiveCostRatioOf, formatCostRatio } from './costFormat';
 
@@ -51,8 +52,10 @@ export const configuredPricingLabel = (row, t) => {
 };
 
 /**
- * 加权成本倍率 + 各渠道配置悬浮清单：用于用户/模型父行 —— 一行跨多个渠道，
- * 没有单一配置值，只能用这一行自己的钱反推（成本 ÷ 刊例价）。
+ * 实际成本倍率 + 各渠道当前配置悬浮清单：用于用户/模型父行 —— 一行跨多个渠道、
+ * 也可能跨多个计价版本，没有单一配置值可显示，只能用这一行自己的钱反推
+ * （成本 ÷ 刊例价）。清单里的配置值是各渠道**当前**的价，与区间内实际生效的价
+ * 可能不同（改过价就会不同），仅供对照。
  */
 const WeightedCostRatio = ({ row, t }) => {
   const ratio = effectiveCostRatioOf(row);
@@ -65,7 +68,8 @@ const WeightedCostRatio = ({ row, t }) => {
     return <span style={{ color: 'var(--semi-color-text-2)' }}>-</span>;
   }
 
-  const blended = channelIds.size > 1;
+  // 跨渠道，或单渠道但区间内改过价 —— 两种情况下这个数都是加权值，标 ≈。
+  const blended = channelIds.size > 1 || Boolean(row.ratio_mixed);
   const text = `${blended ? '≈' : ''}${formatCostRatio(ratio)}`;
 
   if (!breakdown.length) return <span>{text}</span>;
@@ -78,7 +82,7 @@ const WeightedCostRatio = ({ row, t }) => {
       content={
         <div style={{ maxWidth: 300, padding: '8px 4px', lineHeight: 1.6 }}>
           <div style={{ color: 'var(--semi-color-text-2)', marginBottom: 6 }}>
-            {blended ? t('按渠道加权：成本 ÷ 刊例价') : t('渠道上配置的成本倍率')}
+            {t('实际成本倍率 = 区间内成本 ÷ 刊例价；下列为各渠道当前配置')}
           </div>
           {breakdown.map((b, index) => (
             <div
@@ -114,7 +118,8 @@ const WeightedCostRatio = ({ row, t }) => {
 
 /**
  * 统一的「成本倍率/折扣」单元格，三个维度、父行与明细行共用：
- *  - 供应商维度父行：渠道自身配置（2.5/倍率、0.8/折扣）+ 未填写标签 + 编辑按钮；
+ *  - 供应商维度父行：渠道当前配置（2.5/倍率、0.8/折扣）+ 未填写标签 + 区间内改过
+ *    价时的 ≈ 标记 + 编辑按钮；
  *  - 携带渠道计价字段的行（明细行；供应商维度明细行由展平时从父行注入）：配置标签；
  *  - 用户/模型父行：加权倍率 + 各渠道悬浮清单；
  *  - 合并后的明细行：有刊例价基数时显示加权值，否则 '-'。
@@ -142,8 +147,26 @@ export const CostRatioDiscountCell = ({ row, dim, t, onEditRatio }) => {
               lineHeight: 1.3,
             }}
           >
-            <span>{label}</span>
-            {row.cost_mode === 'discount' && (
+            <span
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              {label}
+              {row.ratio_mixed && (
+                <Tooltip
+                  content={t(
+                    '区间内成本倍率有变更：成本已按各计价版本分段计算，标签显示的是当前生效价。',
+                  )}
+                >
+                  <Tag color='orange' shape='circle' size='small'>
+                    ≈
+                  </Tag>
+                </Tooltip>
+              )}
+            </span>
+            {/* 折扣模式的等效倍率来自这一行自己的钱（成本 ÷ 刊例价），
+                没有可定价用量时它是 0，写出来就成了「≈¥0.00/$1」—— 那不是该渠道
+                的价，只是这段区间没得算。 */}
+            {row.cost_mode === 'discount' && row.effective_ratio_known && (
               <Text type='tertiary' size='small'>
                 ≈¥{Number(row.effective_ratio || 0).toFixed(2)}/$1
               </Text>
@@ -177,38 +200,27 @@ export const CostRatioDiscountCell = ({ row, dim, t, onEditRatio }) => {
 };
 
 /**
- * 「用户折扣」双层口径：
- *  - 主显：区间内**实际生效**的折扣（effective_discount = 收入 ÷ 刊例价，按额度
- *    加权）。这是客户真正付的价，专属倍率、跨分组混用、区间内改倍率都自动反映，
- *    不依赖任何配置查表；
- *  - 悬浮：当前**配置**折扣（有专属倍率时专属优先），两者不一致时给出提示 ——
- *    那正是"用户换过分组"或"区间内调过倍率"的信号。
+ * 「用户折扣」= 区间内**实际生效**的折扣（effective_discount = 收入 ÷ 刊例价，
+ * 按额度加权）。这是客户真正付的价：专属倍率、跨分组混用、区间内改过倍率，全都
+ * 已经落在这个商里，不需要（也不再能）跟配置对照 —— 报表不再下发配置倍率，改价
+ * 历史由渠道计价版本承载，配置值只代表"现在的价"，拿它跟一段历史区间比本就不对。
  *
- * 行没有单一用户时显示 '-'；刊例价为 0（免费/未定价模型）时商无意义，退回展示
- * 配置值并标注。
+ * 刊例价为 0（免费/未定价模型，或区间内没有可定价用量）时商无意义，显示 '-'。
  */
 export const UserDiscountCell = ({ row, t }) => {
-  if (!row.user_group) {
-    return <span style={{ color: 'var(--semi-color-text-2)' }}>-</span>;
-  }
-
-  const configKnown = Boolean(row.group_ratio_known);
-  const special = Boolean(row.group_ratio_special);
-  const mixed = Boolean(row.group_ratio_mixed);
   const actualKnown = Boolean(row.effective_discount_known);
-  const actual = row.effective_discount;
+  const mixed = Boolean(row.discount_mixed);
+  const special = Boolean(row.discount_special);
+  // 兜底取 0 而不是 1：discount_coverage 是 omitempty，后端只在有定价基数时才赋值
+  // （cost_stat.go 的 DiscountTotalBasis > 0 门槛），字段缺席的含义正是"没有任何
+  // 消费带定价信息"。兜底成 1 会在覆盖率最差时恰好把提示藏起来。
+  const coverage = Number(row.discount_coverage) || 0;
 
-  // 既没有用量可反推、也没有配置可回退。
-  if (!actualKnown && !configKnown) {
+  if (!actualKnown) {
     return <span style={{ color: 'var(--semi-color-text-2)' }}>-</span>;
   }
 
-  // 实际与配置超出舍入误差 —— 在悬浮里点明。
-  const drifted =
-    actualKnown &&
-    configKnown &&
-    Math.abs(Number(actual || 0) - Number(row.group_ratio || 0)) > 0.005;
-
+  const actual = Number(row.effective_discount) || 0;
   const subtle = { color: 'var(--semi-color-text-2)' };
   const spread = { display: 'flex', justifyContent: 'space-between', gap: 16 };
 
@@ -219,77 +231,70 @@ export const UserDiscountCell = ({ row, t }) => {
       position='left'
       content={
         <div style={{ maxWidth: 320, padding: '8px 4px', lineHeight: 1.6 }}>
-          {actualKnown && (
-            <div style={spread}>
-              <span style={subtle}>{t('实际折扣（本区间）')}</span>
-              <span>{trimRatioNumber(actual)}</span>
-            </div>
-          )}
           <div style={spread}>
-            <span style={subtle}>{t('当前分组')}</span>
-            <span style={{ fontWeight: 600 }}>{row.user_group}</span>
+            <span style={subtle}>{t('实际折扣（本区间）')}</span>
+            <span>{trimRatioNumber(actual)}</span>
           </div>
-          {configKnown ? (
-            <div style={spread}>
-              <span style={subtle}>{special ? t('专属倍率') : t('分组倍率')}</span>
-              <span>
-                {mixed ? '≈' : ''}
-                {trimRatioNumber(row.group_ratio)}
-              </span>
-            </div>
-          ) : (
-            <div style={subtle}>{t('该分组未配置倍率。')}</div>
-          )}
-          {actualKnown && (
-            <div style={{ ...subtle, marginTop: 6 }}>
-              {t('实际折扣 = 所选区间内的收入 ÷ 刊例价。')}
-            </div>
-          )}
+          <div style={{ ...subtle, marginTop: 6 }}>
+            {t('实际折扣 = 所选区间内的收入 ÷ 刊例价（按额度加权）。')}
+          </div>
           {special && (
             <div style={{ ...subtle, marginTop: 6 }}>
-              {t('已配置专属倍率（用户分组×令牌分组），优先于分组倍率生效。')}
+              {t(
+                '命中专属倍率：区间内存在「用户分组×令牌分组」的专属倍率配置。',
+              )}
             </div>
           )}
           {mixed && (
-            <div style={{ ...subtle, marginTop: 6 }}>
-              {t('该用户在本区间跨多个令牌分组消费，配置倍率按额度加权。')}
-            </div>
-          )}
-          {drifted && (
             <div style={{ color: 'var(--semi-color-warning)', marginTop: 6 }}>
-              {t('实际折扣与当前配置不一致 —— 用户可能换过分组，或区间内调整过倍率。')}
+              {t('区间内折扣有变更 —— 用户可能换过分组，或倍率被调整过。')}
             </div>
           )}
-          {!actualKnown && (
+          {coverage < 0.99 && (
             <div style={{ ...subtle, marginTop: 6 }}>
-              {t('本区间没有刊例价（免费或未定价模型），无法反推实际折扣。')}
+              {t(
+                '折扣信息覆盖率 {{pct}}%，部分日志缺少定价字段，折扣仅含已知部分。',
+                {
+                  pct: Math.round(coverage * 100),
+                },
+              )}
             </div>
           )}
         </div>
       }
     >
       <span style={hoverTextStyle}>
-        {actualKnown ? (
-          <span style={drifted ? { color: 'var(--semi-color-warning)' } : undefined}>
-            {trimRatioNumber(actual)}
-          </span>
-        ) : (
-          <span style={subtle}>
-            {t('{{v}}/配置', { v: trimRatioNumber(row.group_ratio) })}
-          </span>
-        )}
+        <span
+          style={mixed ? { color: 'var(--semi-color-warning)' } : undefined}
+        >
+          {trimRatioNumber(actual)}
+        </span>
       </span>
     </Popover>
   );
 };
 
 /** 请求数按 成功/失败 + 成功率 合成一列，替代原先分开的「请求数」「成功率」。 */
-export const RequestOutcomeCell = ({ requestCount, errorCount, successRate, percent }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.3 }}>
+export const RequestOutcomeCell = ({
+  requestCount,
+  errorCount,
+  successRate,
+  percent,
+}) => (
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'flex-end',
+      lineHeight: 1.3,
+    }}
+  >
     <span>
       <span
         style={{
-          color: requestCount ? 'var(--semi-color-success)' : 'var(--semi-color-text-2)',
+          color: requestCount
+            ? 'var(--semi-color-success)'
+            : 'var(--semi-color-text-2)',
         }}
       >
         {Number(requestCount || 0)}
@@ -297,7 +302,9 @@ export const RequestOutcomeCell = ({ requestCount, errorCount, successRate, perc
       <span style={{ color: 'var(--semi-color-text-2)' }}> / </span>
       <span
         style={{
-          color: errorCount ? 'var(--semi-color-danger)' : 'var(--semi-color-text-2)',
+          color: errorCount
+            ? 'var(--semi-color-danger)'
+            : 'var(--semi-color-text-2)',
         }}
       >
         {Number(errorCount || 0)}
@@ -328,9 +335,15 @@ export const TokensHoverCell = ({ row, t }) => (
         ].map(([labelKey, value]) => (
           <div
             key={labelKey}
-            style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 16,
+            }}
           >
-            <span style={{ color: 'var(--semi-color-text-2)' }}>{t(labelKey)}</span>
+            <span style={{ color: 'var(--semi-color-text-2)' }}>
+              {t(labelKey)}
+            </span>
             <span className='tabular-nums'>{Number(value || 0)}</span>
           </div>
         ))}

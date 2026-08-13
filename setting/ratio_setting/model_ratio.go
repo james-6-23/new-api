@@ -283,7 +283,8 @@ var defaultModelRatio = map[string]float64{
 	"dreamina-seedance-2-0-260128":            3.5,
 	"dreamina-seedance-2-0-fast-260128":       2.8,
 	"dreamina-seedance-2-0-mini-260615":       1.75,
-	// doubao-* 命名的 Seedance 2.0 与 260128/fast 保持同一计费方式:不设默认倍率,
+	"dreamina-seedance-2-5-260628":            5.35,
+	// doubao-* 命名的 Seedance 2.0/2.5 与 260128/fast 保持同一计费方式:不设默认倍率,
 	// 由管理员在后台按官方「不含视频 + 基础分辨率」单价配置基准倍率
 	// (见 接口文档/seedance2视频文档/Seedance 2.0 计费规则说明.md),
 	// 含视频/分辨率折扣由 relay/channel/task/seedance 矩阵自动追加 video_pricing。

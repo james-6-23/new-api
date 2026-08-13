@@ -301,7 +301,7 @@ export function CostFilter({ value, onApply }: CostFilterProps) {
           <InputGroup className='h-8 w-full min-w-0'>
             <InputGroupAddon>$1 =</InputGroupAddon>
             <InputGroupInput
-              aria-label={t('Exchange Rate')}
+              aria-label={t('Revenue exchange rate')}
               type='number'
               step={0.1}
               value={
@@ -318,6 +318,13 @@ export function CostFilter({ value, onApply }: CostFilterProps) {
             />
             <InputGroupAddon align='inline-end'>CNY</InputGroupAddon>
           </InputGroup>
+          {/* Cost is settled at each price version's own frozen rate, so this
+              field no longer moves it — say so, or it reads as a cost knob. */}
+          <p className='text-muted-foreground mt-1 text-xs'>
+            {t(
+              "Converts USD revenue to CNY for display. Cost uses each price version's own settlement rate."
+            )}
+          </p>
         </LogsFilterField>
       </div>
 

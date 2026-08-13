@@ -45,6 +45,8 @@ interface DateTimePickerProps {
   onChange?: (date: Date | undefined) => void
   placeholder?: string
   className?: string
+  /** Lands on the date trigger so a sibling `<Label htmlFor>` can point at it. */
+  id?: string
 }
 
 export function DateTimePicker({
@@ -52,6 +54,7 @@ export function DateTimePicker({
   onChange,
   placeholder,
   className,
+  id,
 }: DateTimePickerProps) {
   const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Select date')
@@ -114,6 +117,7 @@ export function DateTimePicker({
         <PopoverTrigger
           render={
             <Button
+              id={id}
               variant='outline'
               className={cn(
                 'flex-1 justify-between font-normal',

@@ -101,6 +101,53 @@ type responseTask struct {
 }
 
 // ============================
+// Endpoint routing
+// ============================
+
+// seedanceEndpoints 是一组成对的视频任务路径。
+// 提交与查询必须同源:提交走 A 网关、查询走 B 网关会让任务永远停在
+// in_progress 且用户配额一直被预扣。因此两条路径只在这里成对定义,
+// BuildRequestURL 与 FetchTask 都从同一个来源取值,杜绝两处各自拼接导致的漂移。
+type seedanceEndpoints struct {
+	// generate 提交生成任务的路径。
+	generate string
+	// queryPrefix 查询任务的路径前缀,末尾直接拼接 task_id。
+	// 刻意不用 fmt.Sprintf 的格式串:非常量格式串会触发 go vet 的
+	// non-constant format string 检查。
+	queryPrefix string
+}
+
+var (
+	// modelArkEndpoints 火山方舟(ModelArk)官方路径。
+	// 存量渠道(other_settings 里没有 asset_provider 这个 key)必须继续走这里,
+	// 与本次改动前逐字节一致,实现零迁移。
+	modelArkEndpoints = seedanceEndpoints{
+		generate:    "/api/v3/contents/generations/tasks",
+		queryPrefix: "/api/v3/contents/generations/tasks/",
+	}
+	// cloudwiseEndpoints 第三方 cloudwise 网关路径。
+	// 该网关在不同路径上提供完全相同的请求体/响应体/状态词(succeeded 等),
+	// 因此只有路径需要分流,payload 与解析逻辑全部复用。
+	cloudwiseEndpoints = seedanceEndpoints{
+		generate:    "/api/v1/aiproducts/video/seedance",
+		queryPrefix: "/api/v1/aiproducts/video/seedance/tasks/",
+	}
+)
+
+// resolveEndpoints 按渠道 other_settings.asset_provider 选择路径组。
+// 空值与未知值由 ResolveAssetProvider 归一到 byteplus,所以存量渠道行为不变。
+//
+// 注意:这里读的是 a.otherSettings,由 Init 填充。请求链路经 InitChannelMeta 天然带上
+// 该字段;轮询链路是自己手搓 RelayInfo 的,必须由构造方把 ChannelOtherSettings 一起带进来
+// (见 service.BuildVideoPollingRelayInfo),否则查询会退回官方路径而 404。
+func (a *TaskAdaptor) resolveEndpoints() seedanceEndpoints {
+	if a.otherSettings.ResolveAssetProvider() == dto.AssetProviderCloudwise {
+		return cloudwiseEndpoints
+	}
+	return modelArkEndpoints
+}
+
+// ============================
 // Adaptor implementation
 // ============================
 
@@ -133,7 +180,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
+	return a.baseURL + a.resolveEndpoints().generate, nil
 }
 
 // BuildRequestHeader sets required headers.
@@ -231,7 +278,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
+	uri := baseUrl + a.resolveEndpoints().queryPrefix + taskID
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -28,6 +29,26 @@ const (
 	contextKeyTTSRequest     = "volcengine_tts_request"
 	contextKeyResponseFormat = "response_format"
 )
+
+// officialVolcHostSuffixes 火山/BytePlus 官方域后缀。
+var officialVolcHostSuffixes = []string{".volces.com", ".bytepluses.com"}
+
+// isOfficialVolcHost 判断 base_url 是否指向火山官方域。
+// TTS 只有官方域才提供 WebSocket 接口；第三方地址走标准 HTTP 路径。
+// 按 host 后缀边界匹配，避免 evil-volces.com.attacker.net 之类的误判。
+func isOfficialVolcHost(baseURL string) bool {
+	u, err := url.Parse(baseURL)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	for _, suffix := range officialVolcHostSuffixes {
+		if strings.HasSuffix(host, suffix) {
+			return true
+		}
+	}
+	return false
+}
 
 type Adaptor struct {
 }
@@ -274,7 +295,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		case constant.RelayModeResponses:
 			return fmt.Sprintf("%s/api/v3/responses", baseUrl), nil
 		case constant.RelayModeAudioSpeech:
-			if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
+			if isOfficialVolcHost(baseUrl) {
 				return "wss://openspeech.bytedance.com/api/v1/tts/ws_binary", nil
 			}
 			return fmt.Sprintf("%s/v1/audio/speech", baseUrl), nil
@@ -336,7 +357,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 			baseUrl = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine]
 		}
 
-		if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
+		if isOfficialVolcHost(baseUrl) {
 			if info.IsStream {
 				return nil, nil
 			}

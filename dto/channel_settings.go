@@ -6,12 +6,12 @@ type ChannelSubSupplier struct {
 }
 
 type ChannelSettings struct {
-	ForceFormat            bool    `json:"force_format,omitempty"`
-	ThinkingToContent      bool    `json:"thinking_to_content,omitempty"`
-	Proxy                  string  `json:"proxy"`
-	PassThroughBodyEnabled bool    `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string  `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool    `json:"system_prompt_override,omitempty"`
+	ForceFormat            bool   `json:"force_format,omitempty"`
+	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
+	Proxy                  string `json:"proxy"`
+	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt           string `json:"system_prompt,omitempty"`
+	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
 	// CostRatio 渠道成本倍率（CNY : USD）。成本核算用：上游每消耗刊例 $1 记成本 ¥CostRatio。
 	// 0/缺省 = 未填写（成本按 0 计并在报表警示），不代表上游免费。
 	CostRatio float64 `json:"cost_ratio,omitempty"`
@@ -70,6 +70,12 @@ type ChannelOtherSettings struct {
 	BytePlusProjectName    string `json:"byteplus_project_name,omitempty"`    // 资源项目名，默认 "default"
 	BytePlusRegion         string `json:"byteplus_region,omitempty"`          // 区域，默认 "ap-southeast-1"
 	BytePlusModerationSkip *bool  `json:"byteplus_moderation_skip,omitempty"` // 是否跳过内容预过滤，默认 true（Skip）
+	AssetProvider          string `json:"asset_provider,omitempty"`           // 选择素材库协议实现；空值等价 AssetProviderBytePlus，保证存量渠道行为不变。
+	// AssetGroupProvider 记录 BytePlusAssetGroupId 是由哪个素材库实现创建/填写的。
+	// 素材组 ID 与素材 ID 一样只对创建它的素材库有意义：把 byteplus 的组 ID 交给 cloudwise
+	// 轻则触发轮换覆盖掉管理员手建的组 ID，重则每次请求都报错且无自愈路径。
+	// 空值表示"未知"（存量渠道均如此），此时按不冲突处理，继续沿用已存的组 ID。
+	AssetGroupProvider string `json:"asset_group_provider,omitempty"`
 
 	// 第三方 Seedance 渠道（model.service-inference.ai）素材库预上传总开关。
 	// 开启后提交视频生成前把参考媒体（公网 URL）预上传到素材库，换 asset://<id> 再提交。
@@ -78,6 +84,11 @@ type ChannelOtherSettings struct {
 }
 
 const (
+	// AssetProviderBytePlus 火山官方素材库（AK/SK 签名 + byteplusapi.com）。
+	AssetProviderBytePlus = "byteplus"
+	// AssetProviderCloudwise 第三方素材库（复用渠道 base_url 与 API Key）。
+	AssetProviderCloudwise = "cloudwise"
+
 	defaultBytePlusRegion      = "ap-southeast-1"
 	defaultBytePlusProjectName = "default"
 )
@@ -102,6 +113,32 @@ func (s *ChannelOtherSettings) ResolveBytePlusAsset() (region, project string, s
 		skipModeration = *s.BytePlusModerationSkip
 	}
 	return
+}
+
+// ResolveAssetProvider 返回素材库协议实现名。空值与未知值都回落到官方实现，
+// 保证存量渠道（无此字段）与配置写错时行为不变。
+func (s *ChannelOtherSettings) ResolveAssetProvider() string {
+	switch s.AssetProvider {
+	case AssetProviderCloudwise:
+		return AssetProviderCloudwise
+	default:
+		return AssetProviderBytePlus
+	}
+}
+
+// ResolveAssetGroupId 返回对当前生效素材库实现有效的素材组 ID。
+// 当 AssetGroupProvider 明确记录了另一个实现时，已存的组 ID 对当前实现无意义，
+// 按"未配置"处理，由调用方自动新建一个组，从而避免把对方的组 ID 发给上游
+// （既可能直接报错，也可能被轮换逻辑覆盖掉管理员手建的组 ID）。
+// AssetGroupProvider 为空表示未知（存量渠道），不视为冲突，沿用已存的组 ID。
+func (s *ChannelOtherSettings) ResolveAssetGroupId() string {
+	if s == nil {
+		return ""
+	}
+	if s.AssetGroupProvider != "" && s.AssetGroupProvider != s.ResolveAssetProvider() {
+		return ""
+	}
+	return s.BytePlusAssetGroupId
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

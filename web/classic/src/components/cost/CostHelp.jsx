@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2023-2026 QuantumNous
+Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+
 import React from 'react';
 import { Popover } from '@douyinfe/semi-ui';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
@@ -47,7 +48,11 @@ export const CostHelpHeader = ({ title, children, width = 300 }) => (
       }
     >
       <IconHelpCircle
-        style={{ color: 'var(--semi-color-text-2)', cursor: 'help', fontSize: 13 }}
+        style={{
+          color: 'var(--semi-color-text-2)',
+          cursor: 'help',
+          fontSize: 13,
+        }}
       />
     </Popover>
   </span>

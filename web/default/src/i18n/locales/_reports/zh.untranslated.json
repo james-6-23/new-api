@@ -1,0 +1,9 @@
+{
+  "Prompt Tokens": "输入tokens",
+  "Completion Tokens": "输出tokens",
+  "cache read ÷ total input tokens": "缓存读取 ÷ 总输入 tokens",
+  "Total input tokens": "总输入 tokens",
+  "Output tokens are excluded — they can never be a cache hit.": "不含输出 tokens——输出永远不可能命中缓存。",
+  "Claude reports input excluding cache while OpenAI includes it; both are normalized to uncached input so channels stay comparable.": "Claude 上报的输入不含缓存，OpenAI 则已包含；两者统一归一化为「非缓存输入」，跨渠道口径可比。",
+  "Uncached Input Tokens": "非缓存输入tokens"
+}

@@ -243,6 +243,18 @@ const CostCharts = ({ trend, costStack, granularity = 'day', exchangeRate, t }) 
             },
           ],
         },
+        // 维度提示默认开启，不给 content 就会退回原始测量值（满精度浮点）。
+        dimension: {
+          title: {
+            value: (datum) => formatBucketTooltip(datum['date'], granularity),
+          },
+          content: [
+            {
+              key: (datum) => datum['series'],
+              value: (datum) => currency.format(Number(datum['value']) || 0),
+            },
+          ],
+        },
       },
       color: {
         specified: {
@@ -286,6 +298,17 @@ const CostCharts = ({ trend, costStack, granularity = 'day', exchangeRate, t }) 
       },
       tooltip: {
         mark: {
+          title: {
+            value: (datum) => formatBucketTooltip(datum['date'], granularity),
+          },
+          content: [
+            {
+              key: (datum) => datum['channel'],
+              value: (datum) => currency.format(Number(datum['cost_display']) || 0),
+            },
+          ],
+        },
+        dimension: {
           title: {
             value: (datum) => formatBucketTooltip(datum['date'], granularity),
           },

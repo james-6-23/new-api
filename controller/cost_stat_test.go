@@ -5,8 +5,24 @@ import (
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
+
+// testVersions 与 testChannels 一一对应的计价版本映射（VersionMap 要求按
+// EffectiveFrom 升序）。全部取 effective_from=0（"自古以来"，等同迁移回填出来的
+// 初始版本），因此任何 end>=0 的折叠都能解析到它们，测试无需关心时间点。
+// ch3 的 CostMode 留空：空值等同 ratio，与 testChannels 里 ch3 的配置一致。
+// ch9 的 ExchangeRate 冻结为 6.8——discount 模式的成本自此只跟版本汇率走，
+// 与查询汇率无关。ch7 刻意不建版本：它是"未定价渠道"用例的主角。
+func testVersions() model.VersionMap {
+	return model.VersionMap{
+		3: {{ChannelId: 3, EffectiveFrom: 0, CostRatio: 2.5}},
+		9: {{ChannelId: 9, EffectiveFrom: 0, CostMode: "discount", CostDiscount: 0.8, ExchangeRate: 6.8}},
+	}
+}
+
+// testFoldEnd 折叠时的"区间末尾"时间戳，用于取展示用的末尾生效版本。
+// 测试数据都落在 2026-06-01，取当天 23 点即可覆盖全部日志。
+func testFoldEnd() int64 { return tsOn("2026-06-01", 23) }
 
 // 分组折扣 0.8：实付 800，刊例应还原为 1000。
 func TestCostCube_ListVsActualWithGroupDiscount(t *testing.T) {
@@ -15,7 +31,7 @@ func TestCostCube_ListVsActualWithGroupDiscount(t *testing.T) {
 		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 10), UserId: 1, Username: "alice",
 			ChannelId: 3, ModelName: "gpt-4o", Quota: 800, PromptTokens: 10, CompletionTokens: 5,
 			Other: `{"model_ratio":2,"group_ratio":0.8}`},
-	})
+	}, testVersions())
 	if len(c.rows) != 1 {
 		t.Fatalf("rows = %d, want 1", len(c.rows))
 	}
@@ -45,17 +61,17 @@ func TestCostCube_SeedanceRefundScenarios(t *testing.T) {
 	c.addBatch([]*model.Log{
 		mk(model.LogTypeConsume, 100, "pre_consume", "2026-06-01", 9),
 		mk(model.LogTypeRefund, 100, "refund", "2026-06-01", 10),
-	})
+	}, testVersions())
 	// 场景2: 预扣100 补扣20 → 净120（settle 不计请求）
 	c.addBatch([]*model.Log{
 		mk(model.LogTypeConsume, 100, "pre_consume", "2026-06-02", 9),
 		mk(model.LogTypeConsume, 20, "settle", "2026-06-02", 10),
-	})
+	}, testVersions())
 	// 场景3: 预扣100 退30 → 净70
 	c.addBatch([]*model.Log{
 		mk(model.LogTypeConsume, 100, "pre_consume", "2026-06-03", 9),
 		mk(model.LogTypeRefund, 30, "refund", "2026-06-03", 10),
-	})
+	}, testVersions())
 	var totalActual, totalList, totalRefund float64
 	var totalReq int
 	for _, r := range c.rows {
@@ -86,7 +102,7 @@ func TestCostCube_IgnoresOtherTypesAndLegacyLogs(t *testing.T) {
 		{Type: model.LogTypeTopup, CreatedAt: tsOn("2026-06-01", 9), UserId: 1, Username: "a", Quota: 999},
 		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 9), UserId: 1, Username: "a",
 			ChannelId: 7, ModelName: "m", Quota: 50, Other: ``},
-	})
+	}, testVersions())
 	if len(c.rows) != 1 {
 		t.Fatalf("rows = %d, want 1", len(c.rows))
 	}
@@ -106,46 +122,17 @@ func testChannels() map[int]*model.ChannelCostInfo {
 	}
 }
 
-// effectiveChannelRatio：ratio 模式取 CostRatio；discount 模式取 CostDiscount×汇率；
-// 未知渠道/未填 → 0。
-func TestEffectiveChannelRatio(t *testing.T) {
-	chs := testChannels()
-	cases := []struct {
-		name      string
-		id        int
-		rate      float64
-		wantRatio float64
-		wantName  string
-	}{
-		{"ratio-mode", 3, 7.0, 2.5, "openai-a"},
-		{"discount-mode", 9, 6.8, 0.8 * 6.8, "disc"},
-		{"unknown-channel", 999, 6.8, 0, ""},
-		{"discount-mode-zero-discount", 10, 6.8, 0, "zero-disc"},
-	}
-	chs[10] = &model.ChannelCostInfo{Id: 10, Name: "zero-disc", CostMode: "discount", CostDiscount: 0}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			ratio, name := effectiveChannelRatio(chs, tc.id, tc.rate)
-			if diff := ratio - tc.wantRatio; diff > 1e-9 || diff < -1e-9 {
-				t.Fatalf("ratio = %v, want %v", ratio, tc.wantRatio)
-			}
-			if name != tc.wantName {
-				t.Fatalf("name = %q, want %q", name, tc.wantName)
-			}
-		})
-	}
-}
-
 // discount 模式渠道折叠：quota 500 / group_ratio 1 → list=500；
-// cost_cny = 500/500000 * 0.8 * 6.8 = 0.00544；Priced=true。
+// cost_cny = 500/500000 * 0.8 * 6.8 = 0.00544（6.8 为版本冻结汇率，非查询汇率）；
+// Priced=true。
 func TestFoldCostCube_DiscountModeChannel(t *testing.T) {
 	c := newCostCube()
 	c.addBatch([]*model.Log{
 		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 10), UserId: 1, Username: "alice",
 			ChannelId: 9, ModelName: "gpt-4o", Quota: 500, PromptTokens: 1, CompletionTokens: 1,
 			Other: `{"model_ratio":1,"group_ratio":1}`},
-	})
-	rows := foldCostCube(c, costDimChannel, testChannels(), 6.8)
+	}, testVersions())
+	rows := foldCostCube(c, costDimChannel, testChannels(), testVersions(), 6.8, testFoldEnd())
 	var ch9 *costDimensionRow
 	for i := range rows {
 		if rows[i].ChannelId == 9 {
@@ -165,18 +152,19 @@ func TestFoldCostCube_DiscountModeChannel(t *testing.T) {
 }
 
 // TestFoldCostCube_ChannelDimSupplierExtras 渠道维度行需要透传计价模式相关的展示
-// 信息：cost_ratio 保持原始配置值（折扣渠道为 0），effective_ratio 携带折扣渠道的
-// 实际生效倍率，另附 cost_mode/cost_discount/is_aggregator/sub_suppliers，供前端
-// 按计价模式渲染（channel 9 为 discount 模式 + 聚合商 + 一个子供应商）。
+// 信息：cost_ratio 取区间末尾生效版本的原始配置值（折扣渠道为 0），effective_ratio
+// 为区间内真实付出的加权倍率（CostCny/ListUsd，此处只有一个版本故等于 0.8×6.8），
+// 另附 cost_mode/cost_discount/is_aggregator/sub_suppliers，供前端按计价模式渲染
+// （channel 9 为 discount 模式 + 聚合商 + 一个子供应商）。
 func TestFoldCostCube_ChannelDimSupplierExtras(t *testing.T) {
 	c := newCostCube()
 	c.addBatch([]*model.Log{
 		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 10), UserId: 1, Username: "alice",
 			ChannelId: 9, ModelName: "gpt-4o", Quota: 500, PromptTokens: 1, CompletionTokens: 1,
 			Other: `{"model_ratio":1,"group_ratio":1}`},
-	})
+	}, testVersions())
 	chs := testChannels()
-	rows := foldCostCube(c, costDimChannel, chs, 6.8)
+	rows := foldCostCube(c, costDimChannel, chs, testVersions(), 6.8, testFoldEnd())
 	var ch9 *costDimensionRow
 	for i := range rows {
 		if rows[i].ChannelId == 9 {
@@ -212,8 +200,8 @@ func TestFoldCostCube_ChannelDimSupplierExtras(t *testing.T) {
 
 // TestFoldCostCube_BreakdownCarriesChannelPricing 用户维度的展开明细行需要带上
 // 所属渠道的计价配置，前端才能在明细行直接展示"这笔成本按哪个倍率/折扣算的"。
-// ch3 为 ratio 模式（cost_ratio 2.5，生效倍率同值）；ch9 为 discount 模式
-// （cost_discount 0.8，生效倍率 0.8×汇率）。
+// ch3 为 ratio 模式（cost_ratio 2.5，区间内只有这一个版本，故加权实付倍率同值）；
+// ch9 为 discount 模式（cost_discount 0.8，实付倍率 0.8×版本冻结汇率）。
 func TestFoldCostCube_BreakdownCarriesChannelPricing(t *testing.T) {
 	c := newCostCube()
 	c.addBatch([]*model.Log{
@@ -221,8 +209,8 @@ func TestFoldCostCube_BreakdownCarriesChannelPricing(t *testing.T) {
 			ChannelId: 3, ModelName: "gpt-4o", Quota: 800, Other: `{"group_ratio":0.8}`},
 		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 11), UserId: 1, Username: "alice",
 			ChannelId: 9, ModelName: "gpt-4o", Quota: 500, Other: `{"group_ratio":1}`},
-	})
-	rows := foldCostCube(c, costDimUser, testChannels(), 6.8)
+	}, testVersions())
+	rows := foldCostCube(c, costDimUser, testChannels(), testVersions(), 6.8, testFoldEnd())
 	if len(rows) != 1 {
 		t.Fatalf("rows = %d, want 1", len(rows))
 	}
@@ -249,119 +237,6 @@ func TestFoldCostCube_BreakdownCarriesChannelPricing(t *testing.T) {
 	}
 	if want := 0.8 * 6.8; ch9.EffectiveRatio != want {
 		t.Fatalf("ch9 effective_ratio = %v, want %v", ch9.EffectiveRatio, want)
-	}
-}
-
-// TestAttachUserGroupRatios 用户折扣补齐：
-// 已知分组且配置了倍率 → 填充且 GroupRatioKnown=true；
-// 用户已删除（映射里没有）→ 字段留空；
-// 分组存在但未配置倍率 → 只填分组名，Known=false（未配置 ≠ 不打折）；
-// 配置了专属倍率（GroupGroupRatio[G][G]）→ 专属优先，GroupRatioSpecial=true；
-// breakdown 明细行：models/channels 维度按自身 Username 补齐，users 维度回退父行用户名。
-func TestAttachUserGroupRatios(t *testing.T) {
-	// 注入专属倍率：sp_vip 用户使用自身分组令牌时 0.7（优先于一维配置的 0.9）。
-	if err := ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":1,"svip":1,"sp_vip":0.9}`); err != nil {
-		t.Fatal(err)
-	}
-	if err := ratio_setting.UpdateGroupGroupRatioByJSONString(`{"sp_vip":{"sp_vip":0.7}}`); err != nil {
-		t.Fatal(err)
-	}
-
-	rows := []costDimensionRow{
-		// users 维度父行 + 折叠掉用户名的明细行（应回退父行用户名）
-		{Username: "alice", Breakdown: []costBreakdownRow{
-			{ChannelId: 3, ModelName: "gpt-4o"},
-		}},
-		{Username: "ghost"},
-		{Username: "carol"},
-		{Username: "sam"},
-		// models 维度父行（无单一用户）+ 携带用户名的明细行
-		{ModelName: "gpt-4o", Breakdown: []costBreakdownRow{
-			{Username: "alice", ChannelId: 3},
-			{Username: "sam", ChannelId: 3},
-			{Username: "ghost", ChannelId: 3},
-		}},
-	}
-	attachUserGroupRatios(rows, map[string]string{
-		"alice": "default",
-		"carol": "no_ratio_group",
-		"sam":   "sp_vip",
-	})
-
-	if rows[0].UserGroup != "default" || !rows[0].GroupRatioKnown || rows[0].GroupRatio != 1 || rows[0].GroupRatioSpecial {
-		t.Fatalf("alice: %+v", rows[0])
-	}
-	if b := rows[0].Breakdown[0]; b.UserGroup != "default" || !b.GroupRatioKnown || b.GroupRatio != 1 {
-		t.Fatalf("alice breakdown must inherit parent username: %+v", b)
-	}
-	if rows[1].UserGroup != "" || rows[1].GroupRatioKnown {
-		t.Fatalf("deleted user must stay empty: %+v", rows[1])
-	}
-	if rows[2].UserGroup != "no_ratio_group" || rows[2].GroupRatioKnown || rows[2].GroupRatio != 0 {
-		t.Fatalf("unconfigured group: %+v", rows[2])
-	}
-	if rows[3].UserGroup != "sp_vip" || !rows[3].GroupRatioKnown || rows[3].GroupRatio != 0.7 || !rows[3].GroupRatioSpecial {
-		t.Fatalf("dedicated ratio must win over group ratio: %+v", rows[3])
-	}
-	// models 维度：父行不补（无单一用户），明细行按各自 Username 补
-	if rows[4].UserGroup != "" || rows[4].GroupRatioKnown {
-		t.Fatalf("models-dim parent must stay empty: %+v", rows[4])
-	}
-	if b := rows[4].Breakdown[0]; b.UserGroup != "default" || !b.GroupRatioKnown {
-		t.Fatalf("models-dim breakdown alice: %+v", b)
-	}
-	if b := rows[4].Breakdown[1]; b.GroupRatio != 0.7 || !b.GroupRatioSpecial {
-		t.Fatalf("models-dim breakdown sam must use dedicated ratio: %+v", b)
-	}
-	if b := rows[4].Breakdown[2]; b.UserGroup != "" || b.GroupRatioKnown {
-		t.Fatalf("models-dim breakdown ghost must stay empty: %+v", b)
-	}
-}
-
-// TestAttachUserGroupRatios_CrossGroupDedicatedRatio 跨分组专属倍率：
-// groupGroupRatio 的语义是 [用户分组][使用分组]，用户在 vip 组、拿 default 分组的
-// 令牌发请求时应命中 {"vip":{"default":0.7}}。旧实现只查对角线
-// GetGroupGroupRatio(g, g)，这类配置查不到、会静默回退一维分组倍率。
-func TestAttachUserGroupRatios_CrossGroupDedicatedRatio(t *testing.T) {
-	if err := ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":0.9}`); err != nil {
-		t.Fatal(err)
-	}
-	if err := ratio_setting.UpdateGroupGroupRatioByJSONString(`{"vip":{"default":0.7}}`); err != nil {
-		t.Fatal(err)
-	}
-
-	// dave 属于 vip 组，本区间内的消费全部走 default 使用分组。
-	rows := []costDimensionRow{{Username: "dave", UsingGroupQuota: map[string]float64{"default": 1000}}}
-	attachUserGroupRatios(rows, map[string]string{"dave": "vip"})
-
-	if !rows[0].GroupRatioKnown || !rows[0].GroupRatioSpecial {
-		t.Fatalf("cross-group dedicated ratio must be found: %+v", rows[0])
-	}
-	if rows[0].GroupRatio != 0.7 {
-		t.Fatalf("group_ratio = %v, want 0.7 (dedicated), not 0.9 (plain vip ratio)", rows[0].GroupRatio)
-	}
-}
-
-// TestAttachUserGroupRatios_MixedUsingGroups 用户在区间内跨多个使用分组消费时，
-// 配置折扣按各分组额度加权，并置 GroupRatioMixed 供前端标注。
-func TestAttachUserGroupRatios_MixedUsingGroups(t *testing.T) {
-	if err := ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":0.9}`); err != nil {
-		t.Fatal(err)
-	}
-	if err := ratio_setting.UpdateGroupGroupRatioByJSONString(`{"vip":{"default":0.7,"vip":0.5}}`); err != nil {
-		t.Fatal(err)
-	}
-
-	// 3/4 额度走 default(0.7)、1/4 走 vip(0.5) → 0.7*0.75 + 0.5*0.25 = 0.65
-	rows := []costDimensionRow{{Username: "erin",
-		UsingGroupQuota: map[string]float64{"default": 750, "vip": 250}}}
-	attachUserGroupRatios(rows, map[string]string{"erin": "vip"})
-
-	if !rows[0].GroupRatioMixed {
-		t.Fatalf("multiple using-groups must set GroupRatioMixed: %+v", rows[0])
-	}
-	if got := rows[0].GroupRatio; got < 0.6499 || got > 0.6501 {
-		t.Fatalf("weighted group_ratio = %v, want 0.65", got)
 	}
 }
 
@@ -403,14 +278,108 @@ func seedCube() *costCube {
 		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 11), UserId: 2, Username: "bob",
 			ChannelId: 7, ModelName: "gpt-4o", Quota: 500, PromptTokens: 3, CompletionTokens: 2,
 			Other: `{"model_ratio":2,"group_ratio":1}`},
-	})
+	}, testVersions())
 	return c
 }
 
-// 金额换算：QuotaPerUnit=500000, 汇率 7.0, ch3 倍率 2.5
+// 金额换算：QuotaPerUnit=500000, 汇率 7.0, ch3 版本倍率 2.5
 // alice: revenue_usd=800/5e5=0.0016, revenue_cny=0.0112, list_usd=0.002, cost=0.005, profit=0.0062
+// 覆盖率跨格子合并必须按各自的基数相加后再求商，不能拿 ListUsd 当权重。
+//
+// 两者的口径本就不同：ListQuota 对**每一笔**退款都冲减，而 DiscountTotalBasis 只在
+// 退款自带折扣信息时才冲减（见 addBatch 里那段门槛注释）。于是单个格子的 ListUsd
+// 可以是 0 甚至负数，用它加权就把一个「份额」乘到了另一个分母上，结果不再落在
+// [0,1]：下面这组数据在旧实现下得出 1.666667，而真实覆盖率是 1.0——刊例与有信息
+// 的基数是同一笔钱，净额之后仍然完全覆盖。
+//
+// 前端把 <0.99 当作「部分覆盖」告警阈值（cost-user-cells.tsx），所以 >1 的值会让
+// 告警在真正部分覆盖时消失；负值则会渲染成「-200% 的消费有折扣信息」。
+func TestFoldCostCube_CoverageFoldsByBasisNotListUsd(t *testing.T) {
+	c := newCostCube()
+	c.addBatch([]*model.Log{
+		// 06-01 消费：刊例 500000（$1），带 group_ratio 故有折扣信息
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 9), UserId: 1, Username: "alice",
+			ChannelId: 3, ModelName: "gpt-4o", Quota: 500000, Other: `{"group_ratio":1}`},
+		// 06-02 部分退款：落在另一个日桶，于是与上面分属两个格子，合并时走 add()
+		{Type: model.LogTypeRefund, CreatedAt: tsOn("2026-06-02", 9), UserId: 1, Username: "alice",
+			ChannelId: 3, ModelName: "gpt-4o", Quota: 200000, Other: `{"group_ratio":1}`},
+	}, testVersions())
+
+	rows := foldCostCube(c, costDimUser, testChannels(), testVersions(), 7.0, testFoldEnd())
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	got := rows[0].DiscountCoverage
+	if !nearly(got, 1) {
+		t.Fatalf("discount_coverage = %v, want 1 (basis-weighted); "+
+			"ListUsd-weighted folding yields 1.666667 here", got)
+	}
+}
+
+// 覆盖率必须与格子的遍历顺序无关，且恒落在 [0,1]。
+//
+// foldCostCube 遍历的是 map，Go 的 map 迭代顺序每次都不同。旧实现拿 ListUsd 当权重，
+// 而每格的覆盖率分母是 DiscountTotalBasis——两者的退款口径本就不同（ListQuota 每笔
+// 退款都减，DiscountTotalBasis 只在退款带折扣信息时才减），于是权重可以为 0 甚至为负。
+// 一旦某格 ListUsd 为负，`totalList > 0` 这道门槛会保住上一轮的旧值，让结果取决于
+// 「负的那格在第几步被访问」，同一份数据反复折叠就会跳。
+//
+// 两组数据分工：
+//   - 普通退款：权重恒正，旧实现结果稳定但偏大（0.434783 vs 0.347826），钉住数值正确性。
+//   - 超额退款：把该格 ListUsd 压成负数，正是让旧实现在 ±2 之间跳的形状，钉住顺序无关
+//     与取值范围。它同时也是分子为负的唯一入口，验证 deriveRates 的门槛没有放行负覆盖率
+//     （负值传到前端会渲染成「-200% 的消费有折扣信息」）。
+//
+// 两组都混入一条不带 group_ratio 的消费行（MJ/任务日志就是这样，见 addBatch 的门槛
+// 注释）：它进分母不进分子，是覆盖率真正要描述的那部分缺口。
+func TestFoldCostCube_CoverageIsOrderIndependentAndBounded(t *testing.T) {
+	cases := []struct {
+		name        string
+		refundQuota int
+		want        float64
+	}{
+		// 分子 400000（500000 消费 − 100000 退款，均带信息）／分母 1150000（再加 750000 无信息消费）
+		{"partial refund", 100000, 400000.0 / 1150000.0},
+		// 退款超过带信息的消费 → 分子 −500000，属异常数据，覆盖率取 0 而非负数
+		{"over refund", 1000000, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			build := func() *costCube {
+				c := newCostCube()
+				c.addBatch([]*model.Log{
+					{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 9), UserId: 1, Username: "alice",
+						ChannelId: 3, ModelName: "gpt-4o", Quota: 500000, Other: `{"group_ratio":1}`},
+					{Type: model.LogTypeRefund, CreatedAt: tsOn("2026-06-02", 9), UserId: 1, Username: "alice",
+						ChannelId: 3, ModelName: "gpt-4o", Quota: tc.refundQuota, Other: `{"group_ratio":1}`},
+					{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-03", 9), UserId: 1, Username: "alice",
+						ChannelId: 3, ModelName: "gpt-4o", Quota: 750000, Other: `{"task_id":"x"}`},
+				}, testVersions())
+				return c
+			}
+			coverage := func() float64 {
+				return foldCostCube(build(), costDimUser, testChannels(), testVersions(), 7.0, testFoldEnd())[0].DiscountCoverage
+			}
+
+			first := coverage()
+			if !nearly(first, tc.want) {
+				t.Fatalf("coverage = %v, want %v", first, tc.want)
+			}
+			for i := 0; i < 200; i++ {
+				got := coverage()
+				if got != first {
+					t.Fatalf("iteration %d: coverage = %v, first = %v (map iteration order must not matter)", i, got, first)
+				}
+				if got < 0 || got > 1 {
+					t.Fatalf("iteration %d: coverage = %v, must stay within [0,1]", i, got)
+				}
+			}
+		})
+	}
+}
+
 func TestFoldCostCube_UserDimensionMoney(t *testing.T) {
-	rows := foldCostCube(seedCube(), costDimUser, testChannels(), 7.0)
+	rows := foldCostCube(seedCube(), costDimUser, testChannels(), testVersions(), 7.0, testFoldEnd())
 	if len(rows) != 2 {
 		t.Fatalf("rows = %d, want 2", len(rows))
 	}
@@ -437,9 +406,10 @@ func TestFoldCostCube_UserDimensionMoney(t *testing.T) {
 	}
 }
 
-// 未填倍率渠道：成本 0、Priced=false；渠道维度带 user_count。
+// 未建版本的渠道：成本 0、Priced=false（"查不到版本" ≠ 上游免费）；
+// 渠道维度带 user_count。
 func TestFoldCostCube_ChannelDimensionUnpriced(t *testing.T) {
-	rows := foldCostCube(seedCube(), costDimChannel, testChannels(), 7.0)
+	rows := foldCostCube(seedCube(), costDimChannel, testChannels(), testVersions(), 7.0, testFoldEnd())
 	var ch7 *costDimensionRow
 	for i := range rows {
 		if rows[i].ChannelId == 7 {
@@ -465,7 +435,7 @@ func TestFoldCostCube_DimensionTotalsAgree(t *testing.T) {
 	cube := seedCube()
 	chs := testChannels()
 	sum := func(dim string) (rev, cost float64) {
-		for _, r := range foldCostCube(cube, dim, chs, 7.0) {
+		for _, r := range foldCostCube(cube, dim, chs, testVersions(), 7.0, testFoldEnd()) {
 			rev += r.RevenueCny
 			cost += r.CostCny
 		}
@@ -481,7 +451,7 @@ func TestFoldCostCube_DimensionTotalsAgree(t *testing.T) {
 
 // 收入为 0 时利润率必须为 0（不得 NaN/Inf）。
 func TestCostMoney_ZeroRevenueRate(t *testing.T) {
-	m := costMoneyFromRow(&costCubeRow{}, 2.5, 7.0)
+	m := costMoneyFromRow(&costCubeRow{}, 7.0)
 	if m.ProfitRate != 0 {
 		t.Fatalf("rate = %v, want 0", m.ProfitRate)
 	}
@@ -506,9 +476,9 @@ func TestCostCube_ErrorAndMetrics(t *testing.T) {
 			ChannelId: 3, ModelName: "gpt-4o"},
 		{Type: model.LogTypeRefund, CreatedAt: tsOn("2026-06-01", 12), UserId: 1, Username: "alice",
 			ChannelId: 3, ModelName: "gpt-4o", Quota: 50, Other: `{"group_ratio":1}`},
-	})
+	}, testVersions())
 
-	rows := foldCostCube(c, costDimUser, testChannels(), 7.0)
+	rows := foldCostCube(c, costDimUser, testChannels(), testVersions(), 7.0, testFoldEnd())
 	var alice *costDimensionRow
 	for i := range rows {
 		if rows[i].Username == "alice" {
@@ -560,7 +530,7 @@ func TestCostCube_ErrorAndMetrics(t *testing.T) {
 // 总输入为 0 → CacheRate=0；FrtCount=0 → AvgTtftMs=0。并附一组非零分母的正常路径
 // 校验公式本身正确。
 func TestCostMoneyDerivedRates(t *testing.T) {
-	m1 := costMoneyFromRow(&costCubeRow{}, 2.5, 7.0)
+	m1 := costMoneyFromRow(&costCubeRow{}, 7.0)
 	if m1.SuccessRate != 1 {
 		t.Fatalf("success_rate = %v, want 1", m1.SuccessRate)
 	}
@@ -572,7 +542,7 @@ func TestCostMoneyDerivedRates(t *testing.T) {
 	}
 
 	// 全部输入都来自缓存读取 → 命中率 100%（分母是总输入，不是非缓存输入）。
-	m2 := costMoneyFromRow(&costCubeRow{PromptTokens: 0, CacheReadTokens: 10}, 2.5, 7.0)
+	m2 := costMoneyFromRow(&costCubeRow{PromptTokens: 0, CacheReadTokens: 10}, 7.0)
 	if m2.CacheRate != 1 {
 		t.Fatalf("cache_rate = %v, want 1", m2.CacheRate)
 	}
@@ -580,12 +550,12 @@ func TestCostMoneyDerivedRates(t *testing.T) {
 		t.Fatalf("total_tokens = %d, want 10", m2.TotalTokens)
 	}
 
-	m3 := costMoneyFromRow(&costCubeRow{FrtCount: 0, FrtSumMs: 999}, 2.5, 7.0)
+	m3 := costMoneyFromRow(&costCubeRow{FrtCount: 0, FrtSumMs: 999}, 7.0)
 	if m3.AvgTtftMs != 0 {
 		t.Fatalf("avg_ttft_ms = %v, want 0", m3.AvgTtftMs)
 	}
 
-	m4 := costMoneyFromRow(&costCubeRow{RequestCount: 3, ErrorCount: 1, PromptTokens: 100, CompletionTokens: 20, CacheReadTokens: 25, CacheCreationTokens: 15, FrtCount: 2, FrtSumMs: 200}, 2.5, 7.0)
+	m4 := costMoneyFromRow(&costCubeRow{RequestCount: 3, ErrorCount: 1, PromptTokens: 100, CompletionTokens: 20, CacheReadTokens: 25, CacheCreationTokens: 15, FrtCount: 2, FrtSumMs: 200}, 7.0)
 	if want := roundTo6(3.0 / 4.0); m4.SuccessRate != want {
 		t.Fatalf("success_rate = %v, want %v", m4.SuccessRate, want)
 	}
@@ -616,9 +586,9 @@ func TestCostCube_UsageSemanticNormalization(t *testing.T) {
 		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 10), UserId: 1, Username: "alice",
 			ChannelId: 3, ModelName: "claude-opus", Quota: 100, PromptTokens: 100, CompletionTokens: 10,
 			Other: `{"group_ratio":1,"cache_tokens":30}`},
-	})
+	}, testVersions())
 
-	rows := foldCostCube(c, costDimUser, testChannels(), 7.0)
+	rows := foldCostCube(c, costDimUser, testChannels(), testVersions(), 7.0, testFoldEnd())
 	if len(rows) != 1 {
 		t.Fatalf("expected 1 row, got %d", len(rows))
 	}
@@ -646,8 +616,8 @@ func TestCostCube_LegacyClaudeFlagNormalization(t *testing.T) {
 		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 9), UserId: 1, Username: "alice",
 			ChannelId: 3, ModelName: "claude-opus", Quota: 100, PromptTokens: 80, CompletionTokens: 5,
 			Other: `{"group_ratio":1,"claude":true,"cache_tokens":25}`},
-	})
-	rows := foldCostCube(c, costDimUser, testChannels(), 7.0)
+	}, testVersions())
+	rows := foldCostCube(c, costDimUser, testChannels(), testVersions(), 7.0, testFoldEnd())
 	if rows[0].PromptTokens != 80 {
 		t.Fatalf("prompt_tokens = %d, want 80 (claude semantics: no subtraction)", rows[0].PromptTokens)
 	}
@@ -668,12 +638,12 @@ func TestFoldCostCube_DeterministicOrderOnTies(t *testing.T) {
 			ChannelId: 3, ModelName: "gpt-4o", Quota: 0},
 		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 9), UserId: 12, Username: "mike",
 			ChannelId: 3, ModelName: "gpt-4o", Quota: 0},
-	})
+	}, testVersions())
 	chs := testChannels()
 
 	var first []string
 	for i := 0; i < 5; i++ {
-		rows := foldCostCube(c, costDimUser, chs, 7.0)
+		rows := foldCostCube(c, costDimUser, chs, testVersions(), 7.0, testFoldEnd())
 		if len(rows) != 3 {
 			t.Fatalf("rows = %d, want 3", len(rows))
 		}
@@ -693,5 +663,71 @@ func TestFoldCostCube_DeterministicOrderOnTies(t *testing.T) {
 				t.Fatalf("order changed across calls: run0=%v run%d=%v", first, i, names)
 			}
 		}
+	}
+}
+
+// 跨版本折叠：改价前后的日志各自按当时生效的版本定价，成本是两段的和而非
+// 任一单价 × 总量；同时 RatioMixed 必须为 true。
+//
+// 这条用例针对的是一个已经踩过的坑：RatioMixed 若在单个立方体格子里判定
+// （len(RatioVersionSeen) > 1），日粒度下改价前后的日志分属不同时间桶，每格
+// 都只看到一个版本，恒为 false——标记永远不会亮，而它正是为这个场景存在的。
+// 所以判定必须在折叠层对版本身份做并集。
+func TestFoldCostCube_CrossVersionPricing(t *testing.T) {
+	boundary := tsOn("2026-06-02", 0)
+	versions := model.VersionMap{
+		3: {
+			{ChannelId: 3, EffectiveFrom: 0, CostRatio: 2.5},
+			{ChannelId: 3, EffectiveFrom: boundary, CostRatio: 2.0},
+		},
+	}
+	c := newCostCubeWithGranularity(costGranularityDay)
+	// 两条日志刊例各 $1（quota 500000 / group_ratio 1），分落改价前后。
+	c.addBatch([]*model.Log{
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 10), UserId: 1, Username: "alice",
+			ChannelId: 3, ModelName: "gpt-4o", Quota: 500000, Other: `{"group_ratio":1}`},
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-02", 10), UserId: 1, Username: "alice",
+			ChannelId: 3, ModelName: "gpt-4o", Quota: 500000, Other: `{"group_ratio":1}`},
+	}, versions)
+
+	rows := foldCostCube(c, costDimChannel, testChannels(), versions, 7.0, tsOn("2026-06-02", 23))
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	row := rows[0]
+	// $1×2.5 + $1×2.0 = ¥4.5。若成本仍在折叠末尾统一乘一个倍率，这里会得到
+	// ¥5.0（全按 2.5）或 ¥4.0（全按 2.0）。
+	if diff := row.CostCny - 4.5; diff > 1e-6 || diff < -1e-6 {
+		t.Fatalf("cost = %v, want 4.5 (1×2.5 + 1×2.0)", row.CostCny)
+	}
+	if !row.RatioMixed {
+		t.Fatal("RatioMixed = false, want true (price changed mid-range)")
+	}
+	// 加权真实倍率 = 4.5 / 2 = 2.25，落在两个版本之间。
+	if diff := row.EffectiveRatio - 2.25; diff > 1e-6 || diff < -1e-6 {
+		t.Fatalf("effective ratio = %v, want 2.25 (weighted across versions)", row.EffectiveRatio)
+	}
+	// 区间内未改价的渠道不应被标记
+	if row.Priced != true {
+		t.Fatalf("priced = %v, want true (both versions price successfully)", row.Priced)
+	}
+}
+
+// 单一版本覆盖整个区间时 RatioMixed 必须为 false——否则"改过价"的标记会对
+// 所有渠道常亮，等于没有标记。
+func TestFoldCostCube_SingleVersionNotMixed(t *testing.T) {
+	c := newCostCubeWithGranularity(costGranularityDay)
+	c.addBatch([]*model.Log{
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-01", 10), UserId: 1, Username: "alice",
+			ChannelId: 3, ModelName: "gpt-4o", Quota: 500000, Other: `{"group_ratio":1}`},
+		{Type: model.LogTypeConsume, CreatedAt: tsOn("2026-06-02", 10), UserId: 1, Username: "alice",
+			ChannelId: 3, ModelName: "gpt-4o", Quota: 500000, Other: `{"group_ratio":1}`},
+	}, testVersions())
+	rows := foldCostCube(c, costDimChannel, testChannels(), testVersions(), 7.0, tsOn("2026-06-02", 23))
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	if rows[0].RatioMixed {
+		t.Fatal("RatioMixed = true, want false (one version covers the whole range)")
 	}
 }

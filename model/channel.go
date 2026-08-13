@@ -437,13 +437,20 @@ func BatchInsertChannels(channels []Channel) error {
 		}
 	}()
 
-	for _, chunk := range lo.Chunk(channels, 50) {
+	// 手写切片分片而不用 lo.Chunk：lo.Chunk 返回的是**拷贝**，GORM 回填的自增主键只
+	// 落在那份拷贝上，调用方手里的 channels 全是 Id=0。这里的 channels[start:end] 与
+	// 原切片共享底层数组，回填因此直接可见——AddChannel 依赖它给新渠道追写计价版本，
+	// 拿到 0 会写出一批指向不存在渠道的孤儿版本行，而新渠道本身仍然无价（成本记 0）。
+	// 由 TestBatchInsertChannels_BackfillsIds 钉住。
+	for start := 0; start < len(channels); start += 50 {
+		end := min(start+50, len(channels))
+		chunk := channels[start:end]
 		if err := tx.Create(&chunk).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
-		for _, channel_ := range chunk {
-			if err := channel_.AddAbilities(tx); err != nil {
+		for i := range chunk {
+			if err := chunk[i].AddAbilities(tx); err != nil {
 				tx.Rollback()
 				return err
 			}

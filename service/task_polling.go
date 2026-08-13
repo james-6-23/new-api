@@ -304,6 +304,26 @@ func UpdateVideoTasks(ctx context.Context, platform constant.TaskPlatform, taskC
 	return nil
 }
 
+// BuildVideoPollingRelayInfo 构造轮询链路调用任务适配器所需的 RelayInfo。
+//
+// 轮询不走请求链路,拿不到 gin.Context,因此 InitChannelMeta 里那套上下文取值在这里
+// 用不了,只能手搓 ChannelMeta。历史上这里只填了 BaseUrl 与 ApiKey,导致依赖渠道
+// 配置分流上游路径的适配器(如 doubao/seedance 按 other_settings.asset_provider 选择
+// ModelArk 或 cloudwise 路径)在轮询时读到空配置、退回默认路径:提交成功但查询 404,
+// 任务永远停在 in_progress 且用户配额一直被预扣。
+//
+// 所以渠道配置必须在这里一并带上。抽成函数是为了让"轮询带哪些渠道字段"只有一个定义,
+// 避免多个轮询入口各自手搓时再次漏字段。
+func BuildVideoPollingRelayInfo(ch *model.Channel) *relaycommon.RelayInfo {
+	info := &relaycommon.RelayInfo{}
+	info.ChannelMeta = &relaycommon.ChannelMeta{
+		ChannelBaseUrl:       ch.GetBaseURL(),
+		ChannelOtherSettings: ch.GetOtherSettings(),
+		ApiKey:               ch.Key,
+	}
+	return info
+}
+
 func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, channelId int, taskIds []string, taskM map[string]*model.Task) error {
 	logger.LogInfo(ctx, fmt.Sprintf("Channel #%d pending video tasks: %d", channelId, len(taskIds)))
 	if len(taskIds) == 0 {
@@ -332,11 +352,7 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	if adaptor == nil {
 		return fmt.Errorf("video adaptor not found")
 	}
-	info := &relaycommon.RelayInfo{}
-	info.ChannelMeta = &relaycommon.ChannelMeta{
-		ChannelBaseUrl: cacheGetChannel.GetBaseURL(),
-	}
-	info.ApiKey = cacheGetChannel.Key
+	info := BuildVideoPollingRelayInfo(cacheGetChannel)
 	adaptor.Init(info)
 	for _, taskId := range taskIds {
 		if err := updateVideoSingleTask(ctx, adaptor, cacheGetChannel, taskId, taskM); err != nil {

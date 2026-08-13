@@ -160,20 +160,9 @@ function MoneyCell({
  */
 type MetricRow = CostMoney &
   Partial<
-    Pick<
-      CostDimensionRow,
-      | 'breakdown'
-      | 'priced'
-      | 'channel_id'
-      | 'channel_name'
-      | 'user_group'
-      | 'group_ratio'
-      | 'group_ratio_known'
-      | 'group_ratio_special'
-      | 'group_ratio_mixed'
-    >
+    Pick<CostDimensionRow, 'breakdown' | 'priced' | 'channel_id' | 'channel_name'>
   > &
-  Partial<Pick<CostBreakdownRow, 'cost_mode' | 'cost_ratio' | 'cost_discount' | 'effective_ratio'>>
+  Partial<Pick<CostBreakdownRow, 'cost_mode' | 'cost_ratio' | 'cost_discount'>>
 
 interface MetricColumnSpec {
   id: string
@@ -198,7 +187,9 @@ function ProfitRateHeader() {
         />
         <CostHelpFormula
           term={t('Cost (CNY)')}
-          expression={t('list price (USD) × channel cost ratio')}
+          expression={t(
+            'list price (USD) × the cost ratio of the price version in effect for each log'
+          )}
         />
         <CostHelpNotes
           notes={[
@@ -224,7 +215,9 @@ function CostRatioHeader() {
         />
         <CostHelpFormula
           term={t('{{v}} / discount', { v: '0.8' })}
-          expression={t('the channel bills 80% of list price × exchange rate')}
+          expression={t(
+            'the channel bills 80% of list price, settled at the rate frozen with that price version'
+          )}
         />
         <CostHelpNotes
           notes={[
@@ -250,9 +243,8 @@ function UserDiscountHeader() {
         <CostHelpNotes
           notes={[
             t('This is the discount actually applied, weighted by quota — dedicated ratios and mid-range group changes are already reflected.'),
-            t('Hover a value to compare it against the group\'s currently configured ratio.'),
-            t('A dedicated ratio is the (user group × token group) override, which takes priority over the group ratio.'),
-            t('Shows the configured value instead when the range has no list price (free or unpriced models).'),
+            t('Hover a value to see the signals derived from the range: dedicated ratio, mid-range changes and pricing coverage.'),
+            t('Shows \'-\' when the range has no list price (free or unpriced models).'),
           ]}
         />
       </div>
@@ -585,13 +577,11 @@ function BreakdownRows({
   const rawBreakdown = row.breakdown ?? []
   const breakdown =
     viewMode === 'detail' ? rawBreakdown : mergeBreakdown(rawBreakdown, viewMode)
-  // Sub-rows inherit identity-bound context their own fields can't carry:
-  //  - channels dim: the channel identity is folded into the parent, so copy
-  //    the parent's channel id + pricing config onto every sub-row (the
-  //    cost-ratio cell then renders "2.5 / ratio" instead of a blank);
-  //  - users dim: every sub-row belongs to the parent user, so copy the
-  //    parent's discount fields (also covers client-side merged rows, where
-  //    mergeBreakdown drops non-grouped payload fields).
+  // Channels dim only: the channel identity is folded into the parent, so copy
+  // the parent's channel id + pricing config onto every sub-row (the cost-ratio
+  // cell then renders "2.5 / ratio" instead of a blank). Nothing to copy for
+  // the other dims — the ratio/discount signals are derived per row from the
+  // logs it covers, so a sub-row's own values are the accurate ones.
   const enrich = (b: CostBreakdownRow): CostBreakdownRow => {
     if (dim === 'channels') {
       return {
@@ -601,17 +591,6 @@ function BreakdownRows({
         cost_mode: row.cost_mode,
         cost_ratio: row.cost_ratio,
         cost_discount: row.cost_discount,
-        effective_ratio: row.effective_ratio,
-      }
-    }
-    if (dim === 'users') {
-      return {
-        ...b,
-        user_group: row.user_group,
-        group_ratio: row.group_ratio,
-        group_ratio_known: row.group_ratio_known,
-        group_ratio_special: row.group_ratio_special,
-        group_ratio_mixed: row.group_ratio_mixed,
       }
     }
     return b

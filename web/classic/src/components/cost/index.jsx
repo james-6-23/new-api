@@ -206,9 +206,17 @@ const CostAccounting = () => {
               size='small'
             />
 
+            {/* 这个汇率只折算收入展示：成本按各计价版本自己冻结的结算汇率核算，
+                改这里不会动成本。不说清楚，它看起来就像一个成本旋钮。 */}
             <Form.InputNumber
               field='exchangeRate'
               placeholder='6.8'
+              aria-label={t('收入折算汇率')}
+              extraText={
+                <Text type='tertiary' size='small'>
+                  {t('仅折算收入展示；成本按各计价版本冻结的结算汇率核算。')}
+                </Text>
+              }
               showClear
               pure
               min={0}

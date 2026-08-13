@@ -72,14 +72,15 @@ func clampCostRange(start, end, now int64) (int64, int64) {
 	return start, end
 }
 
-// costCubeCacheEntry 缓存一次 buildCostCube 的完整产出（立方体 + 渠道倍率映射 +
-// 用户当前分组映射 + 汇率）。
+// costCubeCacheEntry 缓存一次 buildCostCube 的完整产出（立方体 + 渠道配置映射 +
+// 成本版本映射 + 汇率）。版本映射随立方体一起缓存：立方体里的成本已按这份版本
+// 算好，分开加载会让两者不同步。
 type costCubeCacheEntry struct {
-	cube       *costCube
-	channels   map[int]*model.ChannelCostInfo
-	userGroups map[string]string
-	rate       float64
-	at         time.Time
+	cube     *costCube
+	channels map[int]*model.ChannelCostInfo
+	versions model.VersionMap
+	rate     float64
+	at       time.Time
 }
 
 // costCubeCache 一期护栏：60 秒内相同查询参数直接复用结果，避免同一页面（总览 +
@@ -138,18 +139,35 @@ func costCubeCachePut(key string, entry *costCubeCacheEntry) {
 	costCubeCache.Store(key, entry)
 }
 
-// costCubeData 一次 buildCostCube 的产出集合，避免多返回值随字段增长继续膨胀。
-type costCubeData struct {
-	cube       *costCube
-	channels   map[int]*model.ChannelCostInfo
-	userGroups map[string]string
-	rate       float64
-	start      int64
-	end        int64
+// costCubeCacheClear 丢弃全部缓存条目，在计价版本发生变化时调用。
+//
+// 为什么必须全清而不是按渠道/时间清：缓存里的 cost_cny 是用当时那份 VersionMap
+// 逐条日志算出来的，一条新版本行会改写它覆盖区间内所有日志的成本，而缓存键只含
+// 查询参数、不含版本指纹，无法判断哪些条目受影响（补录一条 6 月的历史价甚至会
+// 改到"上半年"这种早已缓存的区间）。
+//
+// 不清的后果不是"数字晚 60 秒更新"这么轻——「改完价立刻看报表」正是这个功能最
+// 自然的操作顺序，管理员会看到旧价、以为没生效，于是重复追加版本。
+func costCubeCacheClear() {
+	costCubeCache.Range(func(k, _ any) bool {
+		costCubeCache.Delete(k)
+		return true
+	})
 }
 
-// buildCostCube 流式扫描日志构建立方体，同时载入渠道倍率映射、用户当前分组映射
-// 与汇率。命中 60 秒内相同参数的缓存时直接复用，否则重新扫描并写入缓存。
+// costCubeData 一次 buildCostCube 的产出集合，避免多返回值随字段增长继续膨胀。
+type costCubeData struct {
+	cube     *costCube
+	channels map[int]*model.ChannelCostInfo
+	versions model.VersionMap
+	rate     float64
+	start    int64
+	end      int64
+}
+
+// buildCostCube 流式扫描日志构建立方体，同时载入渠道配置映射、成本版本映射与汇率。
+// 版本必须在扫描前载入——逐条定价发生在 addBatch 内。
+// 命中 60 秒内相同参数的缓存时直接复用，否则重新扫描并写入缓存。
 func buildCostCube(c *gin.Context) (*costCubeData, error) {
 	start, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	end, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -164,15 +182,19 @@ func buildCostCube(c *gin.Context) (*costCubeData, error) {
 	cacheKey := costCubeCacheKey(start, end, modelName, username, rate, channel, granularity)
 	if entry, ok := costCubeCacheGet(cacheKey); ok {
 		return &costCubeData{cube: entry.cube, channels: entry.channels,
-			userGroups: entry.userGroups, rate: entry.rate, start: start, end: end}, nil
+			versions: entry.versions, rate: entry.rate, start: start, end: end}, nil
 	}
 
+	versions, err := model.GetAllChannelCostVersions()
+	if err != nil {
+		return nil, err
+	}
 	cube := newCostCubeWithGranularity(granularity)
 	maxRows := model.LogExportMaxRows("xlsx")
-	_, err := model.GetAllLogsForExport(model.LogTypeUnknown, start, end,
+	_, err = model.GetAllLogsForExport(model.LogTypeUnknown, start, end,
 		modelName, username, "", channel, "", "", maxRows,
 		func(batch []*model.Log) error {
-			cube.addBatch(batch)
+			cube.addBatch(batch, versions)
 			return nil
 		})
 	if err != nil {
@@ -182,13 +204,9 @@ func buildCostCube(c *gin.Context) (*costCubeData, error) {
 	if err != nil {
 		return nil, err
 	}
-	userGroups, err := model.GetAllUserGroups()
-	if err != nil {
-		return nil, err
-	}
 	costCubeCachePut(cacheKey, &costCubeCacheEntry{cube: cube, channels: channels,
-		userGroups: userGroups, rate: rate, at: time.Now()})
-	return &costCubeData{cube: cube, channels: channels, userGroups: userGroups,
+		versions: versions, rate: rate, at: time.Now()})
+	return &costCubeData{cube: cube, channels: channels, versions: versions,
 		rate: rate, start: start, end: end}, nil
 }
 
@@ -201,12 +219,17 @@ func buildCostOverview(cube *costCube, channels map[int]*model.ChannelCostInfo, 
 	stack := make(map[string]*costStackPoint) // key: bucket|channelId
 	unpriced := make(map[int]string)
 	for k, r := range cube.rows {
-		ratio, chName := effectiveChannelRatio(channels, k.ChannelId, rate)
-		m := costMoneyFromRow(r, ratio, rate)
+		chName := ""
+		if ci := channels[k.ChannelId]; ci != nil {
+			chName = ci.Name
+		}
+		m := costMoneyFromRow(r, rate)
 		ov.Totals.add(m)
+		// 未定价的判据是"这些刊例金额找不到生效版本"，不是"当前倍率为 0"——渠道
+		// 今天配了价也不代表历史每一条日志都有版本可查。
 		// channel_id == 0 表示日志未选择任何渠道（旧日志/兜底值），不是一个
 		// "未定价"的真实渠道，计入 unpriced 会让告警横幅误报，故跳过。
-		if ratio <= 0 && k.ChannelId != 0 {
+		if r.UnpricedListQuota > 0 && k.ChannelId != 0 {
 			unpriced[k.ChannelId] = chName
 		}
 		tp := trend[k.Bucket]
@@ -320,10 +343,7 @@ func getCostByDimension(c *gin.Context, dim string) {
 		return
 	}
 	page, pageSize := parseBillSummaryPaging(c)
-	rows := foldCostCube(data.cube, dim, data.channels, data.rate)
-	// 所有维度都补用户折扣：users 维度补在父行与子行；models/channels 维度的
-	// breakdown 子行携带 username，同样逐行补齐（父行无单一用户，留空）。
-	attachUserGroupRatios(rows, data.userGroups)
+	rows := foldCostCube(data.cube, dim, data.channels, data.versions, data.rate, data.end)
 	common.ApiSuccess(c, paginateCostRows(rows, page, pageSize))
 }
 

@@ -41,13 +41,32 @@ export interface CostMoney {
   avg_ttft_ms: number
   /**
    * Discount actually applied over the range: revenue ÷ list price, weighted
-   * by quota. Unlike `group_ratio` (a current-config snapshot) this reflects
-   * dedicated ratios, cross-group usage and mid-range ratio changes
-   * automatically. `false` when list price is 0 (free/unpriced models), where
-   * the quotient is meaningless.
+   * by quota. Derived from the logs rather than from the current config, so
+   * dedicated ratios, cross-group usage and mid-range ratio changes are
+   * reflected automatically. `false` when list price is 0 (free/unpriced
+   * models), where the quotient is meaningless.
    */
   effective_discount: number
   effective_discount_known: boolean
+  /**
+   * Cost ratio actually paid over the range (cost_cny ÷ list_usd, quota
+   * weighted). `ratio_mixed` marks a range whose logs span several price
+   * versions, i.e. the channel's price changed mid-range and no single
+   * configured value describes it.
+   */
+  effective_ratio?: number
+  effective_ratio_known?: boolean
+  ratio_mixed?: boolean
+  /** Range spans several discounts (group change or an edited ratio). */
+  discount_mixed?: boolean
+  /** A dedicated (user-group × token-group) ratio was active in the range. */
+  discount_special?: boolean
+  /**
+   * Share of spend whose logs carry pricing info, 0..1. `omitempty` on the
+   * backend and only assigned when there is a pricing basis at all, so an
+   * absent value means 0, not "full coverage".
+   */
+  discount_coverage?: number
 }
 
 /** Channel `setting.sub_suppliers` entry (dto.ChannelSubSupplier mirror). */
@@ -66,15 +85,9 @@ export interface CostBreakdownRow extends CostMoney {
   cost_mode?: '' | 'ratio' | 'discount'
   cost_ratio?: number
   cost_discount?: number
-  effective_ratio?: number
-  // Current discount of the user this sub-row belongs to (dedicated ratio
-  // takes priority); absent when the user identity is merged away.
-  user_group?: string
-  group_ratio?: number
-  group_ratio_known?: boolean
-  group_ratio_special?: boolean
-  /** Range spans several using-groups; `group_ratio` is the quota-weighted blend. */
-  group_ratio_mixed?: boolean
+  // Every list-price amount in this sub-row found a price version. false marks
+  // an unpriced gap, which reads as a zero-cost (100% margin) row otherwise.
+  priced?: boolean
 }
 
 export interface CostDimensionRow extends CostMoney {
@@ -91,18 +104,8 @@ export interface CostDimensionRow extends CostMoney {
   // Channel-dim only (costDimChannel in controller/cost_stat.go).
   cost_mode?: '' | 'ratio' | 'discount'
   cost_discount?: number
-  effective_ratio?: number
   is_aggregator?: boolean
   sub_suppliers?: CostChannelSubSupplier[]
-  // User-dim only: the user's *current* group and that group's configured
-  // ratio (a query-time config snapshot, not weighted over the logs in range).
-  // group_ratio_special marks a dedicated (user-group × using-group) ratio hit.
-  user_group?: string
-  group_ratio?: number
-  group_ratio_known?: boolean
-  group_ratio_special?: boolean
-  /** Range spans several using-groups; `group_ratio` is the quota-weighted blend. */
-  group_ratio_mixed?: boolean
 }
 
 export interface CostTrendPoint {
@@ -159,3 +162,28 @@ export interface CostQueryParams {
   model_name?: string
   exchange_rate?: number
 }
+
+/**
+ * One immutable price version of a channel (model.ChannelCostVersion mirror).
+ * A version covers [effective_from, next version's effective_from); 0 is the
+ * seeded "since forever" row, which the API refuses to create or delete.
+ * `exchange_rate` is frozen at write time so historical cost never drifts.
+ */
+export interface ChannelCostVersion {
+  id: number
+  channel_id: number
+  effective_from: number
+  cost_mode: '' | 'ratio' | 'discount'
+  cost_ratio: number
+  cost_discount: number
+  exchange_rate: number
+  note?: string
+  created_at: number
+  created_by: number
+}
+
+/** POST body for a new version; the server fills the rest. */
+export type ChannelCostVersionInput = Omit<
+  ChannelCostVersion,
+  'id' | 'channel_id' | 'created_at' | 'created_by'
+>

@@ -222,6 +222,7 @@ export const channelFormSchema = z
     byteplus_project_name: z.string().optional(),
     byteplus_region: z.string().optional(),
     byteplus_moderation_skip: z.boolean().optional(),
+    asset_provider: z.enum(['byteplus', 'cloudwise']).optional(),
     // Seedance(第三方) asset pre-upload (stored in settings JSON; channel type 59)
     seedance3rd_asset_enabled: z.boolean().optional(),
   })
@@ -286,28 +287,32 @@ export const channelFormSchema = z
     }
 
     // BytePlus asset library: when enabled on VolcEngine/DoubaoVideo channels,
-    // access key / secret key / group id are required.
+    // validate based on the selected asset_provider.
     if ([45, 54].includes(data.type) && data.byteplus_asset_enabled) {
-      if (!data.byteplus_access_key?.trim()) {
-        addRequiredIssue(
-          ctx,
-          'byteplus_access_key',
-          'Access Key is required when BytePlus asset upload is enabled'
-        )
-      }
-      if (!data.byteplus_secret_key?.trim()) {
-        addRequiredIssue(
-          ctx,
-          'byteplus_secret_key',
-          'Secret Key is required when BytePlus asset upload is enabled'
-        )
-      }
-      if (!data.byteplus_asset_group_id?.trim()) {
-        addRequiredIssue(
-          ctx,
-          'byteplus_asset_group_id',
-          'Asset Group ID is required when BytePlus asset upload is enabled'
-        )
+      const provider = data.asset_provider || 'byteplus'
+      if (provider === 'byteplus') {
+        if (!data.byteplus_access_key?.trim()) {
+          addRequiredIssue(
+            ctx,
+            'byteplus_access_key',
+            'Official asset library requires an Access Key'
+          )
+        }
+        if (!data.byteplus_secret_key?.trim()) {
+          addRequiredIssue(
+            ctx,
+            'byteplus_secret_key',
+            'Official asset library requires a Secret Key'
+          )
+        }
+      } else if (provider === 'cloudwise') {
+        if (!data.base_url?.trim()) {
+          addRequiredIssue(
+            ctx,
+            'base_url',
+            'Third-party asset library reuses the channel API URL, please fill it in first'
+          )
+        }
       }
     }
   })
@@ -380,6 +385,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   byteplus_project_name: 'default',
   byteplus_region: 'ap-southeast-1',
   byteplus_moderation_skip: true,
+  asset_provider: 'byteplus',
   // Seedance(第三方) asset pre-upload
   seedance3rd_asset_enabled: false,
 }
@@ -472,6 +478,7 @@ export function transformChannelToFormDefaults(
   let bytePlusProjectName = 'default'
   let bytePlusRegion = 'ap-southeast-1'
   let bytePlusModerationSkip = true
+  let assetProvider: 'byteplus' | 'cloudwise' = 'byteplus'
   let seedance3rdAssetEnabled = false
 
   if (channel.settings) {
@@ -504,6 +511,7 @@ export function transformChannelToFormDefaults(
       bytePlusProjectName = parsed.byteplus_project_name || 'default'
       bytePlusRegion = parsed.byteplus_region || 'ap-southeast-1'
       bytePlusModerationSkip = parsed.byteplus_moderation_skip !== false
+      assetProvider = parsed.asset_provider || 'byteplus'
       seedance3rdAssetEnabled = parsed.seedance3rd_asset_enabled === true
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -562,6 +570,7 @@ export function transformChannelToFormDefaults(
     byteplus_project_name: bytePlusProjectName,
     byteplus_region: bytePlusRegion,
     byteplus_moderation_skip: bytePlusModerationSkip,
+    asset_provider: assetProvider,
     // Seedance(第三方) asset pre-upload
     seedance3rd_asset_enabled: seedance3rdAssetEnabled,
   }
@@ -669,6 +678,7 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     'byteplus_project_name',
     'byteplus_region',
     'byteplus_moderation_skip',
+    'asset_provider',
   ]
   if ([45, 54].includes(formData.type)) {
     settingsObj.byteplus_asset_enabled = formData.byteplus_asset_enabled === true
@@ -683,6 +693,7 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       (formData.byteplus_region || '').trim() || 'ap-southeast-1'
     settingsObj.byteplus_moderation_skip =
       formData.byteplus_moderation_skip !== false
+    settingsObj.asset_provider = formData.asset_provider || 'byteplus'
   } else {
     for (const k of bytePlusKeys) {
       if (k in settingsObj) delete settingsObj[k]

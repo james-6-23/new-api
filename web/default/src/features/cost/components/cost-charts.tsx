@@ -154,6 +154,15 @@ export function CostCharts({ overview, loading }: CostChartsProps) {
             value: (datum: Record<string, unknown>) =>
               formatBucketTooltip(String(datum?.date), granularity),
           },
+          // Without an explicit content pattern VChart falls back to the raw
+          // measure value, which renders full float precision.
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => String(datum?.series),
+              value: (datum: Record<string, unknown>) =>
+                currency.format(Number(datum?.value) || 0),
+            },
+          ],
         },
         mark: {
           title: {
@@ -240,6 +249,19 @@ export function CostCharts({ overview, loading }: CostChartsProps) {
             },
           ],
         },
+        dimension: {
+          title: {
+            value: (datum: Record<string, unknown>) =>
+              formatBucketTooltip(String(datum?.date), granularity),
+          },
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => String(datum?.channel),
+              value: (datum: Record<string, unknown>) =>
+                currency.format(Number(datum?.cost_display) || 0),
+            },
+          ],
+        },
       },
       background: { fill: 'transparent' },
       animation: true,
@@ -251,8 +273,8 @@ export function CostCharts({ overview, loading }: CostChartsProps) {
     loading ? 'loading' : 'ready',
     granularity,
     currency.symbol,
-    overview?.trend.length ?? 0,
-    overview?.cost_stack.length ?? 0,
+    overview?.trend?.length ?? 0,
+    overview?.cost_stack?.length ?? 0,
   ].join('-')
 
   const chartsReady = themeReady && !loading

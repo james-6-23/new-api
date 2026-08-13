@@ -241,6 +241,9 @@ func SetApiRouter(router *gin.Engine) {
 			costRoute.GET("/users", controller.GetCostByUsers)
 			costRoute.GET("/models", controller.GetCostByModels)
 			costRoute.GET("/channels", controller.GetCostByChannels)
+			costRoute.GET("/channels/:id/versions", controller.GetChannelCostVersions)
+			costRoute.POST("/channels/:id/versions", controller.CreateChannelCostVersion)
+			costRoute.DELETE("/versions/:vid", controller.DeleteChannelCostVersion)
 		}
 		channelRoute := apiRouter.Group("/channel")
 		channelRoute.Use(middleware.AdminAuth())

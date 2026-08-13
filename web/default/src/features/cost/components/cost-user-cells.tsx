@@ -23,19 +23,19 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
-import type { CostBreakdownRow, CostDimension } from '../types'
 import {
   breakdownChannelCount,
   effectiveCostRatioOf,
   formatCostRatio,
   trimRatioNumber,
 } from '../lib'
+import type { CostBreakdownRow, CostDimension } from '../types'
 import { EditRatioDialog } from './edit-ratio-dialog'
 
 /**
  * The fields the cost-ratio/user-discount cells can read. Sub-rows carry the
- * pricing/user fields directly; parent rows carry `priced`/`breakdown`; the
- * footer summary carries neither and degrades to the weighted/'-' branches.
+ * pricing fields directly; only parent rows carry `breakdown`; the footer
+ * summary carries neither and degrades to the weighted/'-' branches.
  */
 export interface PricingCellRow {
   cost_cny: number
@@ -45,17 +45,19 @@ export interface PricingCellRow {
   cost_mode?: '' | 'ratio' | 'discount'
   cost_ratio?: number
   cost_discount?: number
-  effective_ratio?: number
   priced?: boolean
   breakdown?: CostBreakdownRow[]
-  user_group?: string
-  group_ratio?: number
-  group_ratio_known?: boolean
-  group_ratio_special?: boolean
-  group_ratio_mixed?: boolean
+  /** Cost ratio actually paid over the range (cost ÷ list, quota weighted). */
+  effective_ratio?: number
+  effective_ratio_known?: boolean
+  /** Range spans several price versions, so no single configured value fits. */
+  ratio_mixed?: boolean
   /** Quota-weighted discount actually applied over the range (revenue ÷ list). */
   effective_discount?: number
   effective_discount_known?: boolean
+  discount_mixed?: boolean
+  discount_special?: boolean
+  discount_coverage?: number
 }
 
 const hoverTriggerClass =
@@ -94,7 +96,9 @@ function WeightedCostRatio({ row }: { row: PricingCellRow }) {
   if (ratio == null) return <span className='text-muted-foreground'>-</span>
 
   const blended = channelCount > 1
-  const text = `${blended ? '≈' : ''}${formatCostRatio(ratio)}`
+  // A single channel can still be a blend: the range may span price versions.
+  const versioned = Boolean(row.ratio_mixed)
+  const text = `${blended || versioned ? '≈' : ''}${formatCostRatio(ratio)}`
 
   if (!breakdown.length) return <span className='tabular-nums'>{text}</span>
 
@@ -110,10 +114,17 @@ function WeightedCostRatio({ row }: { row: PricingCellRow }) {
       </HoverCardTrigger>
       <HoverCardContent align='end' className='w-72'>
         <div className='flex flex-col gap-1.5'>
+          {/* Every branch has to describe a *derived* number: the value shown is
+              cost ÷ list price over the row's own money, never a stored config.
+              Saying "configured" here contradicts the list below whenever the
+              channel is discount-mode (0.8 configured renders as 5.76 derived)
+              or part of the range has no price version. */}
           <p className='text-muted-foreground text-xs'>
             {blended
               ? t('Weighted across channels: cost ÷ list price')
-              : t('Cost ratio configured on the channel')}
+              : versioned
+                ? t('Weighted across price versions: cost ÷ list price')
+                : t('Actual cost ratio: cost ÷ list price')}
           </p>
           <div className='flex flex-col divide-y'>
             {breakdown.map((b, index) => (
@@ -124,7 +135,7 @@ function WeightedCostRatio({ row }: { row: PricingCellRow }) {
                 <span className='truncate'>
                   {b.channel_name || t('Unknown channel')}
                 </span>
-                <span className='tabular-nums whitespace-nowrap'>
+                <span className='whitespace-nowrap tabular-nums'>
                   {configuredPricingLabel(b, t) ?? t('Not set')}
                 </span>
               </div>
@@ -157,7 +168,9 @@ export function CostRatioDiscountCell({
   exchangeRate: number
 }) {
   const { t } = useTranslation()
-  const isParent = row.priced !== undefined
+  // `priced` can no longer tell parent from child — the backend sends it on
+  // breakdown rows too. Only a dimension row carries `breakdown`.
+  const isParent = row.breakdown !== undefined
 
   if (dim === 'channels' && isParent) {
     // Falsy channel_id => "no channel selected" logs, not a real channel.
@@ -172,9 +185,18 @@ export function CostRatioDiscountCell({
         ) : (
           <div className='flex flex-col items-end leading-tight'>
             <span className='tabular-nums'>{label}</span>
-            {row.cost_mode === 'discount' && (
-              <span className='text-muted-foreground text-[11px] tabular-nums'>
-                ≈{formatCostRatio(row.effective_ratio)}
+            {/* The ¥/$1 the range actually paid. Worth a line when the label
+                can't be read as one (discount mode) or when it no longer
+                describes the whole range (the price changed mid-range). */}
+            {row.effective_ratio_known &&
+              (row.cost_mode === 'discount' || row.ratio_mixed) && (
+                <span className='text-muted-foreground text-[11px] tabular-nums'>
+                  ≈{formatCostRatio(row.effective_ratio)}
+                </span>
+              )}
+            {row.ratio_mixed && (
+              <span className='text-warning text-[11px]'>
+                {t('Cost ratio changed during this range')}
               </span>
             )}
           </div>
@@ -209,44 +231,30 @@ export function CostRatioDiscountCell({
 }
 
 /**
- * The user's discount, in two layers:
+ * The discount actually applied over the range (`effective_discount` = revenue
+ * ÷ list price, quota-weighted) — what the customer really paid. Every caveat
+ * comes from the logs in range rather than from the current config, so a
+ * dedicated ratio, a mid-range group change and an incomplete pricing history
+ * each announce themselves in the hover.
  *
- *  - **shown**: the discount actually applied over the range
- *    (`effective_discount` = revenue ÷ list price, quota-weighted). This is
- *    what the customer really paid, and it reflects dedicated ratios,
- *    cross-group usage and mid-range ratio changes without consulting any
- *    config;
- *  - **hover**: the *current* configured ratio (dedicated when one applies),
- *    plus a warning when config and reality disagree — which is exactly the
- *    signal that the user changed groups or a ratio was edited mid-range.
- *
- * Renders '-' when the row has no single user, and falls back to the config
- * value when list price is 0 (free/unpriced models make the quotient
- * meaningless).
+ * Renders '-' when the range has no list price to divide by (free or unpriced
+ * models), where the quotient is meaningless.
  */
 export function UserDiscountCell({ row }: { row: PricingCellRow }) {
   const { t } = useTranslation()
 
-  if (!row.user_group) {
-    return <span className='text-muted-foreground'>-</span>
-  }
-
-  const configKnown = Boolean(row.group_ratio_known)
-  const special = Boolean(row.group_ratio_special)
-  const mixed = Boolean(row.group_ratio_mixed)
   const actualKnown = Boolean(row.effective_discount_known)
   const actual = row.effective_discount
+  const mixed = Boolean(row.discount_mixed)
+  const special = Boolean(row.discount_special)
+  // `?? 0`, not `?? 1`: discount_coverage is omitempty and the backend only
+  // assigns it when there is a pricing basis, so an absent value means no spend
+  // carried pricing info at all. Rows with no logs exit on !actualKnown above.
+  const coverage = row.discount_coverage ?? 0
 
-  // Nothing to show at all: no usage to derive from and no config to fall back on.
-  if (!actualKnown && !configKnown) {
+  if (!actualKnown) {
     return <span className='text-muted-foreground'>-</span>
   }
-
-  // Config and reality disagree beyond rounding — surfaced in the hover.
-  const drifted =
-    actualKnown &&
-    configKnown &&
-    Math.abs((actual ?? 0) - (row.group_ratio ?? 0)) > 0.005
 
   return (
     <HoverCard>
@@ -256,81 +264,46 @@ export function UserDiscountCell({ row }: { row: PricingCellRow }) {
         tabIndex={0}
         className={hoverTriggerClass}
       >
-        {actualKnown ? (
-          <span
-            className={
-              drifted ? 'text-warning inline-flex items-center gap-1' : undefined
-            }
-          >
-            {trimRatioNumber(actual)}
-          </span>
-        ) : (
-          // No list price to divide by — show the configured value instead,
-          // marked as such so it is not read as a measured number.
-          <span className='text-muted-foreground'>
-            {t('{{v}} / configured', { v: trimRatioNumber(row.group_ratio) })}
-          </span>
-        )}
+        <span
+          className={
+            mixed ? 'text-warning inline-flex items-center gap-1' : undefined
+          }
+        >
+          {trimRatioNumber(actual)}
+        </span>
       </HoverCardTrigger>
       <HoverCardContent align='end' className='w-80'>
         <div className='flex flex-col gap-1.5 text-xs'>
-          {actualKnown && (
-            <div className='flex items-center justify-between gap-4'>
-              <span className='text-muted-foreground'>
-                {t('Actual discount (this range)')}
-              </span>
-              <span className='tabular-nums'>{trimRatioNumber(actual)}</span>
-            </div>
-          )}
           <div className='flex items-center justify-between gap-4'>
-            <span className='text-muted-foreground'>{t('Current group')}</span>
-            <span className='font-medium'>{row.user_group}</span>
+            <span className='text-muted-foreground'>
+              {t('Actual discount (this range)')}
+            </span>
+            <span className='tabular-nums'>{trimRatioNumber(actual)}</span>
           </div>
-          {configKnown ? (
-            <div className='flex items-center justify-between gap-4'>
-              <span className='text-muted-foreground'>
-                {special ? t('Dedicated ratio') : t('Group ratio')}
-              </span>
-              <span className='tabular-nums'>
-                {mixed ? '≈' : ''}
-                {trimRatioNumber(row.group_ratio)}
-              </span>
-            </div>
-          ) : (
-            <p className='text-muted-foreground'>
-              {t('This group has no ratio configured.')}
-            </p>
-          )}
-          {actualKnown && (
-            <p className='text-muted-foreground'>
-              {t('Actual discount is revenue ÷ list price over the selected range.')}
-            </p>
-          )}
+          <p className='text-muted-foreground'>
+            {t(
+              'Actual discount is revenue ÷ list price over the selected range.'
+            )}
+          </p>
           {special && (
             <p className='text-muted-foreground'>
               {t(
-                'A dedicated (user group × token group) ratio is configured and takes priority over the group ratio.'
+                'Dedicated ratio applied: a user-group × token-group ratio was active.'
               )}
             </p>
           )}
           {mixed && (
-            <p className='text-muted-foreground'>
-              {t(
-                'The user spent across several token groups in this range; the configured ratio shown is quota-weighted.'
-              )}
-            </p>
-          )}
-          {drifted && (
             <p className='text-warning'>
               {t(
-                'Actual and configured discounts differ — the user may have changed groups, or the ratio was edited during this range.'
+                'Discount changed during this range — the user may have changed groups or a ratio was edited.'
               )}
             </p>
           )}
-          {!actualKnown && (
+          {coverage < 0.99 && (
             <p className='text-muted-foreground'>
               {t(
-                'No list price in this range (free or unpriced models), so the actual discount cannot be derived.'
+                'Partial discount coverage: {{pct}}% of spend has pricing info; older logs may lack it.',
+                { pct: Math.round(coverage * 100) }
               )}
             </p>
           )}
@@ -360,11 +333,15 @@ export function RequestOutcomeCell({
   return (
     <div className='flex flex-col items-end leading-tight'>
       <span className='tabular-nums'>
-        <span className={requestCount ? 'text-success' : 'text-muted-foreground'}>
+        <span
+          className={requestCount ? 'text-success' : 'text-muted-foreground'}
+        >
           {formatNumber(requestCount)}
         </span>
         <span className='text-muted-foreground'> / </span>
-        <span className={errorCount ? 'text-destructive' : 'text-muted-foreground'}>
+        <span
+          className={errorCount ? 'text-destructive' : 'text-muted-foreground'}
+        >
           {formatNumber(errorCount)}
         </span>
       </span>
@@ -374,4 +351,3 @@ export function RequestOutcomeCell({
     </div>
   )
 }
-

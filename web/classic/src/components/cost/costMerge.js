@@ -47,6 +47,7 @@ export const RAW_ADDITIVE_FIELDS = [
 // - avg_ttft_ms：frt_count 为 0 时兜底为 0
 // - profit_rate：revenue_cny 为 0 时兜底为 0
 // - effective_discount：收入$ ÷ 刊例$（按合并后的总额重算，非各行取平均）
+// - effective_ratio：成本¥ ÷ 刊例$（同上，跨计价版本时天然是加权均值）
 export function deriveCostRates(row) {
   const promptTokens = Number(row.prompt_tokens) || 0;
   const completionTokens = Number(row.completion_tokens) || 0;
@@ -62,15 +63,34 @@ export function deriveCostRates(row) {
   const inputTokens = promptTokens + cacheReadTokens + cacheCreationTokens;
   row.total_tokens = inputTokens + completionTokens;
   row.success_rate =
-    requestCount + errorCount === 0 ? 1 : requestCount / (requestCount + errorCount);
+    requestCount + errorCount === 0
+      ? 1
+      : requestCount / (requestCount + errorCount);
   row.cache_rate = inputTokens === 0 ? 0 : cacheReadTokens / inputTokens;
   row.avg_ttft_ms = frtCount === 0 ? 0 : frtSumMs / frtCount;
   row.profit_rate = revenueCny === 0 ? 0 : profitCny / revenueCny;
   const listUsd = Number(row.list_usd) || 0;
   row.effective_discount_known = listUsd !== 0;
-  row.effective_discount = listUsd === 0 ? 0 : (Number(row.revenue_usd) || 0) / listUsd;
+  row.effective_discount =
+    listUsd === 0 ? 0 : (Number(row.revenue_usd) || 0) / listUsd;
+  // 真实成本倍率：渠道可能在区间内改过价，配置值只代表"现在的价"，只有用这一行
+  // 自己的钱反推才是区间内实际付出的倍率。门槛沿用后端的 ListUsd == 0
+  // （cost_stat.go deriveRates）——不是 > 0：只含退款的区间刊例价为负，此时商仍
+  // 有意义，改用 > 0 会让本地折叠的父行与同一行从服务端取回的结果不一致。
+  row.effective_ratio_known = listUsd !== 0;
+  row.effective_ratio =
+    listUsd === 0 ? 0 : (Number(row.cost_cny) || 0) / listUsd;
   return row;
 }
+
+// 布尔信号字段：任一子行命中，合并后的父行即命中（与后端 costMoney.add() 取或
+// 的口径一致）。不参与求和，也不能重新派生 —— 它们是采集到的版本身份事实，
+// 不是金额的函数。
+const SIGNAL_FLAG_FIELDS = [
+  'ratio_mixed',
+  'discount_mixed',
+  'discount_special',
+];
 
 /**
  * 按 keyFields 合并 breakdown 明细行：对 RAW_ADDITIVE_FIELDS 求和，重新派生比率指标。
@@ -84,20 +104,15 @@ export function mergeBreakdown(rows, keyFields) {
   if (!Array.isArray(rows) || rows.length === 0) return [];
   if (!keyFields || keyFields.length === 0) return rows;
 
-  // 随身份字段一起保留的挂载字段：合并仍保留渠道身份时，渠道计价配置对整组
-  // 生效；仍保留用户身份时，用户折扣对整组生效（组内各行同一身份 → 同一取值）。
+  // 随身份字段一起保留的挂载字段：合并仍保留渠道身份时，渠道当前的计价配置对
+  // 整组生效（组内各行同一身份 → 同一取值）。
+  // 用户侧没有挂载字段：用户折扣不再由后端下发配置值，改由 deriveCostRates 用
+  // 这一行自己的钱反推（effective_discount），挂载无从可挂。
+  // effective_ratio 同理不挂载：它由 deriveCostRates 按合并后的总额重算，挂载
+  // 过来的父行值会被直接覆盖。
   const carryFields = [];
   if (keyFields.includes('channel_id')) {
-    carryFields.push('cost_mode', 'cost_ratio', 'cost_discount', 'effective_ratio');
-  }
-  if (keyFields.includes('username')) {
-    carryFields.push(
-      'user_group',
-      'group_ratio',
-      'group_ratio_known',
-      'group_ratio_special',
-      'group_ratio_mixed',
-    );
+    carryFields.push('cost_mode', 'cost_ratio', 'cost_discount');
   }
 
   const groups = new Map();
@@ -116,14 +131,34 @@ export function mergeBreakdown(rows, keyFields) {
       RAW_ADDITIVE_FIELDS.forEach((f) => {
         g[f] = 0;
       });
+      SIGNAL_FLAG_FIELDS.forEach((f) => {
+        g[f] = false;
+      });
+      // 覆盖率是占比，不能直接相加：先按 list_usd 加权累计成绝对基数，
+      // 汇总完再还原成占比（见下方 order.map）。
+      g.discount_coverage = 0;
       groups.set(key, g);
       order.push(key);
     }
     RAW_ADDITIVE_FIELDS.forEach((f) => {
       g[f] = (Number(g[f]) || 0) + (Number(row[f]) || 0);
     });
+    SIGNAL_FLAG_FIELDS.forEach((f) => {
+      g[f] = g[f] || Boolean(row[f]);
+    });
+    g.discount_coverage +=
+      (Number(row.discount_coverage) || 0) * (Number(row.list_usd) || 0);
   }
-  return order.map((key) => deriveCostRates(groups.get(key)));
+  return order.map((key) => {
+    const g = groups.get(key);
+    // 门槛用 > 0（与后端 cost_stat.go 的覆盖率门槛一致，而非派生比率用的 !== 0）：
+    // 区间只含退款时 list_usd 为负，Math.min 没有下界，负分母会算出 "-320% 的消费
+    // 带定价信息" 这种话。
+    const listUsd = Number(g.list_usd) || 0;
+    g.discount_coverage =
+      listUsd > 0 ? Math.min(g.discount_coverage / listUsd, 1) : 0;
+    return deriveCostRates(g);
+  });
 }
 
 // 每个维度 Tab 下「查看方式」Select 的可选项：value 唯一标识，keyFields 传给

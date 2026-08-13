@@ -57,11 +57,11 @@ import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
+import { ComboboxInput } from '@/components/ui/combobox-input'
 import {
   Form,
   FormControl,
@@ -412,23 +412,7 @@ export function ChannelMutateDrawer({
   const costMode = form.watch('cost_mode')
   const isAggregatorChannel = form.watch('is_aggregator')
   const currentSettings = form.watch('settings')
-  const {
-    unlocked: doubaoApiEditUnlocked,
-    handleClick: handleApiConfigSecretClick,
-    reset: resetDoubaoApiUnlock,
-  } = useHiddenClickUnlock({
-    requiredClicks: 10,
-    disabled: currentType !== 45,
-    onUnlock: () => {
-      toast.info(t('Doubao custom API address editing unlocked'))
-    },
-  })
-
-  useEffect(() => {
-    if (!open) {
-      resetDoubaoApiUnlock()
-    }
-  }, [open, resetDoubaoApiUnlock])
+  const assetProvider = form.watch('asset_provider')
 
   // Helper computed values
   const isBatchMode =
@@ -1464,11 +1448,13 @@ export function ChannelMutateDrawer({
                       />
                     )}
 
-                    {/* BytePlus overseas asset library (VolcEngine 45 / DoubaoVideo 54) */}
+                    {/* Asset library pre-upload (VolcEngine 45 / DoubaoVideo 54).
+                        Gates both the official BytePlus library and the third-party
+                        one, so the wording stays provider-neutral. */}
                     {[45, 54].includes(currentType) && (
                       <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                         <SubHeading
-                          title={t('BytePlus Asset Library (overseas)')}
+                          title={t('Asset library pre-upload')}
                           icon={<SlidersHorizontal className='h-3.5 w-3.5' />}
                         />
                         <FormField
@@ -1482,7 +1468,7 @@ export function ChannelMutateDrawer({
                                 </FormLabel>
                                 <FormDescription>
                                   {t(
-                                    'Before submitting to overseas BytePlus, upload reference media to the asset library and replace it with asset://id. Avoids real-face / content pre-filter interception.'
+                                    'Before submitting, upload reference media to the asset library and replace it with asset://id. Avoids real-face / content pre-filter interception.'
                                   )}
                                 </FormDescription>
                               </div>
@@ -1500,44 +1486,102 @@ export function ChannelMutateDrawer({
                           <>
                             <FormField
                               control={form.control}
-                              name='byteplus_access_key'
+                              name='asset_provider'
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel>{t('Access Key (AK)')}</FormLabel>
-                                  <FormControl>
-                                    <Input
-                                      type='password'
-                                      autoComplete='off'
-                                      placeholder={t(
-                                        'BytePlus AccessKey for asset library signing'
-                                      )}
-                                      {...field}
-                                    />
-                                  </FormControl>
+                                  <FormLabel>{t('Asset provider')}</FormLabel>
+                                  <Select
+                                    items={[
+                                      {
+                                        value: 'byteplus',
+                                        label: t('Official (BytePlus)'),
+                                      },
+                                      {
+                                        value: 'cloudwise',
+                                        label: t('Third-party (Cloudwise)'),
+                                      },
+                                    ]}
+                                    onValueChange={field.onChange}
+                                    value={field.value || 'byteplus'}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent alignItemWithTrigger={false}>
+                                      <SelectGroup>
+                                        <SelectItem value='byteplus'>
+                                          {t('Official (BytePlus)')}
+                                        </SelectItem>
+                                        <SelectItem value='cloudwise'>
+                                          {t('Third-party (Cloudwise)')}
+                                        </SelectItem>
+                                      </SelectGroup>
+                                    </SelectContent>
+                                  </Select>
                                   <FormMessage />
                                 </FormItem>
                               )}
                             />
-                            <FormField
-                              control={form.control}
-                              name='byteplus_secret_key'
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>{t('Secret Key (SK)')}</FormLabel>
-                                  <FormControl>
-                                    <Input
-                                      type='password'
-                                      autoComplete='off'
-                                      placeholder={t(
-                                        'BytePlus SecretKey for asset library signing'
-                                      )}
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
+
+                            {assetProvider === 'cloudwise' && (
+                              <p className='text-muted-foreground text-sm'>
+                                {t(
+                                  'Third-party asset library reuses the channel API address and key.'
+                                )}
+                              </p>
+                            )}
+
+                            {assetProvider !== 'cloudwise' && (
+                              <>
+                                <FormField
+                                  control={form.control}
+                                  name='byteplus_access_key'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>
+                                        {t('Access Key (AK)')}
+                                      </FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type='password'
+                                          autoComplete='off'
+                                          placeholder={t(
+                                            'BytePlus AccessKey for asset library signing'
+                                          )}
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name='byteplus_secret_key'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>
+                                        {t('Secret Key (SK)')}
+                                      </FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type='password'
+                                          autoComplete='off'
+                                          placeholder={t(
+                                            'BytePlus SecretKey for asset library signing'
+                                          )}
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </>
+                            )}
+
                             <FormField
                               control={form.control}
                               name='byteplus_asset_group_id'
@@ -1561,40 +1605,49 @@ export function ChannelMutateDrawer({
                                 </FormItem>
                               )}
                             />
-                            <FormField
-                              control={form.control}
-                              name='byteplus_project_name'
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>{t('Project Name')}</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder='default' {...field} />
-                                  </FormControl>
-                                  <FormDescription>
-                                    {t(
-                                      'Assets and inference endpoint must be in the same project.'
-                                    )}
-                                  </FormDescription>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name='byteplus_region'
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>{t('Region')}</FormLabel>
-                                  <FormControl>
-                                    <Input
-                                      placeholder='ap-southeast-1'
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
+
+                            {assetProvider !== 'cloudwise' && (
+                              <>
+                                <FormField
+                                  control={form.control}
+                                  name='byteplus_project_name'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('Project Name')}</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          placeholder='default'
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormDescription>
+                                        {t(
+                                          'Assets and inference endpoint must be in the same project.'
+                                        )}
+                                      </FormDescription>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name='byteplus_region'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('Region')}</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          placeholder='ap-southeast-1'
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </>
+                            )}
+
                             <FormField
                               control={form.control}
                               name='byteplus_moderation_skip'
@@ -1932,69 +1985,7 @@ export function ChannelMutateDrawer({
                     )}
 
                     {/* VolcEngine (type 45) */}
-                    {currentType === 45 && !doubaoApiEditUnlocked && (
-                      <FormField
-                        control={form.control}
-                        name='base_url'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel
-                              className='cursor-pointer select-none'
-                              onClick={handleApiConfigSecretClick}
-                            >
-                              {t('API Base URL *')}
-                            </FormLabel>
-                            <Select
-                              items={[
-                                {
-                                  value: 'https://ark.cn-beijing.volces.com',
-                                  label: t('https://ark.cn-beijing.volces.com'),
-                                },
-                                {
-                                  value:
-                                    'https://ark.ap-southeast.bytepluses.com',
-                                  label: t(
-                                    'https://ark.ap-southeast.bytepluses.com'
-                                  ),
-                                },
-                              ]}
-                              onValueChange={field.onChange}
-                              value={
-                                field.value === 'doubao-coding-plan'
-                                  ? 'https://ark.cn-beijing.volces.com'
-                                  : field.value ||
-                                    'https://ark.cn-beijing.volces.com'
-                              }
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent alignItemWithTrigger={false}>
-                                <SelectGroup>
-                                  <SelectItem value='https://ark.cn-beijing.volces.com'>
-                                    {t('https://ark.cn-beijing.volces.com')}
-                                  </SelectItem>
-                                  <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
-                                    {t(
-                                      'https://ark.ap-southeast.bytepluses.com'
-                                    )}
-                                  </SelectItem>
-                                </SelectGroup>
-                              </SelectContent>
-                            </Select>
-                            <FormDescription>
-                              {t('Select the API endpoint region')}
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    {/* VolcEngine (type 45) - Custom API URL (unlocked) */}
-                    {currentType === 45 && doubaoApiEditUnlocked && (
+                    {currentType === 45 && (
                       <FormField
                         control={form.control}
                         name='base_url'
@@ -2002,15 +1993,33 @@ export function ChannelMutateDrawer({
                           <FormItem>
                             <FormLabel>{t('API Base URL *')}</FormLabel>
                             <FormControl>
-                              <Input
+                              <ComboboxInput
+                                options={[
+                                  {
+                                    value: 'https://ark.cn-beijing.volces.com',
+                                    label: 'https://ark.cn-beijing.volces.com',
+                                  },
+                                  {
+                                    value:
+                                      'https://ark.ap-southeast.bytepluses.com',
+                                    label:
+                                      'https://ark.ap-southeast.bytepluses.com',
+                                  },
+                                ]}
+                                value={
+                                  field.value === 'doubao-coding-plan'
+                                    ? 'https://ark.cn-beijing.volces.com'
+                                    : field.value || ''
+                                }
+                                onValueChange={field.onChange}
                                 placeholder={t(
                                   'e.g., https://ark.cn-beijing.volces.com'
                                 )}
-                                {...field}
+                                allowCustomValue
                               />
                             </FormControl>
                             <FormDescription>
-                              {t('Enter custom API endpoint URL')}
+                              {t('Select an official regional endpoint or enter a custom API address')}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
