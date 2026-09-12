@@ -404,6 +404,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 			}
 			// 后置注入转存 URL 和状态，覆盖各 adaptor 设置的原始 URL
 			respBody = applyStorageOverrides(openAIVideoData, originTask)
+			respBody = applyUpstreamTaskIdOverride(respBody, originTask)
 			return
 		}
 		taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
@@ -443,6 +444,37 @@ func applyStorageOverrides(data []byte, task *model.Task) []byte {
 		if patched, err := sjson.SetBytes(data, "metadata.preview_url", previewURL); err == nil {
 			data = patched
 		}
+	}
+	return data
+}
+
+// applyUpstreamTaskIdOverride 在渠道开启 expose_upstream_task_id 时，把上游真实
+// 任务 ID 注入 /v1/videos 响应的 upstream_task_id 字段。
+//
+// 之所以在这里后置注入而不是在各 adaptor 的 ConvertToOpenAIVideo 里做：查询链路的
+// adaptor 由 GetTaskAdaptor 现场构造、从未调用 Init，otherSettings 是零值，adaptor
+// 内部读不到渠道开关。这一层能拿到 task.ChannelId，且一处即可覆盖所有渠道类型。
+//
+// 渠道已删除或读取失败时静默跳过：透传上游 ID 是可选的增强字段，不值得让一次
+// 正常的任务查询失败。
+func applyUpstreamTaskIdOverride(data []byte, task *model.Task) []byte {
+	upstreamID := task.GetUpstreamTaskID()
+	// 旧数据没有单独存 UpstreamTaskID 时，GetUpstreamTaskID 回落为公开 TaskID
+	// 本身，此时没有"上游 ID"可透传，注入只会输出一个与 id 重复的字段。
+	if upstreamID == "" || upstreamID == task.TaskID {
+		return data
+	}
+
+	ch, err := model.CacheGetChannel(task.ChannelId)
+	if err != nil || ch == nil {
+		return data
+	}
+	if !ch.GetOtherSettings().ExposeUpstreamTaskId {
+		return data
+	}
+
+	if patched, err := sjson.SetBytes(data, "upstream_task_id", upstreamID); err == nil {
+		data = patched
 	}
 	return data
 }

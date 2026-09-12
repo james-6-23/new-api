@@ -1711,6 +1711,39 @@ export function ChannelMutateDrawer({
                       </div>
                     )}
 
+                    {[45, 54, 59].includes(currentType) && (
+                      <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                        <SubHeading
+                          title={t('Upstream Task ID Passthrough')}
+                          icon={<SlidersHorizontal className='h-3.5 w-3.5' />}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='expose_upstream_task_id'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3 px-1 py-2'>
+                              <div className='space-y-0.5'>
+                                <FormLabel className='text-sm'>
+                                  {t('Expose upstream task id to clients')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Adds an upstream_task_id field (e.g. cgt-...) to video responses. The id / task_id fields stay unchanged, so clients keep polling with the public id. Note: this reveals the upstream provider.'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
+
                     {/* AI Proxy Library (type 21) */}
                     {currentType === 21 && (
                       <FormField

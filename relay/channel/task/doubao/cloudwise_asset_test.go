@@ -204,10 +204,52 @@ func TestCloudwise_IsGroupExhausted_FallbackKeyword(t *testing.T) {
 	if cl.IsGroupExhausted(throttled) {
 		t.Error("group-scoped throttling must not be classified as group-exhausted (runaway-creation guard)")
 	}
-	// A missing group id is an operator misconfiguration; rotating would hide it.
+	// A missing group is a recurring upstream lifecycle event in production
+	// (groups created and persisted by this gateway itself vanished upstream),
+	// and rotation is the only self-healing path. It logs a WARN with the
+	// old/new group ids, so it is not silent.
 	notFound := &assetAPIError{Code: "UnknownCode", Message: "asset group not found"}
-	if cl.IsGroupExhausted(notFound) {
-		t.Error("'group not found' text must not be classified as group-exhausted")
+	if !cl.IsGroupExhausted(notFound) {
+		t.Error("'group not found' text must be classified as group-exhausted")
+	}
+}
+
+// TestCloudwise_IsGroupExhausted_NotFoundGroupIdCode verifies that the real
+// upstream error code observed in production — NotFound.group_id with
+// "The specified asset_group ... is not found." — is classified as
+// group-exhausted so rotation recovers it instead of a hard 500.
+func TestCloudwise_IsGroupExhausted_NotFoundGroupIdCode(t *testing.T) {
+	cl := &cloudwiseAssetClient{}
+	err := &assetAPIError{
+		Code:    "NotFound.group_id",
+		Message: "The specified asset_group group-20260819165431-b9xrj is not found.",
+	}
+	if !cl.IsGroupExhausted(err) {
+		t.Error("NotFound.group_id must be classified as group-exhausted")
+	}
+}
+
+// TestCloudwise_CreateAsset_ErrorStringBody verifies the production error body
+// {"error":"asset group not found"} (HTTP 400, error as a bare string, no code):
+// the message must be extracted and classified as group-exhausted.
+func TestCloudwise_CreateAsset_ErrorStringBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error":"asset group not found"}`))
+	}))
+	defer srv.Close()
+
+	cl := newCloudwiseTestClient(srv.URL)
+	_, err := cl.CreateAndWait(context.Background(), "group-stale", "https://example.com/cw-notfound.jpg", "Image")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "asset group not found") {
+		t.Errorf("error must carry the upstream message, got %v", err)
+	}
+	if !cl.IsGroupExhausted(err) {
+		t.Error("string-shaped 'error' group-not-found body must be classified as group-exhausted")
 	}
 }
 

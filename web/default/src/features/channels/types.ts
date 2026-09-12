@@ -125,6 +125,7 @@ export interface ChannelOtherSettings {
   byteplus_moderation_skip?: boolean
   // Seedance(第三方) asset pre-upload (channel type 59)
   seedance3rd_asset_enabled?: boolean
+  expose_upstream_task_id?: boolean
 }
 
 // ============================================================================

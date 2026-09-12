@@ -42,7 +42,7 @@ import { TaskStatusBadge } from '../task-progress-ring'
 import {
   formatModelName,
   getFirstResponseTimeColor,
-  getResponseTimeColor,
+  getLogTimingColor,
   getTieredBillingSummary,
   hasAnyCacheTokens,
   parseLogOther,
@@ -560,7 +560,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           useTime > 0 && log.completion_tokens > 0
             ? log.completion_tokens / useTime
             : null
-        const timeVariant = getResponseTimeColor(useTime, log.completion_tokens)
+        const timeVariant = getLogTimingColor(log)
         const frtVariant = frt
           ? getFirstResponseTimeColor(frt / 1000)
           : 'neutral'

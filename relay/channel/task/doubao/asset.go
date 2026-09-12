@@ -143,7 +143,7 @@ func (a *TaskAdaptor) preuploadAssets(c *gin.Context, payload *requestPayload) e
 		return err
 	}
 
-	_, project, _ := s.ResolveBytePlusAsset()
+	region, project, _ := s.ResolveBytePlusAsset()
 	provider := s.ResolveAssetProvider()
 
 	// ResolveAssetGroupId, not the raw field: a group id minted by the other asset
@@ -201,7 +201,7 @@ func (a *TaskAdaptor) preuploadAssets(c *gin.Context, payload *requestPayload) e
 			return errors.Errorf("asset upload requires a public http(s) URL, got unsupported input for %s (base64/data URIs are not supported)", item.Type)
 		}
 
-		cacheKey := assetCacheKey(a.channelId, provider, project, url)
+		cacheKey := assetCacheKey(a.channelId, provider, region, project, url)
 		if assetID, ok := getCachedAssetID(cacheKey); ok {
 			media.URL = "asset://" + assetID
 			continue
@@ -323,6 +323,14 @@ func truncate(b []byte, n int) string {
 // keep serving BytePlus ids to cloudwise (or the reverse) for the rest of the TTL.
 // Changing this key format costs one cold-cache window, which is expected.
 //
+// region is part of the key for the same reason, one level down: it selects the
+// site (cn-* → open.volcengineapi.com, otherwise → byteplusapi.com), and an id
+// minted overseas does not exist domestically. Without region in the key,
+// repointing a channel from ap-southeast-1 to cn-beijing kept replaying the
+// stale overseas id for the rest of the 6h TTL, and every generation failed with
+// "The specified asset asset-... is not found" — the upload was never retried
+// because the cache hit short-circuits it.
+//
 // groupId is intentionally excluded: BytePlus asset ids are globally unique
 // and remain valid after their group rotates.  If groupId were in the key, a
 // group rotation would cause every previously-cached URL to miss and get
@@ -331,8 +339,8 @@ func truncate(b []byte, n int) string {
 // time to burn quota.  project is retained because the same URL uploaded to
 // different projects yields a different asset id (different namespace/access
 // scope).
-func assetCacheKey(channelId int, provider, project, url string) string {
-	h := sha256.Sum256([]byte(fmt.Sprintf("%d|%s|%s|%s", channelId, provider, project, url)))
+func assetCacheKey(channelId int, provider, region, project, url string) string {
+	h := sha256.Sum256([]byte(fmt.Sprintf("%d|%s|%s|%s|%s", channelId, provider, region, project, url)))
 	return hex.EncodeToString(h[:])
 }
 

@@ -53,7 +53,7 @@ import {
   hasAnyCacheTokens,
   isViolationFeeLog,
   getFirstResponseTimeColor,
-  getResponseTimeColor,
+  getLogTimingColor,
   renderAuditContent,
 } from '../../lib/format'
 import {
@@ -75,10 +75,11 @@ const CHANNEL_FIELD_LABELS: Record<string, string> = {
 }
 
 function timingTextColorClass(
-  variant: 'success' | 'warning' | 'danger'
+  variant: 'success' | 'warning' | 'danger' | 'neutral'
 ): string {
   if (variant === 'success') return 'text-emerald-600'
   if (variant === 'warning') return 'text-amber-600'
+  if (variant === 'neutral') return 'text-foreground'
   return 'text-rose-600'
 }
 
@@ -523,6 +524,10 @@ function SeedanceTaskSection(props: { log: UsageLog }) {
   if (ti.upstream_task_id) {
     rows.push({ label: t('Upstream Task ID'), value: ti.upstream_task_id })
   }
+  // 上游原始视频地址（未经转存），用于核对是否命中官方 ark TOS 路径。
+  if (ti.result_url) {
+    rows.push({ label: t('Video URL'), value: ti.result_url })
+  }
 
   return (
     <DetailSection label={t('Video Task')}>
@@ -766,12 +771,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   <span
                     className={cn(
                       'font-medium',
-                      timingTextColorClass(
-                        getResponseTimeColor(
-                          props.log.use_time,
-                          props.log.completion_tokens
-                        )
-                      )
+                      timingTextColorClass(getLogTimingColor(props.log))
                     )}
                   >
                     {formatUseTime(props.log.use_time)}

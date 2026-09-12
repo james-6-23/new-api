@@ -189,6 +189,11 @@ func (cl *cloudwiseAssetClient) CreateAndWait(ctx context.Context, groupID, medi
 // When a real group-full or group-not-found error is observed in production logs,
 // verify the actual Code value and update this list accordingly.
 //
+// CONFIRMED IN PRODUCTION (2026-08): the real code is "NotFound.group_id" with
+// message "The specified asset_group group-... is not found." — now listed
+// below. The message-text fallback is a second net for the string-shaped
+// {"error":"..."} bodies that carry no code at all.
+//
 // Design intent: same as groupExhaustedCodes in byteplus_asset.go.
 //   - Do NOT add bare quota or rate-limit codes — they would cause runaway group creation
 //     under API throttling.
@@ -201,6 +206,7 @@ var cloudwiseGroupExhaustedCodes = map[string]bool{
 	"InvalidParameter.GroupId":    true,
 	"ResourceNotFound.GroupId":    true,
 	"LimitExceeded.GroupCapacity": true,
+	"NotFound.group_id":           true,
 }
 
 // IsGroupExhausted returns true only when err is an *assetAPIError whose Code
@@ -225,7 +231,8 @@ func (cl *cloudwiseAssetClient) IsGroupExhausted(err error) bool {
 		return false
 	}
 	// Message-text fallback for undocumented codes observed in production.
-	// Requires BOTH a group-scoped word AND an unambiguous capacity word.
+	// Requires BOTH a group-scoped word AND an unambiguous capacity/existence
+	// word, so that auth or moderation failures cannot trip it.
 	//
 	// Deliberately NOT matched here:
 	//   - "exceed": it also matches "exceeded", which nearly every quota and
@@ -233,11 +240,16 @@ func (cl *cloudwiseAssetClient) IsGroupExhausted(err error) bool {
 	//     later"). Under throttling that would mint one junk group per concurrent
 	//     request, the exact runaway that keeping QuotaExceeded out of the code map
 	//     prevents.
-	//   - "not found": a missing group id is an operator misconfiguration far more
-	//     often than an exhausted group, and rotating hides it.
+	//
+	// "not found" IS matched: production shows this gateway's own auto-created
+	// groups vanishing upstream (assets in them are deleted too), so a missing
+	// group here is an upstream lifecycle event, not an operator typo. Rotation
+	// re-creates the group and logs a WARN with the old/new ids, so the
+	// overwrite — if it ever is an operator misconfiguration — stays visible.
 	msg := strings.ToLower(apiErr.Message)
 	return strings.Contains(msg, "group") &&
-		(strings.Contains(msg, "full") || strings.Contains(msg, "capacity"))
+		(strings.Contains(msg, "full") || strings.Contains(msg, "capacity") ||
+			strings.Contains(msg, "not found"))
 }
 
 // post sends a POST to {baseURL}{path} with Bearer auth and returns the parsed envelope.
@@ -363,10 +375,10 @@ func isCloudwiseSuccessCode(code string) bool {
 
 // parseCloudwiseLowercaseError extracts the lowercase {code,message} error shape.
 //
-// PROVENANCE, two forms, both documented:
+// PROVENANCE, three forms, all observed:
 //   - top-level lowercase code/message: DOCUMENTED for this gateway's task
 //     endpoints (cloudwise-api-docs.md:310, :7326-7332).
-//   - a top-level "error" object: DOCUMENTED, in two shapes. It carries only a
+//   - a top-level "error" OBJECT: DOCUMENTED, in two shapes. It carries only a
 //     message at cloudwise-api-docs.md:3739-3741 ({"status":"failed", ...,
 //     "error":{"message":"The request failed because ..."}}) and both code and
 //     message at :12601-12609 ({"status":"failed","error":{"code":
@@ -374,6 +386,11 @@ func isCloudwiseSuccessCode(code string) bool {
 //     also exists (:11836-11843) and is not read here.
 //     The message-only shape at :3739 is why the nested object is resolved per
 //     field below rather than wholesale — do not collapse that.
+//   - a top-level "error" STRING: OBSERVED IN PRODUCTION for the asset endpoints,
+//     e.g. HTTP 400 {"error":"asset group not found"}. The struct form cannot
+//     hold it (unmarshal fails and the whole body is treated as raw text), so it
+//     is captured as the message — the only signal a placeholder-less body
+//     carries, and the one the keyword fallback keys on.
 //
 // Neither form is documented for the asset operations specifically; see the
 // ERROR SHAPE block at the top of this file. code is read as a raw scalar because
@@ -383,10 +400,7 @@ func parseCloudwiseLowercaseError(body []byte) (code, message string) {
 	var payload struct {
 		Code    json.RawMessage `json:"code"`
 		Message string          `json:"message"`
-		Error   *struct {
-			Code    json.RawMessage `json:"code"`
-			Message string          `json:"message"`
-		} `json:"error"`
+		Error   json.RawMessage `json:"error"`
 	}
 	if err := common.Unmarshal(body, &payload); err != nil {
 		return "", ""
@@ -397,12 +411,30 @@ func parseCloudwiseLowercaseError(body []byte) (code, message string) {
 	// code here"}} classified as the HTTP status instead of GroupFull and so never
 	// rotated the group. Falling through only when the nested object is entirely
 	// empty would leave that same body broken, since it does carry a nested message.
-	if payload.Error != nil {
-		if c := cloudwiseErrorCode(payload.Error.Code); c != "" {
-			code = c
-		}
-		if payload.Error.Message != "" {
-			message = payload.Error.Message
+	if len(payload.Error) > 0 {
+		switch common.GetJsonType(payload.Error) {
+		case "object":
+			var nested struct {
+				Code    json.RawMessage `json:"code"`
+				Message string          `json:"message"`
+			}
+			if err := common.Unmarshal(payload.Error, &nested); err == nil {
+				if c := cloudwiseErrorCode(nested.Code); c != "" {
+					code = c
+				}
+				if nested.Message != "" {
+					message = nested.Message
+				}
+			}
+		case "string":
+			// {"error":"asset group not found"} — no code anywhere; the string is
+			// the whole story, so it becomes the message.
+			if message == "" {
+				var s string
+				if err := common.Unmarshal(payload.Error, &s); err == nil {
+					message = s
+				}
+			}
 		}
 	}
 	return code, message

@@ -80,27 +80,29 @@ const STACK_COLORS = [
   '#94a3b8', // 其他
 ];
 
-// 将 trend 数据（宽表：每行含 revenue_cny/cost_cny/profit_cny）转换为 VChart 需要的长表。
-// 金额统一先按查询汇率折回美元，再由 currency.format() 换算成展示货币——后端的
-// *_cny 已经乘过一次查询汇率，直接用会叠加两个汇率。
+// 将 trend 数据（宽表）转换为 VChart 需要的长表。
+// 后端趋势点只带 *_cny：revenue_cny 已乘过一次查询汇率，除回汇率得到展示货币
+// 下的 N；cost_cny 本身是结算成本（采购倍率来的），就是 N。利润 = 收入N − 成本N。
+// currency.format() 只负责贴符号，不再乘汇率。
 function buildTrendData(trend, seriesNames, queryRate) {
   const rows = [];
-  const toUsd = (cny) => deriveUsdFromCny(cny, queryRate);
+  const toN = (cny) => deriveUsdFromCny(cny, queryRate);
   (trend || []).forEach((point) => {
+    const revenueN = toN(point.revenue_cny);
     rows.push({
       date: point.date,
       series: seriesNames.revenue,
-      value: toUsd(point.revenue_cny),
+      value: revenueN,
     });
     rows.push({
       date: point.date,
       series: seriesNames.cost,
-      value: toUsd(point.cost_cny),
+      value: Number(point.cost_cny) || 0,
     });
     rows.push({
       date: point.date,
       series: seriesNames.profit,
-      value: toUsd(point.profit_cny),
+      value: revenueN - (Number(point.cost_cny) || 0),
     });
   });
   return rows;
@@ -154,15 +156,22 @@ function foldChannelStack(points, otherLabel, maxSeries = MAX_STACK_SERIES) {
   return { data, domain };
 }
 
-const CostCharts = ({ trend, costStack, granularity = 'day', exchangeRate, t }) => {
+const CostCharts = ({
+  trend,
+  costStack,
+  granularity = 'day',
+  exchangeRate,
+  t,
+}) => {
   // 与看板保持一致的 VChart 主题初始化
   useEffect(() => {
     initVChartSemiTheme({ isWatchingThemeSwitch: true });
   }, []);
 
-  // 展示货币跟随「系统设置 → 运营设置 → 额度展示类型」；查询汇率用于把后端的
-  // *_cny 折回美元，两者不能混用（见 getCostChartCurrency 注释）。
+  // 展示货币跟随「系统设置 → 运营设置 → 额度展示类型」，只负责贴货币符号；
+  // 金额已是展示货币口径，不再二次换算（见 getCostChartCurrency 注释）。
   const currency = useMemo(() => getCostChartCurrency(), []);
+  // 趋势点只带 *_cny，revenue_cny 需除回查询汇率得到展示货币下的 N。
   const queryRate = Number(exchangeRate) || 0;
 
   const seriesNames = useMemo(
@@ -184,14 +193,14 @@ const CostCharts = ({ trend, costStack, granularity = 'day', exchangeRate, t }) 
     [costStack, t],
   );
 
-  // 堆叠柱同样先折回美元，保证与折线图口径一致。
+  // 堆叠柱直接用结算成本，保证与折线图口径一致。
   const stackDisplayData = useMemo(
     () =>
       stackData.map((d) => ({
         ...d,
-        cost_display: deriveUsdFromCny(d.cost_cny, queryRate),
+        cost_display: Number(d.cost_cny) || 0,
       })),
-    [stackData, queryRate],
+    [stackData],
   );
 
   const trendTicks = useMemo(
@@ -200,7 +209,10 @@ const CostCharts = ({ trend, costStack, granularity = 'day', exchangeRate, t }) 
   );
 
   const stackTicks = useMemo(
-    () => sampleBucketTicks(Array.from(new Set(stackData.map((d) => d.date))).sort()),
+    () =>
+      sampleBucketTicks(
+        Array.from(new Set(stackData.map((d) => d.date))).sort(),
+      ),
     [stackData],
   );
 
@@ -225,7 +237,9 @@ const CostCharts = ({ trend, costStack, granularity = 'day', exchangeRate, t }) 
           orient: 'bottom',
           label: {
             formatMethod: (v) =>
-              trendTicks.has(String(v)) ? formatBucketLabel(v, granularity) : '',
+              trendTicks.has(String(v))
+                ? formatBucketLabel(v, granularity)
+                : '',
           },
         },
       ],
@@ -289,7 +303,9 @@ const CostCharts = ({ trend, costStack, granularity = 'day', exchangeRate, t }) 
           orient: 'bottom',
           label: {
             formatMethod: (v) =>
-              stackTicks.has(String(v)) ? formatBucketLabel(v, granularity) : '',
+              stackTicks.has(String(v))
+                ? formatBucketLabel(v, granularity)
+                : '',
           },
         },
       ],
@@ -304,7 +320,8 @@ const CostCharts = ({ trend, costStack, granularity = 'day', exchangeRate, t }) 
           content: [
             {
               key: (datum) => datum['channel'],
-              value: (datum) => currency.format(Number(datum['cost_display']) || 0),
+              value: (datum) =>
+                currency.format(Number(datum['cost_display']) || 0),
             },
           ],
         },
@@ -315,7 +332,8 @@ const CostCharts = ({ trend, costStack, granularity = 'day', exchangeRate, t }) 
           content: [
             {
               key: (datum) => datum['channel'],
-              value: (datum) => currency.format(Number(datum['cost_display']) || 0),
+              value: (datum) =>
+                currency.format(Number(datum['cost_display']) || 0),
             },
           ],
         },

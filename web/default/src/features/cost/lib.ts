@@ -85,25 +85,25 @@ export function useMoneyPrimaryCurrency(): MoneyPrimaryCurrency {
  * for TOKENS via `getBillingDisplayMeta` (an amount expressed in tokens is
  * meaningless on a money axis).
  *
- * ## Two different exchange rates — do not conflate them
+ * ## The chart axis carries the display currency's own N
  *
- * - **query rate** (`exchange_rate` in the filter bar, default 6.8): a *cost
- *   accounting* input. The backend already applied it to produce every `*_cny`
- *   field, including `cost_cny`, which came from `list_usd × cost ratio`.
- * - **display rate** (`usdExchangeRate` / `customCurrencyExchangeRate`): a
- *   *presentation* setting for the whole site.
+ * The report's money model is one number N per amount, in whatever currency
+ * 额度展示类型 declares (see `resolveDualMoney`). The filter's query rate only
+ * derives the *other* currency for a secondary line, so it must NOT be applied
+ * on the way to the axis — the axis already is the display currency.
  *
- * `format()` therefore takes **USD**, never CNY. Callers holding a `*_cny`
- * value must divide by the query rate first (`deriveUsdFromCny`) so the number
- * passes through exactly one conversion; feeding CNY straight in would apply
- * both rates and inflate the axis by ~7x.
+ * `format()` therefore takes the display-currency N and only attaches the
+ * symbol. `rateFromUsd` stays exposed for callers that genuinely need the
+ * site-wide USD→local rate, but the cost charts do not: passing N through it
+ * would scale the headline figures the display type is supposed to merely
+ * relabel.
  */
 export interface CostCurrency {
   symbol: string
-  /** Multiplier from USD to the display currency. */
+  /** Site-wide USD→local multiplier. Not applied by `format`; see the note above. */
   rateFromUsd: number
-  /** Format a **USD** amount into the display currency. */
-  format: (usdValue: number | null | undefined) => string
+  /** Attach the display currency's symbol to an amount already in that currency. */
+  format: (value: number | null | undefined) => string
 }
 
 export function useCostCurrency(): CostCurrency {
@@ -116,9 +116,8 @@ export function useCostCurrency(): CostCurrency {
     const rateFromUsd = meta.kind === 'tokens' ? 1 : meta.exchangeRate
     const currencyCode = meta.kind === 'currency' ? meta.currencyCode : undefined
 
-    const format = (usdValue: number | null | undefined): string => {
-      if (usdValue == null || Number.isNaN(usdValue)) return '-'
-      const value = usdValue * rateFromUsd
+    const format = (value: number | null | undefined): string => {
+      if (value == null || Number.isNaN(value)) return '-'
       // A custom currency has no ISO code, so Intl's `style: 'currency'` can't
       // render it — prefix the admin's symbol onto a plain decimal instead.
       if (!currencyCode) {
@@ -144,19 +143,54 @@ export interface DualMoneyText {
 }
 
 /**
- * Render a USD/CNY pair as {primary, secondary} display strings, ordered by
- * the admin's configured display currency. Used for the four cost-report
- * money columns (Cost/Revenue/Profit/List Price) everywhere they appear:
- * KPI cards, dimension table cells, and breakdown sub-rows.
+ * The cost report's money model. Every amount the backend returns is ONE
+ * number whose currency is declared by 系统设置 → 运营设置 → 额度展示类型;
+ * the filter's exchange rate never scales that number, it only derives the
+ * secondary line in the other currency:
+ *
+ *   display CNY -> primary ¥N, secondary $ (N / rate)
+ *   display USD -> primary $N, secondary ¥ (N × rate)
+ *
+ * So switching display type relabels the same N and flips the derivation —
+ * it never multiplies the headline figure.
  */
-export function formatDualMoney(
-  usd: number | null | undefined,
-  cny: number | null | undefined,
-  primary: MoneyPrimaryCurrency
+export function resolveDualMoney(
+  amount: number | null | undefined,
+  primary: MoneyPrimaryCurrency,
+  exchangeRate: number
 ): DualMoneyText {
+  if (amount == null || Number.isNaN(amount)) {
+    return { primary: '-', secondary: '-' }
+  }
   return primary === 'cny'
-    ? { primary: formatCny(cny), secondary: formatUsd(usd) }
-    : { primary: formatUsd(usd), secondary: formatCny(cny) }
+    ? {
+        primary: formatCny(amount),
+        secondary: formatUsd(deriveUsdFromCny(amount, exchangeRate)),
+      }
+    : {
+        primary: formatUsd(amount),
+        secondary: formatCny(deriveCnyFromUsd(amount, exchangeRate)),
+      }
+}
+
+/**
+ * Profit in the same unit as `revenue_usd` / `cost_cny`, i.e. the display
+ * currency's N. The backend's `profit_cny` is `revenue_usd × rate − cost_cny`,
+ * which mixes the filter rate into one side only — using it as N would make
+ * the three headline figures stop adding up as soon as rate ≠ 1.
+ */
+export function profitAmountOf(
+  row: Pick<CostMoney, 'revenue_usd' | 'cost_cny'>
+): number {
+  return round6(row.revenue_usd - row.cost_cny)
+}
+
+/** Profit ÷ revenue on the recomputed, single-currency figures. */
+export function profitRateOf(
+  row: Pick<CostMoney, 'revenue_usd' | 'cost_cny'>
+): number {
+  if (!row.revenue_usd) return 0
+  return round6(profitAmountOf(row) / row.revenue_usd)
 }
 
 /**

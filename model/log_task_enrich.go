@@ -29,6 +29,12 @@ type LogTaskInfo struct {
 	HasInput       bool    `json:"has_input"`
 	EffectiveRatio float64 `json:"effective_ratio,omitempty"`
 	IsUserRatio    bool    `json:"is_user_ratio,omitempty"`
+	// ElapsedS 是任务提交→终态的真实耗时（秒），来自 task.FinishTime - task.SubmitTime。
+	// 预扣行落库时任务刚提交，log.use_time 恒为 0，只能在查询期由 task 推导。
+	ElapsedS int `json:"elapsed_s,omitempty"`
+	// ResultUrl 是上游返回的原始视频地址（未经转存），用于核对是否命中官方
+	// ark TOS 路径。与 UpstreamTaskId 同级：仅 admin 路径返回。
+	ResultUrl string `json:"result_url,omitempty"`
 }
 
 // EnrichSeedanceTaskLogs 是 enrichSeedanceTaskLogs 的导出入口，供原始日志导出
@@ -168,6 +174,19 @@ func enrichSeedanceTaskLogs(logs []*Log, includeUpstreamId bool) {
 			}
 			if includeUpstreamId {
 				ti.UpstreamTaskId = tk.GetUpstreamTaskID()
+				// 仅成功任务取结果 URL：GetResultURL 对旧数据会回退到 FailReason，
+				// 失败任务下那是错误文案而非地址。
+				if tk.Status == TaskStatusSuccess {
+					ti.ResultUrl = tk.GetResultURL()
+				}
+			}
+			// 异步任务的"用时"= 提交→终态，只有 task 侧有这两个时间戳（均为 Unix 秒）。
+			// 未完成任务 FinishTime 为 0，保持 0 让前端沿用旧的空态渲染。
+			if tk.SubmitTime > 0 && tk.FinishTime > tk.SubmitTime {
+				ti.ElapsedS = int(tk.FinishTime - tk.SubmitTime)
+				if c.log.UseTime == 0 {
+					c.log.UseTime = ti.ElapsedS
+				}
 			}
 			// 请求参数真实值优先（Properties.Input = 用户原始请求 JSON）
 			res, ratio, dur := parseTaskRequestParams(tk.Properties.Input)

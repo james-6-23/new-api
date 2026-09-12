@@ -131,6 +131,21 @@ func TestCreateAndWait_Timeout(t *testing.T) {
 // when the upstream replies with a success envelope carrying no id (e.g. {"Result":{}}).
 // Without this guard the caller would upload into group "", producing a confusing
 // downstream parameter error instead of a clear one.
+// TestIsGroupExhausted_NotFoundGroupId pins the production-observed error code
+// "NotFound.group_id" in groupExhaustedCodes. The official and cloudwise paths
+// hit the same underlying upstream, so both must rotate away the vanished group
+// rather than surfacing a hard 500.
+func TestIsGroupExhausted_NotFoundGroupId(t *testing.T) {
+	cl := &bytePlusAssetClient{}
+	err := &assetAPIError{
+		Code:    "NotFound.group_id",
+		Message: "The specified asset_group group-20260819165431-b9xrj is not found.",
+	}
+	if !cl.IsGroupExhausted(err) {
+		t.Error("NotFound.group_id must be classified as group-exhausted on the byteplus client too")
+	}
+}
+
 func TestCreateGroup_EmptyId(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

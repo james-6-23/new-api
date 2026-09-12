@@ -229,6 +229,8 @@ const EditChannelModal = (props) => {
     asset_provider: 'byteplus',
     // 第三方 Seedance 渠道（渠道类型 59）素材库预上传总开关
     seedance3rd_asset_enabled: false,
+    // 上游任务 ID 透传（仅火山方舟 45 / 豆包视频 54 / 第三方 Seedance 59）
+    expose_upstream_task_id: false,
     // 供应商设置（仅 root 可见/编辑，非 root 通过 originalChannelSettingRef 保留原值）
     cost_ratio: 0,
     cost_mode: 'ratio',
@@ -1011,6 +1013,9 @@ const EditChannelModal = (props) => {
           // 读取第三方 Seedance 素材库预上传设置
           data.seedance3rd_asset_enabled =
             parsedSettings.seedance3rd_asset_enabled === true;
+          // 读取上游任务 ID 透传设置
+          data.expose_upstream_task_id =
+            parsedSettings.expose_upstream_task_id === true;
         } catch (error) {
           console.error('解析其他设置失败:', error);
           data.azure_responses_version = '';
@@ -1039,6 +1044,7 @@ const EditChannelModal = (props) => {
           data.byteplus_moderation_skip = true;
           data.asset_provider = 'byteplus';
           data.seedance3rd_asset_enabled = false;
+          data.expose_upstream_task_id = false;
         }
       } else {
         // 兼容历史数据：老渠道没有 settings 时，默认按 json 展示
@@ -1066,6 +1072,7 @@ const EditChannelModal = (props) => {
         data.byteplus_moderation_skip = true;
         data.asset_provider = 'byteplus';
         data.seedance3rd_asset_enabled = false;
+        data.expose_upstream_task_id = false;
       }
 
       if (
@@ -1939,6 +1946,14 @@ const EditChannelModal = (props) => {
         localInputs.seedance3rd_asset_enabled === true;
     } else if ('seedance3rd_asset_enabled' in settings) {
       delete settings.seedance3rd_asset_enabled;
+    }
+
+    // type === 45 / 54 / 59: 保存上游任务 ID 透传开关到 settings
+    if ([45, 54, 59].includes(localInputs.type)) {
+      settings.expose_upstream_task_id =
+        localInputs.expose_upstream_task_id === true;
+    } else if ('expose_upstream_task_id' in settings) {
+      delete settings.expose_upstream_task_id;
     }
 
     // type === 41 (Vertex): 始终保存 vertex_key_type 到 settings，避免编辑时被重置
@@ -3024,6 +3039,27 @@ const EditChannelModal = (props) => {
                         }
                         extraText={t(
                           '提交视频生成前，先把参考媒体上传到素材库并替换为 asset://id，鉴权复用渠道 Bearer key',
+                        )}
+                      />
+                    )}
+
+                    {/* 上游任务 ID 透传（火山方舟 45 / 豆包视频 54 / 第三方 Seedance 59）：
+                        字段名 expose_upstream_task_id 是已落库的 settings key，不可改名。 */}
+                    {[45, 54, 59].includes(inputs.type) && (
+                      <Form.Switch
+                        field='expose_upstream_task_id'
+                        label={t('向客户端透传上游任务 ID')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        value={inputs.expose_upstream_task_id === true}
+                        onChange={(value) =>
+                          handleChannelOtherSettingsChange(
+                            'expose_upstream_task_id',
+                            value,
+                          )
+                        }
+                        extraText={t(
+                          '在视频响应中额外输出 upstream_task_id 字段（如 cgt-...）。id / task_id 保持不变，客户端仍用公开 ID 回查。注意：会暴露上游供应商信息。',
                         )}
                       />
                     )}

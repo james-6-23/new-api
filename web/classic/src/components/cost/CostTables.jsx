@@ -38,10 +38,10 @@ import CardTable from '../common/ui/CardTable';
 import { API, showError, showSuccess } from '../../helpers';
 import { mergeBreakdown, MERGE_VIEW_OPTIONS } from './costMerge';
 import {
-  deriveCnyFromUsd,
-  deriveUsdFromCny,
-  formatDualMoney,
   getMoneyPrimaryCurrency,
+  profitAmountOf,
+  profitRateOf,
+  resolveDualMoney,
 } from './costFormat';
 import { CostHelpHeader, CostHelpFormula, CostHelpNotes } from './CostHelp';
 import CostVersionPanel from './CostVersionPanel';
@@ -129,10 +129,10 @@ const buildMetricColumns = (
     width: 130,
     render: (_, row) => {
       if (row.__isNote) return null;
-      const { primary, secondary } = formatDualMoney(
+      const { primary, secondary } = resolveDualMoney(
         row.list_usd,
-        deriveCnyFromUsd(row.list_usd, exchangeRate),
         primaryCurrency,
+        exchangeRate,
       );
       return <DualMoneyCell primary={primary} secondary={secondary} />;
     },
@@ -214,10 +214,10 @@ const buildMetricColumns = (
     width: 130,
     render: (_, row) => {
       if (row.__isNote) return null;
-      const { primary, secondary } = formatDualMoney(
-        deriveUsdFromCny(row.cost_cny, exchangeRate),
+      const { primary, secondary } = resolveDualMoney(
         row.cost_cny,
         primaryCurrency,
+        exchangeRate,
       );
       return <DualMoneyCell primary={primary} secondary={secondary} />;
     },
@@ -229,10 +229,10 @@ const buildMetricColumns = (
     width: 130,
     render: (_, row) => {
       if (row.__isNote) return null;
-      const { primary, secondary } = formatDualMoney(
+      const { primary, secondary } = resolveDualMoney(
         row.revenue_usd,
-        row.revenue_cny,
         primaryCurrency,
+        exchangeRate,
       );
       return <DualMoneyCell primary={primary} secondary={secondary} />;
     },
@@ -244,14 +244,15 @@ const buildMetricColumns = (
     width: 130,
     render: (_, row) => {
       if (row.__isNote) return null;
-      const { primary, secondary } = formatDualMoney(
-        deriveUsdFromCny(row.profit_cny, exchangeRate),
-        row.profit_cny,
+      const profit = profitAmountOf(row);
+      const { primary, secondary } = resolveDualMoney(
+        profit,
         primaryCurrency,
+        exchangeRate,
       );
       return (
         <DualMoneyCell
-          primary={<span style={profitStyle(row.profit_cny)}>{primary}</span>}
+          primary={<span style={profitStyle(profit)}>{primary}</span>}
           secondary={secondary}
         />
       );
@@ -274,12 +275,11 @@ const buildMetricColumns = (
     ),
     align: 'right',
     width: 100,
-    render: (_, row) =>
-      row.__isNote ? null : (
-        <span style={profitStyle(row.profit_rate)}>
-          {percent(row.profit_rate)}
-        </span>
-      ),
+    render: (_, row) => {
+      if (row.__isNote) return null;
+      const rate = profitRateOf(row);
+      return <span style={profitStyle(rate)}>{percent(rate)}</span>;
+    },
   },
   {
     key: 'request_count',

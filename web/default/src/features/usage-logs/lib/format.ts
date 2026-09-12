@@ -150,6 +150,19 @@ export function getResponseTimeColor(
 }
 
 /**
+ * Timing color for a usage log row.
+ *
+ * 异步视频任务的用时是"提交 → 终态"的排队 + 生成时长，分钟级属于正常，
+ * 套用同步请求的延迟阈值会把每一条视频日志都标红，因此统一走中性色。
+ */
+export function getLogTimingColor(
+  log: UsageLog
+): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (log.task_info) return 'neutral'
+  return getResponseTimeColor(log.use_time, log.completion_tokens)
+}
+
+/**
  * Format model name with mapping indicator
  */
 export function formatModelName(log: UsageLog): {

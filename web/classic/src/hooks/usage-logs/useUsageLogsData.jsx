@@ -619,6 +619,17 @@ export const useLogsData = () => {
             value: taskInfo.upstream_task_id,
           });
         }
+        // 上游原始视频地址（未经转存），用于核对是否命中官方 ark TOS 路径。
+        if (taskInfo.result_url) {
+          expandDataLocal.push({
+            key: t('视频URL'),
+            value: (
+              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-all', lineHeight: 1.6 }}>
+                {taskInfo.result_url}
+              </div>
+            ),
+          });
+        }
       }
       if (isAdminUser && other?.stream_status) {
         const ss = other.stream_status;

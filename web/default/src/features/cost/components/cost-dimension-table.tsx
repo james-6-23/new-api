@@ -54,11 +54,11 @@ import type {
   CostMoney,
 } from '../types'
 import {
-  deriveCnyFromUsd,
-  deriveUsdFromCny,
   formatAvgTtft,
   formatRate,
   mergeBreakdown,
+  profitAmountOf,
+  profitRateOf,
   useMoneyPrimaryCurrency,
   type CostBreakdownGroupBy,
   type MoneyPrimaryCurrency,
@@ -283,6 +283,8 @@ function buildMetricColumns(
   exchangeRate: number,
   dim: CostDimension
 ): MetricColumnSpec[] {
+  // Every money column renders the backend's single figure in the display
+  // currency and derives the other currency underneath (see resolveDualMoney).
   // List price leads: it's the basis both other money columns derive from
   // (× cost ratio = cost, × group discount = revenue).
   const columns: MetricColumnSpec[] = [
@@ -290,11 +292,7 @@ function buildMetricColumns(
       id: 'list_usd',
       header: t('List Price'),
       cell: (row) => (
-        <MoneyDualCell
-          usd={row.list_usd}
-          cny={deriveCnyFromUsd(row.list_usd, exchangeRate)}
-          primary={primary}
-        />
+        <MoneyDualCell amount={row.list_usd} primary={primary} exchangeRate={exchangeRate} />
       ),
     },
   ]
@@ -327,39 +325,36 @@ function buildMetricColumns(
       id: 'cost_cny',
       header: t('Cost'),
       cell: (row) => (
-        <MoneyDualCell
-          usd={deriveUsdFromCny(row.cost_cny, exchangeRate)}
-          cny={row.cost_cny}
-          primary={primary}
-        />
+        <MoneyDualCell amount={row.cost_cny} primary={primary} exchangeRate={exchangeRate} />
       ),
     },
     {
       id: 'revenue',
       header: t('Revenue'),
       cell: (row) => (
-        <MoneyDualCell
-          usd={row.revenue_usd}
-          cny={row.revenue_cny}
-          primary={primary}
-        />
+        <MoneyDualCell amount={row.revenue_usd} primary={primary} exchangeRate={exchangeRate} />
       ),
     },
     {
       id: 'profit_cny',
       header: t('Profit'),
-      cell: (row) => (
-        <MoneyDualCell
-          usd={deriveUsdFromCny(row.profit_cny, exchangeRate)}
-          cny={row.profit_cny}
-          primary={primary}
-          primaryClassName={
-            row.profit_cny >= 0 ? 'text-success' : 'text-destructive'
-          }
-        />
-      ),
+      cell: (row) => {
+        const profit = profitAmountOf(row)
+        return (
+          <MoneyDualCell
+            amount={profit}
+            primary={primary}
+            exchangeRate={exchangeRate}
+            primaryClassName={profit >= 0 ? 'text-success' : 'text-destructive'}
+          />
+        )
+      },
     },
-    { id: 'profit_rate', header: <ProfitRateHeader />, cell: (row) => formatRate(row.profit_rate) },
+    {
+      id: 'profit_rate',
+      header: <ProfitRateHeader />,
+      cell: (row) => formatRate(profitRateOf(row)),
+    },
     {
       id: 'request_outcome',
       header: t('Success / Failed'),

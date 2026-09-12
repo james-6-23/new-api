@@ -44,7 +44,8 @@ type bytePlusAssetClient struct {
 	httpClient     *http.Client
 
 	// endpoint 为 OpenAPI 根地址（含 scheme 与 host，不含 path/query）。
-	// 留空时按 region 推导为 https://ark.{region}.byteplusapi.com。
+	// 留空时按 region 推导：cn-* → https://open.volcengineapi.com，
+	// 其他 → https://ark.{region}.byteplusapi.com（海外 BytePlus）。
 	// 单元测试通过设置此字段指向 httptest.Server。
 	endpoint string
 
@@ -71,6 +72,11 @@ func (cl *bytePlusAssetClient) timeoutOrDefault() time.Duration {
 func (cl *bytePlusAssetClient) baseEndpoint() string {
 	if cl.endpoint != "" {
 		return strings.TrimRight(cl.endpoint, "/")
+	}
+	// cn-* regions use the domestic Volcengine OpenAPI gateway; all other
+	// regions (ap-*, eu-*, us-*) use the BytePlus overseas gateway.
+	if strings.HasPrefix(cl.region, "cn-") {
+		return "https://open.volcengineapi.com"
 	}
 	return fmt.Sprintf("https://ark.%s.byteplusapi.com", cl.region)
 }
@@ -155,6 +161,7 @@ var groupExhaustedCodes = map[string]bool{
 	"InvalidParameter.GroupId":    true,
 	"ResourceNotFound.GroupId":    true,
 	"LimitExceeded.GroupCapacity": true,
+	"NotFound.group_id":           true,
 }
 
 // IsGroupExhausted returns true only when err is an *assetAPIError whose Code

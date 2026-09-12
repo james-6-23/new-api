@@ -22,12 +22,10 @@ import { cn } from '@/lib/utils'
 import { StatCard } from '@/features/dashboard/components/ui/stat-card'
 import type { CostOverview } from '../types'
 import {
-  deriveCnyFromUsd,
-  deriveUsdFromCny,
-  formatCny,
-  formatDualMoney,
   formatRate,
-  formatUsd,
+  profitAmountOf,
+  profitRateOf,
+  resolveDualMoney,
   useMoneyPrimaryCurrency,
 } from '../lib'
 
@@ -42,32 +40,25 @@ export function CostKpiCards({ overview, loading }: CostKpiCardsProps) {
   const totals = overview?.totals
   const exchangeRate = overview?.exchange_rate ?? 0
   const unpricedCount = overview?.unpriced_channel_count ?? 0
-  const profitTone =
-    totals && totals.profit_cny < 0 ? ('rose' as const) : ('teal' as const)
+  // Profit is recomputed on the display currency's own figures so the three
+  // headline cards add up; the backend's profit_cny mixes in the filter rate.
+  const profitAmount = totals ? profitAmountOf(totals) : 0
+  const profitTone = profitAmount < 0 ? ('rose' as const) : ('teal' as const)
 
   const revenue = totals
-    ? formatDualMoney(totals.revenue_usd, totals.revenue_cny, primary)
+    ? resolveDualMoney(totals.revenue_usd, primary, exchangeRate)
     : undefined
   const cost = totals
-    ? formatDualMoney(
-        deriveUsdFromCny(totals.cost_cny, exchangeRate),
-        totals.cost_cny,
-        primary
-      )
+    ? resolveDualMoney(totals.cost_cny, primary, exchangeRate)
     : undefined
   const listPrice = totals
-    ? formatDualMoney(
-        totals.list_usd,
-        deriveCnyFromUsd(totals.list_usd, exchangeRate),
-        primary
-      )
+    ? resolveDualMoney(totals.list_usd, primary, exchangeRate)
+    : undefined
+  const refund = totals
+    ? resolveDualMoney(totals.refund_usd, primary, exchangeRate)
     : undefined
   const profit = totals
-    ? formatDualMoney(
-        deriveUsdFromCny(totals.profit_cny, exchangeRate),
-        totals.profit_cny,
-        primary
-      )
+    ? resolveDualMoney(profitAmount, primary, exchangeRate)
     : undefined
 
   return (
@@ -87,9 +78,9 @@ export function CostKpiCards({ overview, loading }: CostKpiCardsProps) {
             title={t('Revenue')}
             value={loading || !totals || !revenue ? '--' : revenue.primary}
             description={
-              loading || !totals || !revenue
+              loading || !totals || !revenue || !refund
                 ? ''
-                : `${revenue.secondary} · ${t('Refunds')} -${formatUsd(totals.refund_usd)}`
+                : `${revenue.secondary} · ${t('Refunds')} -${refund.primary}`
             }
             icon={DollarSign}
             tone='gray'
@@ -119,7 +110,7 @@ export function CostKpiCards({ overview, loading }: CostKpiCardsProps) {
               ) : (
                 <span
                   className={cn(
-                    totals.profit_cny >= 0 ? 'text-success' : 'text-destructive'
+                    profitAmount >= 0 ? 'text-success' : 'text-destructive'
                   )}
                 >
                   {profit.primary}
@@ -135,11 +126,11 @@ export function CostKpiCards({ overview, loading }: CostKpiCardsProps) {
         <div className='bg-card rounded-xl border p-3'>
           <StatCard
             title={t('Profit Rate')}
-            value={loading || !totals ? '--' : formatRate(totals.profit_rate)}
+            value={loading || !totals ? '--' : formatRate(profitRateOf(totals))}
             description={
-              loading || !totals
+              loading || !totals || !profit || !revenue
                 ? ''
-                : `${formatCny(totals.profit_cny)} / ${formatCny(totals.revenue_cny)}`
+                : `${profit.primary} / ${revenue.primary}`
             }
             icon={TrendingUp}
             tone={profitTone}

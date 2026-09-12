@@ -225,6 +225,7 @@ export const channelFormSchema = z
     asset_provider: z.enum(['byteplus', 'cloudwise']).optional(),
     // Seedance(第三方) asset pre-upload (stored in settings JSON; channel type 59)
     seedance3rd_asset_enabled: z.boolean().optional(),
+    expose_upstream_task_id: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if ([3, 8, 36, 45].includes(data.type) && !data.base_url?.trim()) {
@@ -383,11 +384,12 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   byteplus_secret_key: '',
   byteplus_asset_group_id: '',
   byteplus_project_name: 'default',
-  byteplus_region: 'ap-southeast-1',
+  byteplus_region: 'cn-beijing',
   byteplus_moderation_skip: true,
   asset_provider: 'byteplus',
   // Seedance(第三方) asset pre-upload
   seedance3rd_asset_enabled: false,
+  expose_upstream_task_id: false,
 }
 
 // ============================================================================
@@ -480,6 +482,7 @@ export function transformChannelToFormDefaults(
   let bytePlusModerationSkip = true
   let assetProvider: 'byteplus' | 'cloudwise' = 'byteplus'
   let seedance3rdAssetEnabled = false
+  let exposeUpstreamTaskId = false
 
   if (channel.settings) {
     try {
@@ -509,10 +512,11 @@ export function transformChannelToFormDefaults(
       bytePlusSecretKey = parsed.byteplus_secret_key || ''
       bytePlusAssetGroupId = parsed.byteplus_asset_group_id || ''
       bytePlusProjectName = parsed.byteplus_project_name || 'default'
-      bytePlusRegion = parsed.byteplus_region || 'ap-southeast-1'
+      bytePlusRegion = parsed.byteplus_region || 'cn-beijing'
       bytePlusModerationSkip = parsed.byteplus_moderation_skip !== false
       assetProvider = parsed.asset_provider || 'byteplus'
       seedance3rdAssetEnabled = parsed.seedance3rd_asset_enabled === true
+      exposeUpstreamTaskId = parsed.expose_upstream_task_id === true
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
@@ -573,6 +577,7 @@ export function transformChannelToFormDefaults(
     asset_provider: assetProvider,
     // Seedance(第三方) asset pre-upload
     seedance3rd_asset_enabled: seedance3rdAssetEnabled,
+    expose_upstream_task_id: exposeUpstreamTaskId,
   }
 }
 
@@ -690,7 +695,7 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.byteplus_project_name =
       (formData.byteplus_project_name || '').trim() || 'default'
     settingsObj.byteplus_region =
-      (formData.byteplus_region || '').trim() || 'ap-southeast-1'
+      (formData.byteplus_region || '').trim() || 'cn-beijing'
     settingsObj.byteplus_moderation_skip =
       formData.byteplus_moderation_skip !== false
     settingsObj.asset_provider = formData.asset_provider || 'byteplus'
@@ -706,6 +711,15 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       formData.seedance3rd_asset_enabled === true
   } else if ('seedance3rd_asset_enabled' in settingsObj) {
     delete settingsObj.seedance3rd_asset_enabled
+  }
+
+  // Upstream task id passthrough for all Seedance channels:
+  // VolcEngine (45) / DoubaoVideo (54) / Seedance 3rd-party (59).
+  if ([45, 54, 59].includes(formData.type)) {
+    settingsObj.expose_upstream_task_id =
+      formData.expose_upstream_task_id === true
+  } else if ('expose_upstream_task_id' in settingsObj) {
+    delete settingsObj.expose_upstream_task_id
   }
 
   // Field passthrough controls:

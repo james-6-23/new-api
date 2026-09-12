@@ -17,12 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { cn } from '@/lib/utils'
-import { formatDualMoney, type MoneyPrimaryCurrency } from '../lib'
+import { resolveDualMoney, type MoneyPrimaryCurrency } from '../lib'
 
 interface MoneyDualCellProps {
-  usd: number | null | undefined
-  cny: number | null | undefined
+  /** The backend's single figure, already in the display currency. */
+  amount: number | null | undefined
   primary: MoneyPrimaryCurrency
+  /** Filter rate, used only to derive the secondary line. */
+  exchangeRate: number
   /** Applied to the primary (top) line only, e.g. profit's green/red sign coloring. */
   primaryClassName?: string
   className?: string
@@ -32,19 +34,19 @@ interface MoneyDualCellProps {
  * Two-line money display shared by the cost report's KPI cards, dimension
  * table cells, and breakdown sub-rows: a primary line in the admin-configured
  * display currency (系统设置 → 运营设置 → 额度展示类型) and a muted, smaller
- * secondary line in the other currency.
+ * secondary line in the other currency, derived with the filter's rate.
  */
 export function MoneyDualCell({
-  usd,
-  cny,
+  amount,
   primary,
+  exchangeRate,
   primaryClassName,
   className,
 }: MoneyDualCellProps) {
-  const { primary: primaryText, secondary: secondaryText } = formatDualMoney(
-    usd,
-    cny,
-    primary
+  const { primary: primaryText, secondary: secondaryText } = resolveDualMoney(
+    amount,
+    primary,
+    exchangeRate
   )
   return (
     <div

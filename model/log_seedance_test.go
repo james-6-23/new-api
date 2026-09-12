@@ -317,3 +317,82 @@ func TestEnrichSeedance_OrphanFailReasonFromSiblingContent(t *testing.T) {
 	assert.Equal(t, "FAILURE", ti.Status)
 	assert.Equal(t, "upstream error: output_video_censored", ti.FailReason)
 }
+
+// 成功任务：耗时由 task 的提交→完成时间戳推导，并回填到预扣行的 use_time
+// （预扣行落库时任务刚提交，自身恒为 0）；上游视频 URL 仅 admin 路径返回。
+func TestEnrichSeedance_ElapsedAndResultURL(t *testing.T) {
+	clearLogsAndTasks(t)
+	const tosURL = "https://ark-content-generation-cn-beijing.tos-cn-beijing.volces.com/seedance/x.mp4"
+	require.NoError(t, DB.Create(&Task{
+		TaskID: "vt-el", UserId: 1, Status: TaskStatusSuccess, Progress: "100%", Quota: 100,
+		SubmitTime: 1_700_000_000, FinishTime: 1_700_000_143,
+		PrivateData: TaskPrivateData{
+			UpstreamTaskID: "up-el", RequestId: "req-el", ResultURL: tosURL,
+		},
+	}).Error)
+	require.NoError(t, LOG_DB.Create(&Log{
+		UserId: 1, Type: LogTypeConsume, ModelName: "doubao-seedance-1-0", CreatedAt: 1000,
+		Quota: 100, RequestId: "req-el",
+		Other: `{"is_task":true,"billing_stage":"pre_consume","task_id":"vt-el","group_ratio":1}`,
+	}).Error)
+
+	logs, _, err := GetAllLogs(LogTypeUnknown, 0, 0, "", "", "", 0, 100, 0, "", "", "")
+	require.NoError(t, err)
+	require.Len(t, logs, 1)
+	ti := logs[0].TaskInfo
+	require.NotNil(t, ti)
+	assert.Equal(t, 143, ti.ElapsedS)
+	assert.Equal(t, 143, logs[0].UseTime, "用时列读的是 use_time，必须回填")
+	assert.Equal(t, tosURL, ti.ResultUrl)
+
+	// self 路径与上游任务 ID 同门控：不暴露上游地址
+	ulogs, _, err := GetUserLogs(1, LogTypeUnknown, 0, 0, "", "", 0, 100, "", "", "")
+	require.NoError(t, err)
+	require.Len(t, ulogs, 1)
+	require.NotNil(t, ulogs[0].TaskInfo)
+	assert.Empty(t, ulogs[0].TaskInfo.ResultUrl)
+	assert.Equal(t, 143, ulogs[0].TaskInfo.ElapsedS, "耗时本身不敏感，self 路径同样可见")
+}
+
+// 未完成任务没有 FinishTime，耗时保持 0（前端沿用旧的空态渲染）；
+// 失败任务的 GetResultURL 会回退到 FailReason，绝不能当成视频地址暴露。
+func TestEnrichSeedance_NoElapsedWhenUnfinished(t *testing.T) {
+	clearLogsAndTasks(t)
+	require.NoError(t, DB.Create(&Task{
+		TaskID: "vt-run", UserId: 1, Status: TaskStatusInProgress, Progress: "30%", Quota: 100,
+		SubmitTime: 1_700_000_000,
+		PrivateData: TaskPrivateData{RequestId: "req-run"},
+	}).Error)
+	require.NoError(t, DB.Create(&Task{
+		TaskID: "vt-fail", UserId: 1, Status: TaskStatusFailure, Progress: "100%", Quota: 100,
+		FailReason: "content policy", SubmitTime: 1_700_000_000, FinishTime: 1_700_000_020,
+		PrivateData: TaskPrivateData{RequestId: "req-fail"},
+	}).Error)
+	mk := func(reqId, taskId string) {
+		require.NoError(t, LOG_DB.Create(&Log{
+			UserId: 1, Type: LogTypeConsume, ModelName: "doubao-seedance-1-0", CreatedAt: 1000,
+			Quota: 100, RequestId: reqId,
+			Other: `{"is_task":true,"billing_stage":"pre_consume","task_id":"` + taskId + `","group_ratio":1}`,
+		}).Error)
+	}
+	mk("req-run", "vt-run")
+	mk("req-fail", "vt-fail")
+
+	logs, _, err := GetAllLogs(LogTypeUnknown, 0, 0, "", "", "", 0, 100, 0, "", "", "")
+	require.NoError(t, err)
+	require.Len(t, logs, 2)
+	byReq := map[string]*Log{}
+	for _, l := range logs {
+		byReq[l.RequestId] = l
+	}
+
+	running := byReq["req-run"]
+	require.NotNil(t, running.TaskInfo)
+	assert.Equal(t, 0, running.TaskInfo.ElapsedS)
+	assert.Equal(t, 0, running.UseTime)
+
+	failed := byReq["req-fail"]
+	require.NotNil(t, failed.TaskInfo)
+	assert.Equal(t, 20, failed.TaskInfo.ElapsedS, "失败任务也有真实耗时")
+	assert.Empty(t, failed.TaskInfo.ResultUrl, "失败任务不得把 FailReason 当作视频地址")
+}

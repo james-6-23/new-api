@@ -17,8 +17,12 @@ const (
 )
 
 type OpenAIVideo struct {
-	ID                 string            `json:"id"`
-	TaskID             string            `json:"task_id,omitempty"` //兼容旧接口 待废弃
+	ID     string `json:"id"`
+	TaskID string `json:"task_id,omitempty"` //兼容旧接口 待废弃
+	// UpstreamTaskID 上游供应商真实任务 ID（如火山方舟 cgt-*）。
+	// 仅在渠道开启 expose_upstream_task_id 时写入；id/task_id 始终是 new-api
+	// 的公开 ID，回查与取流仍以公开 ID 为准。
+	UpstreamTaskID     string            `json:"upstream_task_id,omitempty"`
 	Object             string            `json:"object"`
 	Model              string            `json:"model"`
 	Status             string            `json:"status"` // Should use VideoStatus constants: VideoStatusQueued, VideoStatusInProgress, VideoStatusCompleted, VideoStatusFailed

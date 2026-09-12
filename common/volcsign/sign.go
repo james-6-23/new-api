@@ -2,9 +2,11 @@
 // signing (HMAC-SHA256, AWS-SigV4-style 4-stage key derivation).
 //
 // It is shared by every channel that talks to a Volcengine-family OpenAPI
-// (jimeng uses region=cn-north-1/service=cv; BytePlus素材库 uses
-// region=ap-southeast-1/service=ark). Only region/service/host differ — the
-// canonical-request and string-to-sign construction is identical.
+// (jimeng uses region=cn-north-1/service=cv; 国内方舟素材库 uses
+// region=cn-beijing/service=ark via open.volcengineapi.com; 海外 BytePlus
+// 素材库 uses region=ap-southeast-1/service=ark via byteplusapi.com).
+// Only region/service/host differ — the canonical-request and
+// string-to-sign construction is identical.
 package volcsign
 
 import (

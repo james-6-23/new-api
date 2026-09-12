@@ -45,7 +45,8 @@ export const RAW_ADDITIVE_FIELDS = [
 // - cache_rate：缓存读取 / 总输入（分母含缓存创建，不含输出；分母 0 → 0）
 // - success_rate：request_count+error_count 为 0 时兜底为 1
 // - avg_ttft_ms：frt_count 为 0 时兜底为 0
-// - profit_rate：revenue_cny 为 0 时兜底为 0
+// - profit_rate：用展示口径的「收入 − 成本」重算（收入 0 → 0），与页面各列的
+//   profitRateOf() 一致；后端 profit_cny 混入了筛选汇率，不能直接拿来相除
 // - effective_discount：收入$ ÷ 刊例$（按合并后的总额重算，非各行取平均）
 // - effective_ratio：成本¥ ÷ 刊例$（同上，跨计价版本时天然是加权均值）
 export function deriveCostRates(row) {
@@ -57,8 +58,8 @@ export function deriveCostRates(row) {
   const cacheCreationTokens = Number(row.cache_creation_tokens) || 0;
   const frtSumMs = Number(row.frt_sum_ms) || 0;
   const frtCount = Number(row.frt_count) || 0;
-  const revenueCny = Number(row.revenue_cny) || 0;
-  const profitCny = Number(row.profit_cny) || 0;
+  const revenueUsd = Number(row.revenue_usd) || 0;
+  const costCny = Number(row.cost_cny) || 0;
 
   const inputTokens = promptTokens + cacheReadTokens + cacheCreationTokens;
   row.total_tokens = inputTokens + completionTokens;
@@ -68,7 +69,7 @@ export function deriveCostRates(row) {
       : requestCount / (requestCount + errorCount);
   row.cache_rate = inputTokens === 0 ? 0 : cacheReadTokens / inputTokens;
   row.avg_ttft_ms = frtCount === 0 ? 0 : frtSumMs / frtCount;
-  row.profit_rate = revenueCny === 0 ? 0 : profitCny / revenueCny;
+  row.profit_rate = revenueUsd === 0 ? 0 : (revenueUsd - costCny) / revenueUsd;
   const listUsd = Number(row.list_usd) || 0;
   row.effective_discount_known = listUsd !== 0;
   row.effective_discount =

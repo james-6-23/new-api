@@ -28,9 +28,10 @@ import { createCardProPagination } from '../../helpers/utils';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { DATE_RANGE_PRESETS } from '../../constants/console.constants';
 import {
-  deriveUsdFromCny,
-  formatDualMoney,
   getMoneyPrimaryCurrency,
+  profitAmountOf,
+  profitRateOf,
+  resolveDualMoney,
 } from './costFormat';
 
 const { Text } = Typography;
@@ -73,20 +74,23 @@ const CostAccounting = () => {
   const appliedExchangeRate = overview?.exchange_rate || filters.exchangeRate;
   const primaryCurrency = getMoneyPrimaryCurrency();
 
-  const revenueMoney = formatDualMoney(
+  const totalsProfit = profitAmountOf(totals);
+  const totalsProfitRate = profitRateOf(totals);
+
+  const revenueMoney = resolveDualMoney(
     totals.revenue_usd,
-    totals.revenue_cny,
     primaryCurrency,
+    appliedExchangeRate,
   );
-  const costMoney = formatDualMoney(
-    deriveUsdFromCny(totals.cost_cny, appliedExchangeRate),
+  const costMoney = resolveDualMoney(
     totals.cost_cny,
     primaryCurrency,
+    appliedExchangeRate,
   );
-  const profitMoney = formatDualMoney(
-    deriveUsdFromCny(totals.profit_cny, appliedExchangeRate),
-    totals.profit_cny,
+  const profitMoney = resolveDualMoney(
+    totalsProfit,
     primaryCurrency,
+    appliedExchangeRate,
   );
 
   const statsArea = (
@@ -113,7 +117,14 @@ const CostAccounting = () => {
               className='text-xs mt-1'
               style={{ color: 'var(--semi-color-danger)' }}
             >
-              {t('退款')} -${Number(totals.refund_usd || 0).toFixed(2)}
+              {t('退款')} -
+              {
+                resolveDualMoney(
+                  totals.refund_usd,
+                  primaryCurrency,
+                  appliedExchangeRate,
+                ).primary
+              }
             </div>
           )}
         </Card>
@@ -128,7 +139,7 @@ const CostAccounting = () => {
           <div className='text-xs text-gray-500 mb-1'>{t('利润')}</div>
           <div
             className='text-lg font-semibold'
-            style={profitStyle(totals.profit_cny)}
+            style={profitStyle(totalsProfit)}
           >
             {profitMoney.primary}
           </div>
@@ -140,9 +151,9 @@ const CostAccounting = () => {
           <div className='text-xs text-gray-500 mb-1'>{t('利润率')}</div>
           <div
             className='text-lg font-semibold'
-            style={profitStyle(totals.profit_rate)}
+            style={profitStyle(totalsProfitRate)}
           >
-            {(Number(totals.profit_rate || 0) * 100).toFixed(2)}%
+            {(totalsProfitRate * 100).toFixed(2)}%
           </div>
         </Card>
       </div>

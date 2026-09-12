@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -379,5 +380,34 @@ func TestConvertToOpenAIVideo_MasksUpstreamErrorMessage(t *testing.T) {
 	}
 	if !strings.Contains(s, "download_failed") || !strings.Contains(s, "cannot fetch") {
 		t.Fatalf("error info lost: %s", s)
+	}
+}
+
+// TestDoResponse_ExposeUpstreamTaskID 验证渠道开启 expose_upstream_task_id 后，
+// 上游 ID 以独立字段透传，而 id/task_id 仍是公开 ID——客户端的回查与取流都按
+// 公开 ID 寻址，一旦被替换就会查不到。
+func TestDoResponse_ExposeUpstreamTaskID(t *testing.T) {
+	a := &TaskAdaptor{otherSettings: dto.ChannelOtherSettings{ExposeUpstreamTaskId: true}}
+	c, w := newTestGinCtx()
+	info := &relaycommon.RelayInfo{
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{PublicTaskID: "task_public_123"},
+		OriginModelName: "dreamina-seedance-2-0-260128",
+	}
+	body := `{"task":{"id":"mvt-179197ccca01401a","status":"pending"}}`
+	resp := &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}
+
+	if _, _, taskErr := a.DoResponse(c, resp, info); taskErr != nil {
+		t.Fatalf("taskErr: %+v", taskErr)
+	}
+
+	var got dto.OpenAIVideo
+	if err := common.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal response: %v (body: %s)", err, w.Body.String())
+	}
+	if got.UpstreamTaskID != "mvt-179197ccca01401a" {
+		t.Errorf("upstream_task_id = %q, want the upstream id", got.UpstreamTaskID)
+	}
+	if got.ID != "task_public_123" || got.TaskID != "task_public_123" {
+		t.Errorf("id/task_id must stay public, got id=%q task_id=%q", got.ID, got.TaskID)
 	}
 }

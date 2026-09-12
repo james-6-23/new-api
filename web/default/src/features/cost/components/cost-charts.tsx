@@ -83,11 +83,13 @@ export function CostCharts({ overview, loading }: CostChartsProps) {
   const otherLabel = t('Other')
 
   const granularity: CostGranularity = overview?.granularity ?? 'day'
-  // Every `*_cny` field the API returns already went through the *query* rate
-  // (the filter bar's cost-accounting input). Charts render in the *display*
-  // currency, so values go back to USD first and are converted exactly once.
+  // The trend API only carries `*_cny`, whose revenue side was multiplied by
+  // the query rate (cost_cny is a native CNY figure from 采购倍率 and is the
+  // display-currency N already). Recover revenue's N by dividing the rate out
+  // once, so the axis shows the display currency's N and `currency.format`
+  // just attaches the symbol.
   const queryRate = overview?.exchange_rate ?? 0
-  const toUsd = useCallback(
+  const toN = useCallback(
     (cny: number) => deriveUsdFromCny(cny, queryRate),
     [queryRate]
   )
@@ -95,20 +97,21 @@ export function CostCharts({ overview, loading }: CostChartsProps) {
   const trendSpec = useMemo(() => {
     const values: Array<{ date: string; series: string; value: number }> = []
     for (const point of overview?.trend ?? []) {
+      const revenueN = toN(point.revenue_cny)
       values.push({
         date: point.date,
         series: revenueLabel,
-        value: toUsd(point.revenue_cny),
+        value: revenueN,
       })
       values.push({
         date: point.date,
         series: costLabel,
-        value: toUsd(point.cost_cny),
+        value: point.cost_cny,
       })
       values.push({
         date: point.date,
         series: profitLabel,
-        value: toUsd(point.profit_cny),
+        value: revenueN - point.cost_cny,
       })
     }
     const domain = [revenueLabel, costLabel, profitLabel]
@@ -188,7 +191,7 @@ export function CostCharts({ overview, loading }: CostChartsProps) {
     profitLabel,
     granularity,
     currency,
-    toUsd,
+    toN,
   ])
 
   const stackSpec = useMemo(() => {
@@ -197,10 +200,10 @@ export function CostCharts({ overview, loading }: CostChartsProps) {
     const gapStroke = getThemeBackgroundColor()
     const buckets = Array.from(new Set(folded.data.map((d) => d.date))).sort()
     const ticks = sampleBucketTicks(buckets)
-    // Same one-conversion rule as the trend chart.
+    // Same as the trend chart: values are already in the display currency.
     const values = folded.data.map((d) => ({
       ...d,
-      cost_display: toUsd(d.cost_cny),
+      cost_display: d.cost_cny,
     }))
 
     return {
@@ -266,7 +269,7 @@ export function CostCharts({ overview, loading }: CostChartsProps) {
       background: { fill: 'transparent' },
       animation: true,
     }
-  }, [overview?.cost_stack, otherLabel, granularity, currency, toUsd])
+  }, [overview?.cost_stack, otherLabel, granularity, currency])
 
   const chartKey = [
     resolvedTheme,

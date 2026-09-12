@@ -1,10 +1,12 @@
 package claude
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -41,6 +43,81 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 	}
 	if strings.EqualFold(stopReason, "refusal") {
 		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
+	}
+}
+
+// claudeFileSource 为 file 类型内容构造文件来源。
+//
+// 与通用的 MediaContent.ToFileSource() 不同，这里会先用 FileName 的扩展名推导
+// MIME：file 内容的 base64 数据本身不带类型信息，丢掉文件名后 PDF 与纯文本都会
+// 退化成 application/octet-stream，进而被当成图片发给 Claude。
+func claudeFileSource(file *dto.MessageFile) types.FileSource {
+	if file == nil || file.FileData == "" {
+		return nil
+	}
+	if strings.HasPrefix(file.FileData, "http://") || strings.HasPrefix(file.FileData, "https://") {
+		return types.NewURLFileSource(file.FileData)
+	}
+	mimeType := ""
+	if ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(file.FileName)), "."); ext != "" {
+		if detected := service.GetMimeTypeByExtension(ext); detected != "application/octet-stream" {
+			mimeType = detected
+		}
+	}
+	return types.NewBase64FileSource(file.FileData, mimeType)
+}
+
+// buildClaudeFileMessage 把 file 类型内容转换为 Claude 内容块。
+//
+// Claude 的 document 块只接受 PDF，图片走 image 块，其余格式没有对应的块类型。
+// 返回 (nil, nil) 表示该内容无法表达，调用方应跳过——把未知格式硬塞进 image 块
+// 会被上游拒绝，静默丢弃并记日志比整个请求失败更可用。
+func buildClaudeFileMessage(c *gin.Context, file *dto.MessageFile) (*dto.ClaudeMediaMessage, error) {
+	source := claudeFileSource(file)
+	if source == nil {
+		return nil, nil
+	}
+	base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting document for Claude")
+	if err != nil {
+		return nil, fmt.Errorf("get file data failed: %w", err)
+	}
+	mimeType = strings.ToLower(mimeType)
+	switch {
+	case mimeType == "application/pdf":
+		return &dto.ClaudeMediaMessage{
+			Type: "document",
+			Source: &dto.ClaudeMessageSource{
+				Type:      "base64",
+				MediaType: mimeType,
+				Data:      base64Data,
+			},
+		}, nil
+	case strings.HasPrefix(mimeType, "text/"):
+		decoded, err := base64.StdEncoding.DecodeString(base64Data)
+		if err != nil {
+			return nil, fmt.Errorf("decode text file data failed: %w", err)
+		}
+		return &dto.ClaudeMediaMessage{
+			Type: "text",
+			Text: common.GetPointer(string(decoded)),
+		}, nil
+	case strings.HasPrefix(mimeType, "image/"):
+		return &dto.ClaudeMediaMessage{
+			Type: "image",
+			Source: &dto.ClaudeMessageSource{
+				Type:      "base64",
+				MediaType: mimeType,
+				Data:      base64Data,
+			},
+		}, nil
+	default:
+		msg := fmt.Sprintf("claude: skip unsupported file content, filename=%q, mime=%q", file.FileName, mimeType)
+		if c != nil {
+			logger.LogInfo(c, msg)
+		} else {
+			common.SysLog(msg)
+		}
+		return nil, nil
 	}
 }
 
@@ -380,6 +457,18 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 								Text: common.GetPointer[string](mediaMessage.Text),
 							})
 						}
+					case dto.ContentTypeFile:
+						// file 内容需按 MIME 分派到 document / text / image 块，
+						// 不能走下面只做「PDF 或图片」二分的通用分支。
+						fileMessage, err := buildClaudeFileMessage(c, mediaMessage.GetFile())
+						if err != nil {
+							return nil, err
+						}
+						if fileMessage == nil {
+							continue
+						}
+						claudeMediaMessages = append(claudeMediaMessages, *fileMessage)
+						continue
 					default:
 						source := mediaMessage.ToFileSource()
 						if source == nil {

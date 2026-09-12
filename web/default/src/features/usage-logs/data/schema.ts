@@ -40,6 +40,10 @@ export const logTaskInfoSchema = z.object({
   has_input: z.boolean().default(false),
   effective_ratio: z.number().optional(),
   is_user_ratio: z.boolean().optional(),
+  // 任务提交→终态的真实耗时（秒），后端已同步回填到 use_time
+  elapsed_s: z.number().optional(),
+  // 上游返回的原始视频地址（未经转存），后端仅对 admin 返回
+  result_url: z.string().optional(),
 })
 
 export type LogTaskInfo = z.infer<typeof logTaskInfoSchema>
