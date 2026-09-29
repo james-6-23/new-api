@@ -16,15 +16,17 @@ const (
 )
 
 // BillingSetting is managed by config.GlobalConfig.Register.
-// DB keys: billing_setting.billing_mode, billing_setting.billing_expr
+// DB keys: billing_setting.billing_mode, billing_setting.billing_expr, billing_setting.video_promo
 type BillingSetting struct {
-	BillingMode map[string]string `json:"billing_mode"`
-	BillingExpr map[string]string `json:"billing_expr"`
+	BillingMode map[string]string     `json:"billing_mode"`
+	BillingExpr map[string]string     `json:"billing_expr"`
+	VideoPromo  map[string]VideoPromo `json:"video_promo"` // 模型名 → 限时活动
 }
 
 var billingSetting = BillingSetting{
 	BillingMode: make(map[string]string),
 	BillingExpr: make(map[string]string),
+	VideoPromo:  make(map[string]VideoPromo),
 }
 
 func init() {

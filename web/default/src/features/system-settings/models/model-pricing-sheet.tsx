@@ -25,6 +25,7 @@ import {
   useState,
 } from 'react'
 import { useForm } from 'react-hook-form'
+import { useQuery } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertTriangle, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -80,6 +81,9 @@ import {
 import { PriceInput, PriceLane } from './model-pricing-inputs'
 import { formatPricingNumber } from './pricing-format'
 import { TieredPricingEditor } from './tiered-pricing-editor'
+import { VideoPromoEditor } from './video-promo-editor'
+import { getVideoPromoTiers } from '../api'
+import type { VideoPromoConfig } from '../types'
 
 export type { ModelRatioData } from './model-pricing-core'
 
@@ -153,6 +157,7 @@ export const ModelPricingEditorPanel = forwardRef<
   })
   const [billingExpr, setBillingExpr] = useState('')
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
+  const [videoPromo, setVideoPromo] = useState<VideoPromoConfig | null>(null)
   const isEditMode = !!editData
 
   const form = useForm<ModelPricingFormValues>({
@@ -194,6 +199,7 @@ export const ModelPricingEditorPanel = forwardRef<
       )
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
+      setVideoPromo(editData.videoPromo ?? null)
     } else {
       form.reset({
         name: '',
@@ -209,6 +215,7 @@ export const ModelPricingEditorPanel = forwardRef<
       setPricingMode('per-token')
       setBillingExpr('')
       setRequestRuleExpr('')
+      setVideoPromo(null)
     }
 
     setPromptPrice(nextLaneState.promptPrice)
@@ -337,6 +344,18 @@ export const ModelPricingEditorPanel = forwardRef<
   }
 
   const watchedValues = form.watch()
+  const trimmedName = watchedValues.name?.trim() ?? ''
+
+  // 档位来自后端原价矩阵,不在前端猜:模型没登记过就渲染空态而不是假档位。
+  const { data: promoTiersMap } = useQuery({
+    queryKey: ['video-promo-tiers'],
+    queryFn: getVideoPromoTiers,
+    staleTime: 5 * 60 * 1000,
+  })
+  const promoTiers = trimmedName
+    ? promoTiersMap?.data?.[trimmedName]
+    : undefined
+
   const previewRows = useMemo(
     () =>
       buildPreviewRows(
@@ -454,9 +473,12 @@ export const ModelPricingEditorPanel = forwardRef<
         data.requestRuleExpr = requestRuleExpr
       }
 
+      // 折扣与计费模式无关:按次与按 token 的视频模型都可能打折。
+      data.videoPromo = videoPromo ?? undefined
+
       return data
     },
-    [billingExpr, pricingMode, requestRuleExpr]
+    [billingExpr, pricingMode, requestRuleExpr, videoPromo]
   )
 
   useImperativeHandle(
@@ -647,6 +669,13 @@ export const ModelPricingEditorPanel = forwardRef<
                     </FieldGroup>
                   </TabsContent>
                 </Tabs>
+
+                <VideoPromoEditor
+                  modelName={trimmedName}
+                  tiers={promoTiers ?? []}
+                  value={videoPromo}
+                  onChange={setVideoPromo}
+                />
               </FieldGroup>
 
               <aside className='bg-muted/20 sticky top-0 rounded-lg border'>

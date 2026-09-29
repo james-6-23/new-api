@@ -26,6 +26,7 @@ import type {
   UpdateOptionResponse,
   UpstreamChannelsResponse,
   UpstreamRatiosResponse,
+  VideoPromoTiersResponse,
 } from './types'
 
 export async function getSystemOptions() {
@@ -63,6 +64,13 @@ export async function resetModelRatios() {
 export async function getUpstreamChannels() {
   const res = await api.get<UpstreamChannelsResponse>(
     '/api/ratio_sync/channels'
+  )
+  return res.data
+}
+
+export async function getVideoPromoTiers() {
+  const res = await api.get<VideoPromoTiersResponse>(
+    '/api/option/video_promo_tiers'
   )
   return res.data
 }

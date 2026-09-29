@@ -52,6 +52,7 @@ const routerMap = {
   bill: '/console/bill',
   cost: '/console/cost',
   availability: '/console/availability',
+  volcAssets: '/console/volc-assets',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -107,6 +108,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/task',
         className:
           localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
+      },
+      {
+        text: t('素材库'),
+        itemKey: 'volcAssets',
+        to: '/volc-assets',
       },
     ];
 

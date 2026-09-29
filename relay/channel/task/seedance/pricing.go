@@ -32,9 +32,11 @@ var unitPrice = map[string]map[string]map[bool]float64{
 	"dreamina-seedance-2-0-mini-260615": {
 		"base": {false: 3.5, true: 2.1},
 	},
-	// 2.5 仅支持输出 480p/720p(无 1080p/4k 档),只按含/不含视频区分定价。
+	// 2.5 支持 480p/720p(base)与 1080p 两档,按含/不含视频分别定价。
+	// 1080p 存的是原价;限时折扣走后台配置 billing_setting.video_promo,永不写入本矩阵。
 	"dreamina-seedance-2-5-260628": {
-		"base": {false: 10.7, true: 6.4},
+		"base":  {false: 10.7, true: 6.4},
+		"1080p": {false: 11.7, true: 7.0},
 	},
 	// 国内火山方舟 doubao 命名(元/百万 token)。官方价:2.0 有 1080p 档,fast 无 1080p/4k,
 	// 数值来源:接口文档/seedance_docs/01_计费说明.md。
@@ -50,10 +52,13 @@ var unitPrice = map[string]map[string]map[bool]float64{
 	"doubao-seedance-2-0-mini-260615": {
 		"base": {false: 23.0, true: 14.0},
 	},
-	// 2.5 仅支持输出 480p/720p(无 1080p/4k 档),只按含/不含视频区分定价:
-	// 输入不含视频 70.00 元/M,输入包含视频 42.00 元/M。
+	// 2.5 支持 480p/720p(base)与 1080p 两档:
+	// base 输入不含视频 70.00 元/M、包含视频 42.00 元/M;
+	// 1080p 原价 输入不含视频 77.00 元/M、包含视频 46.00 元/M。
+	// 1080p 存的是原价;限时折扣走后台配置 billing_setting.video_promo,永不写入本矩阵。
 	"doubao-seedance-2-5-260628": {
-		"base": {false: 70.0, true: 42.0},
+		"base":  {false: 70.0, true: 42.0},
+		"1080p": {false: 77.0, true: 46.0},
 	},
 }
 
@@ -77,26 +82,58 @@ func ClassifyResTier(s string) string {
 	}
 }
 
-// CellUnit 返回某格(model,tier,hasVideo)的单价与该模型基准单价(base 档不含视频)。
-// 不支持的档位回退到 base 档(例如 fast/mini 传 1080p/4k)。
-func CellUnit(model, tier string, hasVideo bool) (unit, base float64, ok bool) {
-	tiers, ok := unitPrice[model]
-	if !ok {
-		return 0, 0, false
+// CellUnit 返回某格(model,tier,hasVideo)的原单价、该模型基准单价(base 档不含视频),
+// 以及 tierHit —— 实际用于计价的档位。模型不支持请求档位时回退 base,tierHit 如实为 "base",
+// 使日志能记录真实计价档位而非请求档位。
+func CellUnit(model, tier string, hasVideo bool) (unit, base float64, tierHit string, ok bool) {
+	tiers, exists := unitPrice[model]
+	if !exists {
+		return 0, 0, "", false
 	}
 	cell, has := tiers[tier]
-	if !has {
+	if has {
+		tierHit = tier
+	} else {
 		cell = tiers["base"]
+		tierHit = "base"
 	}
-	return cell[hasVideo], tiers["base"][false], true
+	return cell[hasVideo], tiers["base"][false], tierHit, true
 }
 
-// PricingRatio 返回相对基准的单一合并倍率 video_pricing = 单元格单价 ÷ 基准单价,
-// 以及基准单价(供展示回退)。
-func PricingRatio(model, tier string, hasVideo bool) (ratio, base float64, ok bool) {
-	unit, base, ok := CellUnit(model, tier, hasVideo)
+// PricingRatio 返回相对基准的单一合并倍率 video_pricing = 单元格原单价 ÷ 基准原单价,
+// 基准单价(供展示回退),以及实际计价档位。该倍率**不含任何折扣**。
+func PricingRatio(model, tier string, hasVideo bool) (ratio, base float64, tierHit string, ok bool) {
+	unit, base, tierHit, ok := CellUnit(model, tier, hasVideo)
 	if !ok || base <= 0 {
-		return 0, 0, false
+		return 0, 0, "", false
 	}
-	return unit / base, base, true
+	return unit / base, base, tierHit, true
+}
+
+// tierOrder 是档位的稳定展示顺序,后台配置界面按此渲染。
+var tierOrder = []string{"base", "1080p", "4k"}
+
+// TiersForModel 返回该模型原价矩阵中真实存在的档位(稳定顺序),供后台按模型渲染折扣行。
+// 这从源头消掉「给只有 base 档的 fast 配 1080p 折扣」这类无效配置。
+func TiersForModel(model string) []string {
+	tiers, ok := unitPrice[model]
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(tiers))
+	for _, t := range tierOrder {
+		if _, has := tiers[t]; has {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// AllModelTiers 返回所有 Seedance 模型的可用档位,供后台一次性拉取。
+func AllModelTiers() map[string][]string {
+	out := make(map[string][]string, len(unitPrice))
+	for m := range unitPrice {
+		out[m] = TiersForModel(m)
+	}
+	return out
 }

@@ -73,6 +73,7 @@ type ModelRatioVisualEditorProps = {
   savedAudioCompletionRatio: string
   savedBillingMode: string
   savedBillingExpr: string
+  savedVideoPromo: string
   modelPrice: string
   modelRatio: string
   cacheRatio: string
@@ -83,6 +84,7 @@ type ModelRatioVisualEditorProps = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  videoPromo: string
   onChange: (field: string, value: string) => void
   onSave: () => void | Promise<void>
   isSaving: boolean
@@ -119,6 +121,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
     audioCompletionRatio,
     billingMode,
     billingExpr,
+    savedVideoPromo,
+    videoPromo,
     onChange,
     onSave,
     isSaving,
@@ -190,6 +194,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       audioCompletionRatio: savedAudioCompletionRatio,
       billingMode: savedBillingMode,
       billingExpr: savedBillingExpr,
+      videoPromo: savedVideoPromo,
     })
     const draftRows = buildModelSnapshots({
       modelPrice,
@@ -202,6 +207,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      videoPromo,
     })
 
     const savedByName = new Map(savedRows.map((row) => [row.name, row]))
@@ -247,6 +253,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
     audioCompletionRatio,
     billingMode,
     billingExpr,
+    savedVideoPromo,
+    videoPromo,
   ])
 
   const modeCounts = useMemo(
@@ -781,6 +789,8 @@ export const ModelRatioVisualEditor = memo(
       prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
+      prevProps.savedVideoPromo === nextProps.savedVideoPromo &&
+      prevProps.videoPromo === nextProps.videoPromo &&
       prevProps.onChange === nextProps.onChange &&
       prevProps.onSave === nextProps.onSave &&
       prevProps.isSaving === nextProps.isSaving

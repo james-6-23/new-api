@@ -125,6 +125,11 @@ export interface ChannelOtherSettings {
   byteplus_moderation_skip?: boolean
   // Seedance(第三方) asset pre-upload (channel type 59)
   seedance3rd_asset_enabled?: boolean
+  // 字节火山透传 (channel type 60) control-plane signing
+  volc_sign_region?: string
+  volc_openapi_endpoint?: string
+  // 素材库条数上限：官方无查限额接口，只能由管理员手填；0 表示未知/不限
+  volc_asset_quota_limit?: number
   expose_upstream_task_id?: boolean
 }
 

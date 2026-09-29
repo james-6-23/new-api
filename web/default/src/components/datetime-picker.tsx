@@ -30,6 +30,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { formatTimeValue, parseTimeValue } from './datetime-picker-time'
 
 const calendarLocales = {
   en: enUS,
@@ -47,6 +48,8 @@ interface DateTimePickerProps {
   className?: string
   /** Lands on the date trigger so a sibling `<Label htmlFor>` can point at it. */
   id?: string
+  /** 显示并保留秒(`<input type='time' step={1}>`)。默认 false,既有调用点行为不变。 */
+  withSeconds?: boolean
 }
 
 export function DateTimePicker({
@@ -55,6 +58,7 @@ export function DateTimePicker({
   placeholder,
   className,
   id,
+  withSeconds = false,
 }: DateTimePickerProps) {
   const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Select date')
@@ -63,23 +67,23 @@ export function DateTimePicker({
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<Date | undefined>(value)
   const [month, setMonth] = React.useState<Date | undefined>(value)
-  const [time, setTime] = React.useState<string>('00:00')
+  const [time, setTime] = React.useState<string>(
+    withSeconds ? '00:00:00' : '00:00'
+  )
 
   React.useEffect(() => {
     setDate(value)
     setMonth(value)
     if (value) {
-      const hours = value.getHours().toString().padStart(2, '0')
-      const minutes = value.getMinutes().toString().padStart(2, '0')
-      setTime(`${hours}:${minutes}`)
+      setTime(formatTimeValue(value, withSeconds))
     }
-  }, [value])
+  }, [value, withSeconds])
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (selectedDate) {
-      const [hours, minutes] = time.split(':').map(Number)
+      const { hours, minutes, seconds } = parseTimeValue(time)
       const newDate = new Date(selectedDate)
-      newDate.setHours(hours, minutes, 0, 0)
+      newDate.setHours(hours, minutes, seconds, 0)
       setDate(newDate)
       setMonth(newDate)
       onChange?.(newDate)
@@ -96,9 +100,9 @@ export function DateTimePicker({
     setTime(newTime)
 
     if (date) {
-      const [hours, minutes] = newTime.split(':').map(Number)
+      const { hours, minutes, seconds } = parseTimeValue(newTime)
       const newDate = new Date(date)
-      newDate.setHours(hours, minutes, 0, 0)
+      newDate.setHours(hours, minutes, seconds, 0)
       setDate(newDate)
       onChange?.(newDate)
     }
@@ -107,7 +111,7 @@ export function DateTimePicker({
   const handleClear = () => {
     setDate(undefined)
     setMonth(undefined)
-    setTime('00:00')
+    setTime(withSeconds ? '00:00:00' : '00:00')
     onChange?.(undefined)
   }
 
@@ -143,9 +147,13 @@ export function DateTimePicker({
       </Popover>
       <Input
         type='time'
+        step={withSeconds ? 1 : undefined}
         value={time}
         onChange={handleTimeChange}
-        className='w-32 appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none'
+        className={cn(
+          'appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none',
+          withSeconds ? 'w-40' : 'w-32'
+        )}
         disabled={!date}
       />
       {date && (

@@ -36,5 +36,6 @@ const (
 	APITypeMiniMax
 	APITypeReplicate
 	APITypeCodex
+	APITypeMinimaxImage
 	APITypeDummy // this one is only for count, do not add any channel after this
 )

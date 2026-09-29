@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemBehaviorSection } from '../general/system-behavior-section'
+import { VolcAssetSettingsSection } from '../general/volc-asset-settings-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
 import { WorkerSettingsSection } from '../integrations/worker-settings-section'
@@ -147,7 +148,8 @@ const OPERATIONS_SECTIONS = [
       // Narrow the suffix charset / password mode strings to the literal-union
       // expected by the section's Zod schema. Unknown values from older
       // deployments fall back to safe defaults so the form never refuses to mount.
-      const charset = settings['auto_create_user_setting.username_suffix_charset']
+      const charset =
+        settings['auto_create_user_setting.username_suffix_charset']
       const passwordMode = settings['auto_create_user_setting.password_mode']
       return (
         <AutoCreateUserSection
@@ -165,10 +167,8 @@ const OPERATIONS_SECTIONS = [
                 passwordMode === 'random' ? 'random' : 'same_as_username',
               random_password_length:
                 settings['auto_create_user_setting.random_password_length'],
-              default_quota:
-                settings['auto_create_user_setting.default_quota'],
-              default_group:
-                settings['auto_create_user_setting.default_group'],
+              default_quota: settings['auto_create_user_setting.default_quota'],
+              default_group: settings['auto_create_user_setting.default_group'],
               site_url: settings['auto_create_user_setting.site_url'],
               copy_templates:
                 settings['auto_create_user_setting.copy_templates'],
@@ -177,6 +177,19 @@ const OPERATIONS_SECTIONS = [
         />
       )
     },
+  },
+  {
+    id: 'volc-asset',
+    titleKey: 'Asset Library Limit',
+    build: (settings: OperationsSettings) => (
+      <VolcAssetSettingsSection
+        defaultValues={{
+          enabled: settings['volc_asset_setting.enabled'],
+          defaultAssetLimit: settings['volc_asset_setting.default_asset_limit'],
+          countAssetGroups: settings['volc_asset_setting.count_asset_groups'],
+        }}
+      />
+    ),
   },
   {
     id: 'update-checker',

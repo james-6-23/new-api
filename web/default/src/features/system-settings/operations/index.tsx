@@ -77,6 +77,11 @@ const defaultOperationsSettings: OperationsSettings = {
   // Keep these two in sync if either changes.
   'auto_create_user_setting.copy_templates':
     '[{"label":"站点","template":"{{site}}"},{"label":"用户名","template":"{{username}}"},{"label":"密码","template":"{{password}}"}]',
+  // 与 operation_setting.VolcAssetSetting 的零值保持一致：默认不强制，
+  // 免得升级后已经超量的老客户突然建不了素材。
+  'volc_asset_setting.enabled': false,
+  'volc_asset_setting.default_asset_limit': 100,
+  'volc_asset_setting.count_asset_groups': false,
 }
 
 export function OperationsSettings() {

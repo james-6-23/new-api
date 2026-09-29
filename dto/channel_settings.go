@@ -1,5 +1,7 @@
 package dto
 
+import "strings"
+
 type ChannelSubSupplier struct {
 	Name      string  `json:"name"`
 	CostRatio float64 `json:"cost_ratio,omitempty"` // 该子供应商自己的 CNY:USD 倍率
@@ -68,7 +70,7 @@ type ChannelOtherSettings struct {
 	BytePlusSecretKey      string `json:"byteplus_secret_key,omitempty"`      // SK
 	BytePlusAssetGroupId   string `json:"byteplus_asset_group_id,omitempty"`  // 管理员预建的 GroupId
 	BytePlusProjectName    string `json:"byteplus_project_name,omitempty"`    // 资源项目名，默认 "default"
-	BytePlusRegion         string `json:"byteplus_region,omitempty"`          // 区域，默认 "ap-southeast-1"
+	BytePlusRegion         string `json:"byteplus_region,omitempty"`          // 区域，默认 "cn-beijing"
 	BytePlusModerationSkip *bool  `json:"byteplus_moderation_skip,omitempty"` // 是否跳过内容预过滤，默认 true（Skip）
 	AssetProvider          string `json:"asset_provider,omitempty"`           // 选择素材库协议实现；空值等价 AssetProviderBytePlus，保证存量渠道行为不变。
 	// AssetGroupProvider 记录 BytePlusAssetGroupId 是由哪个素材库实现创建/填写的。
@@ -90,6 +92,18 @@ type ChannelOtherSettings struct {
 	// 注意：上游 ID 会泄露渠道供应商信息，且在日志接口中默认仅超级管理员可见
 	// （见 controller.GetAllLogs），因此这里按渠道显式开启，不设全局默认。
 	ExposeUpstreamTaskId bool `json:"expose_upstream_task_id,omitempty"`
+
+	// 字节火山透传渠道。数据面 host 直接取渠道 BaseURL，控制面（?Action=）与签名
+	// 必须独立配置：官方海外数据面 host 用 ap-southeast，而控制面 host 与签名
+	// CredentialScope 用 ap-southeast-1，两者差一个后缀且不可互相推导。
+	VolcSignRegion      string `json:"volc_sign_region,omitempty"`      // 控制面签名 region，空值按 BaseURL 推导
+	VolcOpenAPIEndpoint string `json:"volc_openapi_endpoint,omitempty"` // 控制面 host 覆盖（私有化网关），空值按 region 推导
+	// VolcAssetQuotaLimit 素材库资产条数上限，由管理员手填，0 表示未知/不限。
+	//
+	// 官方没有查询素材限额的 API：全量 Action 里资产相关只有 12 个 CRUD，
+	// GetAFPUsage / GetInferenceUsage / ListModelRateLimit 都是模型调用量与限流，
+	// 素材总量与上限官方只在控制台看板给。故上限只能手填，已用量取 ListAssets 的 TotalCount。
+	VolcAssetQuotaLimit int `json:"volc_asset_quota_limit,omitempty"`
 }
 
 const (
@@ -100,7 +114,41 @@ const (
 
 	defaultBytePlusRegion      = "cn-beijing"
 	defaultBytePlusProjectName = "default"
+
+	// 透传渠道控制面签名 region 默认值。国内与海外的 host 后缀不同（见 VolcSignRegion 注释）。
+	defaultVolcSignRegionCN = "cn-beijing"
+	defaultVolcSignRegionAP = "ap-southeast-1"
 )
+
+// ResolveVolcSignRegion 返回控制面签名使用的 region。
+// 显式配置优先；否则按数据面 BaseURL 判定：含 volces.com（国内方舟）→ cn-beijing，
+// 其余（bytepluses.com 等海外）→ ap-southeast-1。
+func (s *ChannelOtherSettings) ResolveVolcSignRegion(baseURL string) string {
+	if s != nil && s.VolcSignRegion != "" {
+		return s.VolcSignRegion
+	}
+	if strings.Contains(baseURL, "volces.com") || strings.Contains(baseURL, "volcengine") {
+		return defaultVolcSignRegionCN
+	}
+	return defaultVolcSignRegionAP
+}
+
+// ResolveVolcOpenAPIEndpoint 返回控制面（顶层 OpenAPI，?Action=）根地址。
+// 显式覆盖优先；否则按签名 region 推导：cn-* → ark.{region}.volcengineapi.com，
+// 其余 → ark.{region}.byteplusapi.com。
+//
+// 注意不可复用素材库的 open.volcengineapi.com：官方国内文档中 112 个 Action
+// 全部挂在 ark.cn-beijing.volcengineapi.com 下，open.* 一次都没出现。
+func (s *ChannelOtherSettings) ResolveVolcOpenAPIEndpoint(baseURL string) string {
+	if s != nil && s.VolcOpenAPIEndpoint != "" {
+		return strings.TrimRight(s.VolcOpenAPIEndpoint, "/")
+	}
+	region := s.ResolveVolcSignRegion(baseURL)
+	if strings.HasPrefix(region, "cn-") {
+		return "https://ark." + region + ".volcengineapi.com"
+	}
+	return "https://ark." + region + ".byteplusapi.com"
+}
 
 // ResolveBytePlusAsset 返回带默认值的 BytePlus 素材库有效配置，
 // 避免默认值散落在调用方。region 默认 cn-beijing（国内火山方舟），project 默认 default，

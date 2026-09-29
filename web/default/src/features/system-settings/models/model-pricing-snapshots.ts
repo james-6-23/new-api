@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { splitBillingExprAndRequestRules } from '@/features/pricing/lib/billing-expr'
 import { safeJsonParse } from '../utils/json-parser'
+import type { VideoPromoConfig } from '../types'
 import { formatPricingNumber } from './pricing-format'
 
 export type ModelPricingSnapshotInput = {
@@ -31,6 +32,7 @@ export type ModelPricingSnapshotInput = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  videoPromo: string
 }
 
 export type ModelPricingSnapshot = {
@@ -46,6 +48,7 @@ export type ModelPricingSnapshot = {
   billingMode?: string
   billingExpr?: string
   requestRuleExpr?: string
+  videoPromo?: VideoPromoConfig
   hasConflict: boolean
 }
 
@@ -167,6 +170,7 @@ export const buildModelSnapshots = ({
   audioCompletionRatio,
   billingMode,
   billingExpr,
+  videoPromo,
 }: ModelPricingSnapshotInput): ModelPricingSnapshot[] => {
   const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {
     fallback: {},
@@ -208,6 +212,10 @@ export const buildModelSnapshots = ({
     fallback: {},
     context: 'billing expression',
   })
+  const videoPromoMap = safeJsonParse<Record<string, VideoPromoConfig>>(
+    videoPromo,
+    { fallback: {}, context: 'video promo' }
+  )
 
   const modelNames = new Set([
     ...Object.keys(priceMap),
@@ -220,6 +228,7 @@ export const buildModelSnapshots = ({
     ...Object.keys(audioCompletionMap),
     ...Object.keys(billingModeMap),
     ...Object.keys(billingExprMap),
+    ...Object.keys(videoPromoMap),
   ])
 
   return Array.from(modelNames).map((name) => {
@@ -231,6 +240,7 @@ export const buildModelSnapshots = ({
     const image = imageMap[name]?.toString() || ''
     const audio = audioMap[name]?.toString() || ''
     const audioCompletion = audioCompletionMap[name]?.toString() || ''
+    const promo = videoPromoMap[name]
 
     const modeForModel = billingModeMap[name]
     if (modeForModel === 'tiered_expr') {
@@ -250,6 +260,7 @@ export const buildModelSnapshots = ({
         imageRatio: image,
         audioRatio: audio,
         audioCompletionRatio: audioCompletion,
+        videoPromo: promo,
         hasConflict: false,
       }
     }
@@ -264,6 +275,7 @@ export const buildModelSnapshots = ({
       imageRatio: image,
       audioRatio: audio,
       audioCompletionRatio: audioCompletion,
+      videoPromo: promo,
       billingMode: price !== '' ? 'per-request' : 'per-token',
       hasConflict:
         price !== '' &&
@@ -275,6 +287,23 @@ export const buildModelSnapshots = ({
           audio !== '' ||
           audioCompletion !== ''),
     }
+  })
+}
+
+/**
+ * 折扣配置签名:档位键排序后再序列化。
+ * 否则「解析自后端的对象」与「编辑器新建的对象」键序不同,会被误判为脏数据。
+ */
+const getVideoPromoSignature = (promo?: VideoPromoConfig) => {
+  if (!promo) return ''
+  const factors = Object.keys(promo.factors || {})
+    .sort()
+    .map((tier) => [tier, promo.factors[tier]] as const)
+  if (factors.length === 0 && !promo.start_at && !promo.end_at) return ''
+  return JSON.stringify({
+    factors,
+    start_at: promo.start_at || 0,
+    end_at: promo.end_at || 0,
   })
 }
 
@@ -292,5 +321,6 @@ export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
     billingMode: snapshot.billingMode || 'per-token',
     billingExpr: snapshot.billingExpr || '',
     requestRuleExpr: snapshot.requestRuleExpr || '',
+    videoPromo: getVideoPromoSignature(snapshot.videoPromo),
   })
 }

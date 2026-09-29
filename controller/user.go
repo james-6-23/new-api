@@ -1170,6 +1170,34 @@ func ManageUser(c *gin.Context) {
 			"message": "",
 		})
 		return
+	case "set_volc_asset_limit":
+		// 素材库提额:写进用户的 setting JSON,而不是新开一列 ——
+		// 这是个稀疏的个人覆盖值,绝大多数账号沿用全局默认。
+		// 0 表示清除覆盖回落全局默认,-1 表示对该用户不限。
+		if req.Value < dto.VolcAssetLimitUnlimited {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		settings := user.GetSetting()
+		oldLimit := settings.VolcAssetLimit
+		settings.VolcAssetLimit = req.Value
+		user.SetSetting(settings)
+		if err := user.Update(false); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if err := model.InvalidateUserCache(user.Id); err != nil {
+			common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d: %s", user.Id, err.Error()))
+		}
+		recordManageAuditFor(c, user.Id, "user.volc_asset_limit", map[string]interface{}{
+			"from": oldLimit,
+			"to":   req.Value,
+		})
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+		})
+		return
 	}
 
 	if err := user.Update(false); err != nil {

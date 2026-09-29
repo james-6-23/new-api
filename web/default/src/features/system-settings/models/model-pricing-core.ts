@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import * as z from 'zod'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { formatPricingNumber } from './pricing-format'
+import type { VideoPromoConfig } from '../types'
 
 export const createModelPricingSchema = (t: (key: string) => string) =>
   z.object({
@@ -60,6 +61,7 @@ export type ModelRatioData = {
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
+  videoPromo?: VideoPromoConfig
 }
 
 export type PreviewRow = {

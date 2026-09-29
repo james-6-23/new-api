@@ -57,6 +57,8 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
+  /** 用户个人设置的 JSON 原文，素材库提额等稀疏覆盖值存在这里。 */
+  setting: z.string().optional(),
 })
 export type User = z.infer<typeof userSchema>
 
@@ -124,6 +126,18 @@ export interface ManageUserQuotaPayload {
   mode: QuotaAdjustMode
   value: number
 }
+
+/**
+ * 素材库提额：写的是用户个人覆盖值。
+ * 0 表示清除覆盖、回落到全局默认；-1 表示对该用户不限。
+ */
+export interface ManageUserAssetLimitPayload {
+  id: number
+  action: 'set_volc_asset_limit'
+  value: number
+}
+
+export const VOLC_ASSET_LIMIT_UNLIMITED = -1
 
 // ============================================================================
 // Dialog Types

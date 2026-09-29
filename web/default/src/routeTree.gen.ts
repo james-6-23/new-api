@@ -37,6 +37,7 @@ import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-p
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
+import { Route as AuthenticatedVolcAssetsIndexRouteImport } from './routes/_authenticated/volc-assets/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authenticated/usage-logs/index'
 import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
@@ -210,6 +211,12 @@ const AuthenticatedWalletIndexRoute =
   AuthenticatedWalletIndexRouteImport.update({
     id: '/wallet/',
     path: '/wallet/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedVolcAssetsIndexRoute =
+  AuthenticatedVolcAssetsIndexRouteImport.update({
+    id: '/volc-assets/',
+    path: '/volc-assets/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
@@ -457,6 +464,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
   '/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
+  '/volc-assets/': typeof AuthenticatedVolcAssetsIndexRoute
   '/wallet/': typeof AuthenticatedWalletIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
@@ -518,6 +526,7 @@ export interface FileRoutesByTo {
   '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/volc-assets': typeof AuthenticatedVolcAssetsIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
@@ -583,6 +592,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
+  '/_authenticated/volc-assets/': typeof AuthenticatedVolcAssetsIndexRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
@@ -647,6 +657,7 @@ export interface FileRouteTypes {
     | '/system-settings/'
     | '/usage-logs/'
     | '/users/'
+    | '/volc-assets/'
     | '/wallet/'
     | '/pricing/$modelId/'
     | '/system-settings/auth/$section'
@@ -708,6 +719,7 @@ export interface FileRouteTypes {
     | '/system-settings'
     | '/usage-logs'
     | '/users'
+    | '/volc-assets'
     | '/wallet'
     | '/pricing/$modelId'
     | '/system-settings/auth/$section'
@@ -772,6 +784,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/'
     | '/_authenticated/usage-logs/'
     | '/_authenticated/users/'
+    | '/_authenticated/volc-assets/'
     | '/_authenticated/wallet/'
     | '/pricing/$modelId/'
     | '/_authenticated/system-settings/auth/$section'
@@ -1007,6 +1020,13 @@ declare module '@tanstack/react-router' {
       path: '/wallet'
       fullPath: '/wallet/'
       preLoaderRoute: typeof AuthenticatedWalletIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/volc-assets/': {
+      id: '/_authenticated/volc-assets/'
+      path: '/volc-assets'
+      fullPath: '/volc-assets/'
+      preLoaderRoute: typeof AuthenticatedVolcAssetsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/users/': {
@@ -1354,6 +1374,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
+  AuthenticatedVolcAssetsIndexRoute: typeof AuthenticatedVolcAssetsIndexRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
 }
 
@@ -1380,6 +1401,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSubscriptionsIndexRoute: AuthenticatedSubscriptionsIndexRoute,
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
+  AuthenticatedVolcAssetsIndexRoute: AuthenticatedVolcAssetsIndexRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
 }
 

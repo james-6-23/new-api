@@ -62,14 +62,15 @@ func TestDreaminaCellUnit(t *testing.T) {
 		{"dreamina-seedance-2-0-fast-260128", "1080p", false, 5.6},
 		{"dreamina-seedance-2-0-mini-260615", "base", true, 2.1},
 		{"dreamina-seedance-2-0-mini-260615", "1080p", true, 2.1},
-		// 2.5 仅 480p/720p:1080p/4k 均回退 base
+		// 2.5 支持 480p/720p 与 1080p 两档;4k 回退 base
 		{"dreamina-seedance-2-5-260628", "base", false, 10.7},
 		{"dreamina-seedance-2-5-260628", "base", true, 6.4},
-		{"dreamina-seedance-2-5-260628", "1080p", true, 6.4},
+		{"dreamina-seedance-2-5-260628", "1080p", false, 11.7},
+		{"dreamina-seedance-2-5-260628", "1080p", true, 7.0},
 		{"dreamina-seedance-2-5-260628", "4k", false, 10.7},
 	}
 	for _, tc := range cases {
-		got, _, ok := CellUnit(tc.model, tc.tier, tc.hasVideo)
+		got, _, _, ok := CellUnit(tc.model, tc.tier, tc.hasVideo)
 		if !ok {
 			t.Fatalf("unexpected miss for %+v", tc)
 		}
@@ -77,7 +78,7 @@ func TestDreaminaCellUnit(t *testing.T) {
 			t.Fatalf("unit(%+v)=%v want %v", tc, got, tc.want)
 		}
 	}
-	if _, _, ok := CellUnit("sora-2", "base", false); ok {
+	if _, _, _, ok := CellUnit("sora-2", "base", false); ok {
 		t.Fatalf("expected miss for non-seedance2 model")
 	}
 }
@@ -108,15 +109,15 @@ func TestDoubaoRatioEquivalence(t *testing.T) {
 		{"doubao-seedance-2-0-mini-260615", "base", true, 14.0 / 23.0},
 		{"doubao-seedance-2-0-mini-260615", "1080p", false, 1.0},
 		{"doubao-seedance-2-0-mini-260615", "1080p", true, 14.0 / 23.0},
-		// 2.5: 官方价 不含视频 70 / 含视频 42,不支持 1080p/4k(回退 base)
+		// 2.5: base 70/42、1080p 原价 77/46;4k 无此档,回退 base
 		{"doubao-seedance-2-5-260628", "base", false, 1.0},
 		{"doubao-seedance-2-5-260628", "base", true, 42.0 / 70.0},
-		{"doubao-seedance-2-5-260628", "1080p", false, 1.0},
-		{"doubao-seedance-2-5-260628", "1080p", true, 42.0 / 70.0},
+		{"doubao-seedance-2-5-260628", "1080p", false, 77.0 / 70.0},
+		{"doubao-seedance-2-5-260628", "1080p", true, 46.0 / 70.0},
 		{"doubao-seedance-2-5-260628", "4k", true, 42.0 / 70.0},
 	}
 	for _, tc := range cases {
-		ratio, _, ok := PricingRatio(tc.model, tc.tier, tc.hasVideo)
+		ratio, _, _, ok := PricingRatio(tc.model, tc.tier, tc.hasVideo)
 		if !ok {
 			t.Fatalf("unexpected miss for %+v", tc)
 		}
@@ -129,7 +130,7 @@ func TestDoubaoRatioEquivalence(t *testing.T) {
 // TestBaseRatioIsOne 每个模型 base 档不含视频的相对倍率必须为 1.0。
 func TestBaseRatioIsOne(t *testing.T) {
 	for m := range unitPrice {
-		r, _, ok := PricingRatio(m, "base", false)
+		r, _, _, ok := PricingRatio(m, "base", false)
 		if !ok || !approx(r, 1.0) {
 			t.Fatalf("model %s base/no-video ratio=%v ok=%v want 1.0", m, r, ok)
 		}
@@ -138,8 +139,51 @@ func TestBaseRatioIsOne(t *testing.T) {
 
 // TestDreaminaPricingRatioSample 抽查海外矩阵单一倍率与基准。
 func TestDreaminaPricingRatioSample(t *testing.T) {
-	r, base, ok := PricingRatio("dreamina-seedance-2-0-260128", "1080p", true)
+	r, base, _, ok := PricingRatio("dreamina-seedance-2-0-260128", "1080p", true)
 	if !ok || !approx(base, 7.0) || !approx(r, 4.7/7.0) {
 		t.Fatalf("ratio=%v base=%v ok=%v", r, base, ok)
+	}
+}
+
+// TestTierHit 校验实际计价档位如实返回:模型无该档位时回退 base 并如实报告。
+func TestTierHit(t *testing.T) {
+	cases := []struct {
+		model   string
+		tier    string
+		wantHit string
+	}{
+		{"doubao-seedance-2-5-260628", "1080p", "1080p"},
+		{"doubao-seedance-2-5-260628", "4k", "base"},
+		{"doubao-seedance-2-0-fast-260128", "1080p", "base"},
+		{"doubao-seedance-2-0-mini-260615", "1080p", "base"},
+		{"dreamina-seedance-2-0-260128", "4k", "4k"},
+		{"doubao-seedance-2-0-260128", "base", "base"},
+	}
+	for _, tc := range cases {
+		if _, _, hit, ok := CellUnit(tc.model, tc.tier, false); !ok || hit != tc.wantHit {
+			t.Fatalf("CellUnit(%s,%s) hit=%q ok=%v want %q", tc.model, tc.tier, hit, ok, tc.wantHit)
+		}
+		if _, _, hit, ok := PricingRatio(tc.model, tc.tier, true); !ok || hit != tc.wantHit {
+			t.Fatalf("PricingRatio(%s,%s) hit=%q ok=%v want %q", tc.model, tc.tier, hit, ok, tc.wantHit)
+		}
+	}
+}
+
+// TestTiersForModel 后台配置界面据此渲染档位行,顺序必须稳定。
+func TestTiersForModel(t *testing.T) {
+	if got := TiersForModel("doubao-seedance-2-5-260628"); len(got) != 2 || got[0] != "base" || got[1] != "1080p" {
+		t.Fatalf("2.5 tiers=%v want [base 1080p]", got)
+	}
+	if got := TiersForModel("doubao-seedance-2-0-fast-260128"); len(got) != 1 || got[0] != "base" {
+		t.Fatalf("fast tiers=%v want [base]", got)
+	}
+	if got := TiersForModel("dreamina-seedance-2-0-260128"); len(got) != 3 {
+		t.Fatalf("2.0 tiers=%v want 3 entries", got)
+	}
+	if got := TiersForModel("sora-2"); got != nil {
+		t.Fatalf("unknown model tiers=%v want nil", got)
+	}
+	if all := AllModelTiers(); len(all) != len(unitPrice) {
+		t.Fatalf("AllModelTiers len=%d want %d", len(all), len(unitPrice))
 	}
 }

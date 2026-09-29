@@ -124,6 +124,9 @@ func GetStatus(c *gin.Context) {
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+		// 素材库上限对客户可见:他要据此判断还能建几条、要不要申请提额。
+		"volc_asset_limit_enabled": operation_setting.GetVolcAssetSetting().Enabled,
+		"volc_asset_limit_default": operation_setting.GetVolcAssetSetting().DefaultAssetLimit,
 	}
 
 	// 根据启用状态注入可选内容

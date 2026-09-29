@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -756,4 +757,43 @@ func TestSettle_NonPerCall_AdaptorAdjustWorks(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestPutVideoPromoFields(t *testing.T) {
+	const listUnitPrice = 77.0
+
+	cases := []struct {
+		name      string
+		vb        *types.VideoBillingDisplay
+		wantWrite bool
+		wantNet   float64
+	}{
+		{name: "nil 不写字段", vb: nil},
+		{name: "未打折(1.0)不写字段", vb: &types.VideoBillingDisplay{PromoFactor: 1}},
+		{name: "非法折扣(>1)不写字段", vb: &types.VideoBillingDisplay{PromoFactor: 1.2}},
+		{name: "未初始化(0)不写字段", vb: &types.VideoBillingDisplay{PromoFactor: 0}},
+		{name: "负数折扣不写字段", vb: &types.VideoBillingDisplay{PromoFactor: -0.5}},
+		{
+			name:      "72折写入三元组与实收",
+			vb:        &types.VideoBillingDisplay{PromoFactor: 0.72, PromoStartAt: 100, PromoEndAt: 200},
+			wantWrite: true,
+			wantNet:   listUnitPrice * 0.72,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			other := map[string]interface{}{}
+			putVideoPromoFields(other, tc.vb, listUnitPrice)
+
+			if !tc.wantWrite {
+				assert.Empty(t, other, "全价请求不应写入折扣字段")
+				return
+			}
+			assert.Equal(t, tc.vb.PromoFactor, other["video_promo_factor"])
+			assert.Equal(t, tc.vb.PromoStartAt, other["video_promo_start_at"])
+			assert.Equal(t, tc.vb.PromoEndAt, other["video_promo_end_at"])
+			assert.InDelta(t, tc.wantNet, other["video_net_unit_price"], 1e-9)
+		})
+	}
 }

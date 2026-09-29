@@ -197,6 +197,7 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/payment_compliance", controller.ConfirmPaymentCompliance)
 			optionRoute.GET("/channel_affinity_cache", controller.GetChannelAffinityCacheStats)
 			optionRoute.DELETE("/channel_affinity_cache", controller.ClearChannelAffinityCache)
+			optionRoute.GET("/video_promo_tiers", controller.GetVideoPromoTiers)
 			optionRoute.POST("/rest_model_ratio", controller.ResetModelRatio)
 			optionRoute.POST("/migrate_console_setting", controller.MigrateConsoleSetting) // 用于迁移检测的旧键，下个版本会删除
 			optionRoute.POST("/waffo-pancake/catalog", controller.ListWaffoPancakeCatalog)
@@ -368,6 +369,19 @@ func SetApiRouter(router *gin.Engine) {
 			taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserTask)
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
 			taskRoute.POST("/:id/transfer", middleware.AdminAuth(), controller.RetryMediaTransfer)
+		}
+
+		// 火山透传素材库账本。/self 开头的两条是任何登录用户的自有资产与自有额度,
+		// 其余回源官方或改动上游资源,只给超管 —— 这些路径能看到全站客户的素材、
+		// 能删上游资源,管理员权限不足以承担。前端的角色门槛必须与这里保持一致。
+		volcAssetRoute := apiRouter.Group("/volc_asset")
+		{
+			volcAssetRoute.GET("/self", middleware.UserAuth(), controller.GetSelfVolcAssets)
+			volcAssetRoute.GET("/self/quota", middleware.UserAuth(), controller.GetSelfVolcAssetQuota)
+			volcAssetRoute.GET("/", middleware.RootAuth(), controller.GetAllVolcAssets)
+			volcAssetRoute.GET("/quota", middleware.RootAuth(), controller.GetVolcAssetQuota)
+			volcAssetRoute.POST("/sync", middleware.RootAuth(), controller.SyncVolcAssets)
+			volcAssetRoute.DELETE("/:id", middleware.RootAuth(), controller.DeleteVolcAsset)
 		}
 
 		vendorRoute := apiRouter.Group("/vendors")

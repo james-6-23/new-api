@@ -54,8 +54,8 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { ROLE } from '@/lib/roles'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -639,6 +639,15 @@ export function ChannelMutateDrawer({
 
     // Type 45 (VolcEngine) - set default base_url
     if (currentType === 45) {
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue === '') {
+        form.setValue('base_url', 'https://ark.cn-beijing.volces.com')
+      }
+    }
+
+    // Type 60 (字节火山透传) - 默认国内方舟地址，避免空 BaseURL 落到
+    // ChannelBaseURLs 兜底后与管理员预期不一致。
+    if (currentType === 60) {
       const currentBaseUrlValue = form.getValues('base_url')
       if (!currentBaseUrlValue || currentBaseUrlValue === '') {
         form.setValue('base_url', 'https://ark.cn-beijing.volces.com')
@@ -1659,7 +1668,7 @@ export function ChannelMutateDrawer({
                                     </FormLabel>
                                     <FormDescription>
                                       {t(
-                                        'Send Moderation.Strategy=Skip on upload. Celebrity / copyright IP is still intercepted.'
+                                        'Send Moderation.Strategy=Skip on upload. Celebrity / copyright IP is still intercepted. Ignored for cn-* regions, which reject this parameter.'
                                       )}
                                     </FormDescription>
                                   </div>
@@ -1738,6 +1747,150 @@ export function ChannelMutateDrawer({
                                   onCheckedChange={field.onChange}
                                 />
                               </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
+
+                    {/* 字节火山透传 (type 60)：控制面签名配置。
+                        数据面 host 直接取渠道 BaseURL；控制面（?Action=）host 与
+                        签名 CredentialScope 必须独立配置，官方海外数据面用
+                        ap-southeast 而控制面用 ap-southeast-1，二者不可互推。 */}
+                    {currentType === 60 && (
+                      <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                        <SubHeading
+                          title={t('Control plane signing')}
+                          icon={<SlidersHorizontal className='h-3.5 w-3.5' />}
+                        />
+                        {/* 控制面 AK/SK 与数据面的 Bearer 密钥（上方「密钥」栏）互相独立，
+                            字节火山透传 AK/SK 只用于 ?Action= 顶层 OpenAPI 签名。 */}
+                        <FormField
+                          control={form.control}
+                          name='byteplus_access_key'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Access Key (AK)')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder={t(
+                                    'Volcengine / BytePlus AccessKey'
+                                  )}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'Used only to sign control-plane (?Action=) calls. Data-plane /api/v3 calls use the channel key above.'
+                                )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='byteplus_secret_key'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Secret Key (SK)')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='password'
+                                  placeholder={t(
+                                    'Volcengine / BytePlus SecretKey'
+                                  )}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='byteplus_project_name'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Project Name')}</FormLabel>
+                              <FormControl>
+                                <Input placeholder='default' {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='volc_sign_region'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Signing Region')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder='cn-beijing / ap-southeast-1'
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'Region used for AK/SK signing on control-plane (?Action=) calls. Leave blank to derive it from the channel base URL.'
+                                )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='volc_openapi_endpoint'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>
+                                {t('Control Plane Endpoint')}
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder='https://ark.cn-beijing.volcengineapi.com'
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'Overrides the top-level OpenAPI host. Leave blank to derive it from the signing region; only set this for a private gateway.'
+                                )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='volc_asset_quota_limit'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Asset Quota Limit')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='number'
+                                  min={0}
+                                  step={1}
+                                  placeholder={t('e.g., 1000')}
+                                  value={field.value ?? ''}
+                                  onChange={(e) => {
+                                    const raw = e.target.value
+                                    field.onChange(
+                                      raw === '' ? undefined : Number(raw)
+                                    )
+                                  }}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'Maximum number of assets this IAM account may hold. There is no official API to query it, so fill it in manually; leave blank or 0 for unknown / unlimited. Used only by the asset management page for reconciliation.'
+                                )}
+                              </FormDescription>
+                              <FormMessage />
                             </FormItem>
                           )}
                         />
@@ -2052,7 +2205,54 @@ export function ChannelMutateDrawer({
                               />
                             </FormControl>
                             <FormDescription>
-                              {t('Select an official regional endpoint or enter a custom API address')}
+                              {t(
+                                'Select an official regional endpoint or enter a custom API address'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    {/* 字节火山透传 (type 60)：BaseURL 决定数据面 host，
+                        并且是后端推导签名区域的依据（见 dto.ResolveVolcSignRegion:
+                        含 volces.com → cn-beijing，否则 ap-southeast-1）。
+                        因此不能落到通用「此项可选」输入框里。 */}
+                    {currentType === 60 && (
+                      <FormField
+                        control={form.control}
+                        name='base_url'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('API Base URL *')}</FormLabel>
+                            <FormControl>
+                              <ComboboxInput
+                                options={[
+                                  {
+                                    value: 'https://ark.cn-beijing.volces.com',
+                                    label:
+                                      'https://ark.cn-beijing.volces.com (国内 火山方舟)',
+                                  },
+                                  {
+                                    value:
+                                      'https://ark.ap-southeast.bytepluses.com',
+                                    label:
+                                      'https://ark.ap-southeast.bytepluses.com (海外 BytePlus)',
+                                  },
+                                ]}
+                                value={field.value || ''}
+                                onValueChange={field.onChange}
+                                placeholder={t(
+                                  'e.g., https://ark.cn-beijing.volces.com'
+                                )}
+                                allowCustomValue
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t(
+                                'Data plane host for passthrough. Also determines the control plane signing region when left unset below.'
+                              )}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -2084,7 +2284,7 @@ export function ChannelMutateDrawer({
                     )}
 
                     {/* General base_url for other types */}
-                    {![3, 8, 22, 36, 45].includes(currentType) && (
+                    {![3, 8, 22, 36, 45, 60].includes(currentType) && (
                       <FormField
                         control={form.control}
                         name='base_url'
@@ -3803,9 +4003,7 @@ export function ChannelMutateDrawer({
                               className={sideDrawerSwitchItemClassName()}
                             >
                               <div className='flex flex-col gap-0.5'>
-                                <FormLabel>
-                                  {t('Aggregator Channel')}
-                                </FormLabel>
+                                <FormLabel>{t('Aggregator Channel')}</FormLabel>
                                 <FormDescription className='text-xs'>
                                   {t(
                                     'This channel routes to multiple upstream sub-suppliers'

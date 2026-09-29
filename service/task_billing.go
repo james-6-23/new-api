@@ -11,8 +11,22 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
+
+// putVideoPromoFields 把折扣三元组与实收单价写入日志 other。
+// video_unit_price 保持原价语义不变，实收由 video_net_unit_price 单列，
+// 使账单上「原价 × 折扣 = 实收」可当场核对。未打折时不写任何折扣字段，避免给全价请求增加噪音。
+func putVideoPromoFields(other map[string]interface{}, vb *types.VideoBillingDisplay, listUnitPrice float64) {
+	if vb == nil || vb.PromoFactor <= 0 || vb.PromoFactor >= 1 {
+		return
+	}
+	other["video_promo_factor"] = vb.PromoFactor
+	other["video_promo_start_at"] = vb.PromoStartAt
+	other["video_promo_end_at"] = vb.PromoEndAt
+	other["video_net_unit_price"] = listUnitPrice * vb.PromoFactor
+}
 
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
 // 实际扣费已由 BillingSession（PreConsumeBilling + SettleBilling）完成。
@@ -51,11 +65,12 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, taskID stri
 	if vb := info.PriceData.VideoBilling; vb != nil {
 		other["video_resolution_tier"] = vb.ResolutionTier
 		other["video_has_input"] = vb.HasVideoInput
+		listUnitPrice := vb.BaseUnitUSDPerM * vb.PricingRatio
 		if info.PriceData.ModelRatio > 0 {
-			other["video_unit_price"] = info.PriceData.ModelRatio * 2.0 * vb.PricingRatio
-		} else {
-			other["video_unit_price"] = vb.BaseUnitUSDPerM * vb.PricingRatio
+			listUnitPrice = info.PriceData.ModelRatio * 2.0 * vb.PricingRatio
 		}
+		other["video_unit_price"] = listUnitPrice
+		putVideoPromoFields(other, vb, listUnitPrice)
 	}
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
@@ -149,11 +164,12 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 			other["video_has_input"] = vb.HasVideoInput
 			// 有效单价(含管理员加价)= 基准单价 × 倍率 × (modelRatio / (基准单价/2))
 			// 简化:有效单价 = modelRatio * 2 * PricingRatio
+			listUnitPrice := vb.BaseUnitUSDPerM * vb.PricingRatio
 			if bc.ModelRatio > 0 {
-				other["video_unit_price"] = bc.ModelRatio * 2.0 * vb.PricingRatio
-			} else {
-				other["video_unit_price"] = vb.BaseUnitUSDPerM * vb.PricingRatio
+				listUnitPrice = bc.ModelRatio * 2.0 * vb.PricingRatio
 			}
+			other["video_unit_price"] = listUnitPrice
+			putVideoPromoFields(other, vb, listUnitPrice)
 			if vb.VideoTokens > 0 {
 				other["video_tokens"] = vb.VideoTokens
 			}

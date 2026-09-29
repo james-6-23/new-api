@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/cloudflare"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
+	"github.com/QuantumNous/new-api/relay/channel/minimaximage"
 	"github.com/QuantumNous/new-api/relay/channel/cohere"
 	"github.com/QuantumNous/new-api/relay/channel/coze"
 	"github.com/QuantumNous/new-api/relay/channel/deepseek"
@@ -30,14 +31,15 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/replicate"
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
+	taskAigc "github.com/QuantumNous/new-api/relay/channel/task/aigc"
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
-	taskAigc "github.com/QuantumNous/new-api/relay/channel/task/aigc"
 	taskSeedance3rd "github.com/QuantumNous/new-api/relay/channel/task/seedance3rd"
+	taskminimaximage "github.com/QuantumNous/new-api/relay/channel/task/minimaximage"
 	tasksora "github.com/QuantumNous/new-api/relay/channel/task/sora"
 	"github.com/QuantumNous/new-api/relay/channel/task/suno"
 	taskvertex "github.com/QuantumNous/new-api/relay/channel/task/vertex"
@@ -45,6 +47,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
+	"github.com/QuantumNous/new-api/relay/channel/volcpassthrough"
 	"github.com/QuantumNous/new-api/relay/channel/xai"
 	"github.com/QuantumNous/new-api/relay/channel/xunfei"
 	"github.com/QuantumNous/new-api/relay/channel/zhipu"
@@ -122,6 +125,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &replicate.Adaptor{}
 	case constant.APITypeCodex:
 		return &codex.Adaptor{}
+	case constant.APITypeMinimaxImage:
+		return &minimaximage.Adaptor{}
 	}
 	return nil
 }
@@ -165,6 +170,10 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskAigc.TaskAdaptor{}
 		case constant.ChannelTypeSeedance3rd:
 			return &taskSeedance3rd.TaskAdaptor{}
+		case constant.ChannelTypeVolcPassthrough:
+			return &volcpassthrough.TaskAdaptor{}
+		case constant.ChannelTypeMinimaxImage:
+			return &taskminimaximage.TaskAdaptor{}
 		}
 	}
 	return nil

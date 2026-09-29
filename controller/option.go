@@ -9,7 +9,9 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/task/seedance"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -339,6 +341,22 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "billing_setting.video_promo":
+		value, _ := option.Value.(string)
+		if err = billing_setting.ValidateVideoPromo(value); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		if err = validateVideoPromoTiers(value); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {
@@ -352,5 +370,46 @@ func UpdateOption(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+	})
+}
+
+// validateVideoPromoTiers 校验每个折扣档位键都是该模型原价矩阵中真实存在的档位。
+// 这项校验放在 controller 而非 billing_setting：后者 import seedance 会造成循环导入。
+func validateVideoPromoTiers(jsonStr string) error {
+	if jsonStr == "" {
+		return nil
+	}
+	var cfg map[string]billing_setting.VideoPromo
+	if err := common.UnmarshalJsonStr(jsonStr, &cfg); err != nil {
+		return fmt.Errorf("invalid video_promo JSON: %w", err)
+	}
+	for modelName, p := range cfg {
+		if len(p.Factors) == 0 {
+			continue
+		}
+		tiers := seedance.TiersForModel(modelName)
+		if len(tiers) == 0 {
+			return fmt.Errorf("model %s has no video pricing matrix, cannot configure a promo", modelName)
+		}
+		allowed := make(map[string]bool, len(tiers))
+		for _, tier := range tiers {
+			allowed[tier] = true
+		}
+		for tier := range p.Factors {
+			if !allowed[tier] {
+				return fmt.Errorf("model %s does not have tier %s (available: %v)", modelName, tier, tiers)
+			}
+		}
+	}
+	return nil
+}
+
+// GetVideoPromoTiers 返回各视频模型可配置的计价档位，供后台按模型渲染折扣行，
+// 从源头消掉「给只有 base 档的模型配 1080p 折扣」这类无效配置。
+func GetVideoPromoTiers(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    seedance.AllModelTiers(),
 	})
 }

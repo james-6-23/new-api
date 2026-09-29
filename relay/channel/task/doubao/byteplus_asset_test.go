@@ -2,6 +2,7 @@ package doubao
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -143,6 +144,46 @@ func TestIsGroupExhausted_NotFoundGroupId(t *testing.T) {
 	}
 	if !cl.IsGroupExhausted(err) {
 		t.Error("NotFound.group_id must be classified as group-exhausted on the byteplus client too")
+	}
+}
+
+// TestCreateAsset_ModerationOmittedForCNRegion pins a region capability
+// difference, not a user preference: 国内方舟 rejects the Moderation parameter
+// outright with "InvalidParameter.Moderation: Moderation parameter is not
+// supported for CN region", so cn-* must omit the field entirely even when
+// skipModeration is true (which is the default). Overseas BytePlus still
+// requires it to bypass the reference-image pre-filter.
+func TestCreateAsset_ModerationOmittedForCNRegion(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		region        string
+		wantModeraton bool
+	}{
+		{"domestic ark omits Moderation", "cn-beijing", false},
+		{"overseas byteplus keeps Moderation", "ap-southeast-1", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotBody string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.URL.Query().Get("Action") == "CreateAsset" {
+					b, _ := io.ReadAll(r.Body)
+					gotBody = string(b)
+				}
+				_, _ = w.Write([]byte(`{"ResponseMetadata":{"RequestId":"r1"},"Result":{"Id":"asset-1","Status":"Active"}}`))
+			}))
+			defer srv.Close()
+
+			cl := newTestClient(srv.URL)
+			cl.region = tc.region
+			if _, err := cl.CreateAndWait(context.Background(), "g", "https://e.com/i.jpg", "Image"); err != nil {
+				t.Fatalf("CreateAndWait: %v", err)
+			}
+			if has := strings.Contains(gotBody, "Moderation"); has != tc.wantModeraton {
+				t.Fatalf("region %s: Moderation present = %v, want %v (body: %s)",
+					tc.region, has, tc.wantModeraton, gotBody)
+			}
+		})
 	}
 }
 

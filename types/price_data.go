@@ -32,13 +32,17 @@ type PriceData struct {
 }
 
 // VideoBillingDisplay 视频计费的展示用快照(不参与上游 marshal,仅用于日志/前端核价)。
-// 有效单价 = BaseUnitUSDPerM * PricingRatio(再随 modelRatio 加价整体缩放)。
+// 原价单价 = BaseUnitUSDPerM * PricingRatio(再随 modelRatio 加价整体缩放);
+// 实收单价 = 原价单价 * PromoFactor。
 type VideoBillingDisplay struct {
-	ResolutionTier  string  // "base" / "1080p" / "4k"
+	ResolutionTier  string  // 实际计价档位:"base" / "1080p" / "4k"
 	HasVideoInput   bool    // 是否含视频输入
 	BaseUnitUSDPerM float64 // 基准单价(USD / 百万 token)
-	PricingRatio    float64 // 相对基准的合并倍率(video_pricing)
+	PricingRatio    float64 // 相对基准的合并倍率(video_pricing),**纯原价,不含折扣**
 	VideoTokens     int     // 结算阶段回填的实际 completion_tokens
+	PromoFactor     float64 // 限时折扣系数;未打折为 1
+	PromoStartAt    int64   // 活动开始 Unix 秒;未打折为 0
+	PromoEndAt      int64   // 活动结束 Unix 秒;未打折为 0
 }
 
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {

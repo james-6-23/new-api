@@ -16,7 +16,16 @@ type UserSetting struct {
 	SidebarModules                   string  `json:"sidebar_modules,omitempty"`                      // SidebarModules 左侧边栏模块配置
 	BillingPreference                string  `json:"billing_preference,omitempty"`                   // BillingPreference 扣费策略（订阅/钱包）
 	Language                         string  `json:"language,omitempty"`                             // Language 用户语言偏好 (zh, en)
+	// VolcAssetLimit 火山素材库单账号资产条数上限的个人覆盖值（提额）。
+	// 0/缺省表示沿用全局默认；-1 表示对该用户不限。只有管理员能改。
+	VolcAssetLimit int `json:"volc_asset_limit,omitempty"`
 }
+
+// VolcAssetLimitUnlimited 是 VolcAssetLimit 的「不限」哨兵值。
+//
+// 不能用 0 表示不限:0 与「字段缺省」在 JSON omitempty 下不可区分,
+// 而缺省必须落回全局默认,否则给谁提过额就再也退不回默认了。
+const VolcAssetLimitUnlimited = -1
 
 var (
 	NotifyTypeEmail   = "email"   // Email 邮件

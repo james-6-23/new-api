@@ -1,0 +1,1559 @@
+{
+  "info": {
+    "_postman_id": "seedance2-volc-passthrough-0001",
+    "name": "seedance-2官方透传",
+    "description": "字节火山透传渠道（渠道类型 60）测试集。数据面挂在站点根 /api/v3/...，控制面保留 /volc 前缀。只放开 Seedance 视频生成 4 条 + 素材库 10 个 Action + 真人认证 2 个 Action，其余路径/Action 返回 404 endpoint_not_supported。只有 POST /api/v3/contents/generations/tasks 计费。\n\n导入前先确认集合变量：baseUrl / token / user_id / model。国内用 doubao-*，海外 2.x 用 dreamina-*、1.x 用 seedance-1-0-*（两套 id 不可混用）。\n\n注意：/api/volc_asset/* 这五条走站点自己的鉴权链，必须带 Cookie 与 New-Api-User 两个头；数据面与控制面透传只带 Authorization: Bearer {{token}}。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://your-site.com",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "sk-your-site-token",
+      "type": "string"
+    },
+    {
+      "key": "version",
+      "value": "2024-01-01",
+      "type": "string"
+    },
+    {
+      "key": "model",
+      "value": "doubao-seedance-2-5-260628",
+      "type": "string"
+    },
+    {
+      "key": "model_1_0",
+      "value": "doubao-seedance-1-0-pro-250528",
+      "type": "string"
+    },
+    {
+      "key": "cookie",
+      "value": "session=xxxxx",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "7",
+      "type": "string",
+      "description": "自己的用户 id。站点鉴权链要求每个请求都带 New-Api-User 头，值必须与登录身份一致"
+    },
+    {
+      "key": "group_id",
+      "value": "assetgroup-20260410113901-qk2mv",
+      "type": "string"
+    },
+    {
+      "key": "asset_id",
+      "value": "asset-20260410114236-8cdfz",
+      "type": "string"
+    },
+    {
+      "key": "task_id",
+      "value": "cgt-20260410120000-abcde",
+      "type": "string"
+    },
+    {
+      "key": "byted_token",
+      "value": "byted-xxxxxxxx",
+      "type": "string"
+    },
+    {
+      "key": "record_id",
+      "value": "88",
+      "type": "string"
+    },
+    {
+      "key": "channel_id",
+      "value": "12",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "一、视频生成（数据面 4 条）",
+      "item": [
+        {
+          "name": "1.1 创建任务-文生视频【计费】",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('返回任务 id', function () {",
+                  "  var b = pm.response.json();",
+                  "  pm.expect(b.id).to.be.a('string');",
+                  "  pm.expect(b.id).to.match(/^cgt-/);",
+                  "});",
+                  "if (pm.response.code === 200) { pm.collectionVariables.set('task_id', pm.response.json().id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{model}}\",\n  \"content\": [\n    { \"type\": \"text\", \"text\": \"女孩抱着狐狸，女孩睁开眼，温柔地看向镜头，镜头缓缓拉出，女孩的头发被风吹动\" }\n  ],\n  \"resolution\": \"1080p\",\n  \"ratio\": \"16:9\",\n  \"duration\": 5,\n  \"generate_audio\": true,\n  \"watermark\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/contents/generations/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "contents",
+                "generations",
+                "tasks"
+              ]
+            },
+            "description": "唯一计费接口。这是新-api 站点计费入口，成功后按 usage.total_tokens 结算。结构化字段是强校验写法。"
+          }
+        },
+        {
+          "name": "1.2 创建任务-首帧图生视频【计费】",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) { pm.collectionVariables.set('task_id', pm.response.json().id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{model}}\",\n  \"content\": [\n    { \"type\": \"text\", \"text\": \"女孩睁开眼看向镜头，镜头缓缓拉出\" },\n    { \"type\": \"image_url\", \"image_url\": { \"url\": \"https://example.com/first-frame.png\" } }\n  ],\n  \"resolution\": \"1080p\",\n  \"ratio\": \"adaptive\",\n  \"duration\": 5,\n  \"generate_audio\": true,\n  \"watermark\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/contents/generations/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "contents",
+                "generations",
+                "tasks"
+              ]
+            },
+            "description": "image_url 必须是火山侧可下载的公网地址。ratio: adaptive 表示按输入媒体自适应。"
+          }
+        },
+        {
+          "name": "1.3 创建任务-引用自有素材 asset://【计费】",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('素材归属校验通过（未返回 resource_not_found）', function () {",
+                  "  pm.expect(pm.response.text()).to.not.include('resource_not_found');",
+                  "});",
+                  "if (pm.response.code === 200) { pm.collectionVariables.set('task_id', pm.response.json().id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{model}}\",\n  \"content\": [\n    { \"type\": \"text\", \"text\": \"女孩睁开眼看向镜头，镜头缓缓拉出\" },\n    { \"type\": \"image_url\", \"image_url\": { \"url\": \"asset://{{asset_id}}\" } }\n  ],\n  \"resolution\": \"1080p\",\n  \"ratio\": \"adaptive\",\n  \"duration\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/contents/generations/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "contents",
+                "generations",
+                "tasks"
+              ]
+            },
+            "description": "前置：素材必须已轮询到 Active（见 3.3）。Processing 状态引用会被上游拒绝，且失败的视频任务照样占用预扣额度。asset:// 只能引用自己的素材，跨账号返回 404 resource_not_found。"
+          }
+        },
+        {
+          "name": "1.4 创建任务-4k 分辨率【计费】（仅 2.0）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"doubao-seedance-2-0-260128\",\n  \"content\": [\n    { \"type\": \"text\", \"text\": \"航拍雪山日出，云海翻涌\" }\n  ],\n  \"resolution\": \"4k\",\n  \"ratio\": \"16:9\",\n  \"duration\": 5,\n  \"watermark\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/contents/generations/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "contents",
+                "generations",
+                "tasks"
+              ]
+            },
+            "description": "4k 只有 doubao-seedance-2-0-260128 支持，官方并发上限 1，批量跑要自己控节奏。海外把 model 换成 dreamina-seedance-2-0-260128。"
+          }
+        },
+        {
+          "name": "1.5 创建任务-1.0 系列 frames 模式【计费】",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{model_1_0}}\",\n  \"content\": [\n    { \"type\": \"text\", \"text\": \"猫在窗台上打哈欠\" }\n  ],\n  \"resolution\": \"720p\",\n  \"ratio\": \"16:9\",\n  \"frames\": 121\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/contents/generations/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "contents",
+                "generations",
+                "tasks"
+              ]
+            },
+            "description": "frames 仅 Seedance 1.0 系列支持，取值 [29,289] 且必须满足 25+4n（29/33/37/.../289）。121 = 25+4*24，合法。与 duration 同时传时 frames 优先。1.0 系列 duration 取 [2,12] 且不支持 -1。"
+          }
+        },
+        {
+          "name": "1.6 任务列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/contents/generations/tasks?page_num=1&page_size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "contents",
+                "generations",
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "page_num",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "免费接口（不计费）。返回 {\"items\":[...],\"total\":N}。"
+          }
+        },
+        {
+          "name": "1.7 任务详情（回源官方）",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/contents/generations/tasks/{{task_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "contents",
+                "generations",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "免费接口。回源官方，返回权威状态而非站点快照。status: queued → running → succeeded/failed/cancelled。succeeded 后 content.video_url 有时效，及时转存。轮询间隔建议 sleep 5，打太密会碰到官方限流。"
+          }
+        },
+        {
+          "name": "1.8 取消/删除任务",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/contents/generations/tasks/{{task_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "contents",
+                "generations",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "免费接口。排队中的任务为取消，已完成的为删除记录。已扣费不因删除而退回（未完成任务取消后按官方实际用量结算）。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "二、素材组（控制面 5 个 Action）",
+      "item": [
+        {
+          "name": "2.1 CreateAssetGroup 创建素材组",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('返回素材组 Id', function () {",
+                  "  var b = pm.response.json();",
+                  "  pm.expect(b.Result.Id).to.be.a('string');",
+                  "  pm.expect(b.Result.Id).to.match(/^assetgroup-/);",
+                  "});",
+                  "if (pm.response.code === 200) { pm.collectionVariables.set('group_id', pm.response.json().Result.Id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Name\": \"我的角色库\",\n  \"Description\": \"短剧主角形象\",\n  \"GroupType\": \"AIGC\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=CreateAssetGroup&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "CreateAssetGroup"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "控制面统一形态 POST $SITE/volc/?Action=X&Version=2024-01-01，body 字段首字母大写（与数据面的小写下划线风格不同，照抄即可）。站点在这一刻记下归属，之后只有你自己能操作这个组。LivenessFace 组不能自建，走「四、真人认证」。ProjectName 默认 default，通常不用填。"
+          }
+        },
+        {
+          "name": "2.2 ListAssetGroups 素材组列表",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Filter\": { \"GroupType\": \"AIGC\" },\n  \"MaxResults\": 20\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=ListAssetGroups&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "ListAssetGroups"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "Filter 必选且 Filter.GroupType 必选（AIGC | LivenessFace）。MaxResults 取 [1,100]，默认 10。MaxResults/NextToken 与 PageNumber/PageSize 两种分页互斥，同时传会被官方拒。深翻页 PageSize*PageNumber>10000 必须用 NextToken。响应已按归属过滤，Items 与 TotalCount 都只有你自己的；因此某一页条目数可能少于 MaxResults 却仍有下一页 —— 以 NextToken 是否为空判断是否还有下一页，不要靠条目数推断。"
+          }
+        },
+        {
+          "name": "2.3 GetAssetGroup 素材组详情",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Id\": \"{{group_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=GetAssetGroup&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "GetAssetGroup"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "Result 字段：Id、Name、Description、GroupType、ProjectName、CreateTime、UpdateTime。查询别人的组返回 404 resource_not_found。"
+          }
+        },
+        {
+          "name": "2.4 UpdateAssetGroup 更新素材组",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Id\": \"{{group_id}}\",\n  \"Name\": \"主角库（第二季）\",\n  \"Description\": \"第二季主角形象\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=UpdateAssetGroup&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "UpdateAssetGroup"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "Id 必选，Name（≤64）与 Description（≤300）按需传。"
+          }
+        },
+        {
+          "name": "2.5 DeleteAssetGroup 删除素材组（会级联）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Id\": \"{{group_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=DeleteAssetGroup&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "DeleteAssetGroup"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "成功时 HTTP 200，Result 为空对象 {}。删除素材组会连带删除组内所有素材，站点同时清理对应账本记录，不可逆 —— 先确认组里没有还要用的素材。放在最后跑。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "三、素材（控制面 5 个 Action）",
+      "item": [
+        {
+          "name": "3.1 CreateAsset 上传素材",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('返回素材 Id', function () {",
+                  "  var b = pm.response.json();",
+                  "  pm.expect(b.Result.Id).to.be.a('string');",
+                  "  pm.expect(b.Result.Id).to.match(/^asset-/);",
+                  "});",
+                  "if (pm.response.code === 200) { pm.collectionVariables.set('asset_id', pm.response.json().Result.Id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"AssetType\": \"Image\",\n  \"URL\": \"https://example.com/hero-face.png\",\n  \"GroupId\": \"{{group_id}}\",\n  \"Name\": \"主角正脸\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=CreateAsset&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "CreateAsset"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "AssetType: Image | Video | Audio。只接受 URL，不接受 Base64；URL 必须是火山侧能直接下载的公网地址，站点不代传文件。GroupId 必须是你自己的组，否则 404 resource_not_found。Name 只用于 ListAssets 模糊搜索，不会进入模型推理。规格限制：图像 jpeg/png/webp/bmp/tiff/gif/heic/heif <30MB 宽高比(0.4,2.5) 边长(300,6000)px；视频 mp4/mov ≤200MB [2,30]s [0.4,2.5] [300,6000]px 总像素[407696,8295044] [24,60]FPS；音频 wav/mp3 [2,30]s ≤15MB。上传后进入 Processing，转码完成才变 Active。"
+          }
+        },
+        {
+          "name": "3.2 ListAssets 素材列表",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Filter\": { \"GroupType\": \"AIGC\", \"Statuses\": [\"Active\"] },\n  \"MaxResults\": 20,\n  \"SortBy\": \"CreateTime\",\n  \"SortOrder\": \"Desc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=ListAssets&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "ListAssets"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "Filter 必选，Filter.GroupType 必选。可选 Filter.GroupIds / Filter.Name / Filter.Statuses（Active|Processing|Failed）。SortBy: CreateTime(默认)|UpdateTime|GroupId；SortOrder: Desc(默认)|Asc。分页规则同素材组，但深翻页阈值是 PageSize*PageNumber>20000。游标分页不返回 TotalCount/PageNumber/PageSize，NextToken 缺失即遍历结束；翻页时 Filter/SortBy/SortOrder 应与首次查询保持一致。响应已按归属过滤，只含你自己的素材。"
+          }
+        },
+        {
+          "name": "3.3 GetAsset 素材详情（判断能否使用的权威接口）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Id\": \"{{asset_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=GetAsset&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "GetAsset"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "Result 字段：Id、Name、AssetType、GroupId、Status、ProjectName、CreateTime、UpdateTime，失败时另有 Error.Code/Error.Message。Status: Active(可用)|Processing(预处理中,不可用)|Failed(处理失败)。Failed 的 Error.Code 分类：下载与格式 DownloadFailed/TypeMismatch/FormatUnsupported/FormatUndetectable；规格越界 DurationTooShort/DurationTooLong/WidthTooSmall/HeightTooSmall/WidthTooLarge/HeightTooLarge/AspectRatioTooSmall/AspectRatioTooLarge/FileSizeTooLarge/PixelCountTooSmall/PixelCountTooLarge/FpsTooLow/FpsTooHigh；音轨 AudioTrackRequired/AudioTrackForbidden；审核 ContentRestricted/InputTextSensitiveContentDetected/InputImageSensitiveContentDetected/InputVideoSensitiveContentDetected/InputAudioSensitiveContentDetected；真人一致性 FaceMismatch；其他 TranscodingFailed。Failed 不会自动重试，需删掉重新 CreateAsset。"
+          }
+        },
+        {
+          "name": "3.4 UpdateAsset 重命名素材",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Id\": \"{{asset_id}}\",\n  \"Name\": \"主角正脸-v2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=UpdateAsset&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "UpdateAsset"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "Id 必选，Name ≤64 字符。只能改名，改不了 URL 与所属组。"
+          }
+        },
+        {
+          "name": "3.5 DeleteAsset 删除素材",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Id\": \"{{asset_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=DeleteAsset&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "DeleteAsset"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "成功时 HTTP 200，Result 为 {}，站点同时清理账本记录。放在 DeleteAssetGroup 之前跑。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "四、真人认证（控制面 2 个 Action）",
+      "item": [
+        {
+          "name": "4.1 CreateVisualValidateSession 拉起认证 H5",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('返回 BytedToken 与 H5Link', function () {",
+                  "  var r = pm.response.json().Result;",
+                  "  pm.expect(r.BytedToken).to.be.a('string');",
+                  "  pm.expect(r.H5Link).to.be.a('string');",
+                  "});",
+                  "if (pm.response.code === 200) { pm.collectionVariables.set('byted_token', pm.response.json().Result.BytedToken); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"CallbackURL\": \"https://your-app.com/liveness/done\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=CreateVisualValidateSession&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "CreateVisualValidateSession"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "CallbackURL 必选且必须公网可访问。返回 Result.BytedToken / Result.CallbackURL / Result.H5Link。H5Link 末尾的 lng 可指定页面语言：zh(默认)|en|zh-Hant。BytedToken 有效期 30 分钟且只能认证一次，过期或重复使用都要重新调用本接口；H5Link 同样一次性。真人认证官方当前限时免费，站点对这两个 Action 也不扣额度。注意：BytedToken 是你这一侧的秘密，站点不代管也不做二次校验，谁拿到谁就能换走那个组 id —— 别写进前端可见 URL 或日志。"
+          }
+        },
+        {
+          "name": "4.2 GetVisualValidateResult 换取真人素材组 id",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"BytedToken\": \"{{byted_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=GetVisualValidateResult&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "GetVisualValidateResult"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "回调参数 resultCode=10000 才是认证通过，其余为失败码 —— resultCode != 10000 时不要调本接口，没有组可取，重新拉一次认证。算法侧子错误码看 algorithmBaseRespCode；reqMeasureInfoValue 0=不计费 / 1=计费；verify_type 固定 real_time。响应可能不带 ResponseMetadata/Result 信封，官方示例是裸的 {\"GroupId\":\"...\"}，两层都要试。站内测试若跳过真实人脸环节，此处 BytedToken 会失效并返回官方错误。站点在这一刻记下归属，之后 ListAssetGroups(Filter.GroupType=LivenessFace) 能看到它，别人看不到。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "五、站点素材账本管理（/api/volc_asset/）",
+      "item": [
+        {
+          "name": "5.1 GET /self 我的资产（任意登录用户）",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "New-Api-User",
+                "value": "{{user_id}}",
+                "type": "text",
+                "description": "站点鉴权链强制要求：值必须等于登录用户 id，否则 401"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{cookie}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/volc_asset/self?p=1&page_size=20&resource_type=asset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "volc_asset",
+                "self"
+              ],
+              "query": [
+                {
+                  "key": "p",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "resource_type",
+                  "value": "asset"
+                }
+              ]
+            },
+            "description": "认证走站点登录会话或 Access Token，不走火山签名。只用认证上下文里的 user_id，绝不接受 query 传入的 user_id —— 否则任何登录用户都能翻别人的账本。resource_type: asset | asset_group，缺省返回两类。本接口只支持 resource_type 一个过滤条件，不支持关键字搜索与状态筛选。孤儿行（user_id=0）对任何客户都不可见。"
+          }
+        },
+        {
+          "name": "5.2 GET / 全部资产（管理员 role>=10）",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "New-Api-User",
+                "value": "{{user_id}}",
+                "type": "text",
+                "description": "站点鉴权链强制要求：值必须等于登录用户 id，否则 401"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{cookie}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/volc_asset/?p=1&page_size=20&status=Active&keyword=asset-2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "volc_asset",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "p",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "Active"
+                },
+                {
+                  "key": "keyword",
+                  "value": "asset-2026"
+                }
+              ]
+            },
+            "description": "路径末尾的 / 不能省。可选 user_id / channel_id / resource_type / status / keyword。keyword 按 resource_id 与 name 模糊匹配。不带 user_id 时结果包含孤儿行（user_id=0）—— 正是管理员要看见并清理的。user_id 传 0 等同不筛。page_size 默认 20 上限 100。"
+          }
+        },
+        {
+          "name": "5.3 GET /quota 额度概览",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "New-Api-User",
+                "value": "{{user_id}}",
+                "type": "text",
+                "description": "站点鉴权链强制要求：值必须等于登录用户 id，否则 401"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{cookie}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/volc_asset/quota",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "volc_asset",
+                "quota"
+              ]
+            },
+            "description": "每渠道一行：quota_limit / upstream_assets / upstream_groups / local_assets / local_groups / orphan_assets / orphan_groups / unrecorded / error。quota_limit 是管理员在渠道配置里手填的值（官方没有查限额的 API），不是官方返回的；0 表示未设置。upstream_assets 是官方权威素材数（含孤儿），回源 ListAssets 的 TotalCount。单渠道查询失败只在该行标 error，不让整页失败。"
+          }
+        },
+        {
+          "name": "5.4 POST /sync 回源同步",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "New-Api-User",
+                "value": "{{user_id}}",
+                "type": "text",
+                "description": "站点鉴权链强制要求：值必须等于登录用户 id，否则 401"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{cookie}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/volc_asset/sync?channel_id={{channel_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "volc_asset",
+                "sync"
+              ],
+              "query": [
+                {
+                  "key": "channel_id",
+                  "value": "{{channel_id}}"
+                }
+              ]
+            },
+            "description": "不传 channel_id 即同步全部透传渠道。三种处置：上游有本地无 → 插入一行 user_id=0（孤儿），记 claimed；上游有本地有 → 刷新 name/asset_type/status 快照，归属不动，记 refreshed；本地有上游无 → 只计数不删，记 stale（只是提示管理员去看一眼）。同步幂等：重复跑同一渠道，第二次 claimed 为 0、refreshed 为全量。单渠道失败只在该项带 error，整体仍返回 success:true。上限 100 页 × 100 条。"
+          }
+        },
+        {
+          "name": "5.5 DELETE /:id 删除资产（先删官方，再删本地）",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "New-Api-User",
+                "value": "{{user_id}}",
+                "type": "text",
+                "description": "站点鉴权链强制要求：值必须等于登录用户 id，否则 401"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{cookie}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/volc_asset/{{record_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "volc_asset",
+                "{{record_id}}"
+              ]
+            },
+            "description": ":id 是账本行 id（volc_assets 主键），不是火山那边的资源 id。顺序不可颠倒：先删官方，官方成功后才删本地行；失败时本地行必须留着，否则会出现「官方还在、本地无记录」的不可见占用。失败信息：无效的资产记录 id（:id 非正整数）/ 资产所属渠道 #N 不可用（渠道被删或禁用，拿不到 AK/SK）/ 官方删除失败,已保留本地记录: …（上游失败，本地行保留，可直接重试）。删 asset_group 会级联清理本地同 group_id 的行。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "六、反向用例（断言拦截生效）",
+      "item": [
+        {
+          "name": "6.1 非白名单数据面路径 → 404 endpoint_not_supported",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });",
+                  "pm.test('错误码 endpoint_not_supported', function () {",
+                  "  var e = pm.response.json().error;",
+                  "  pm.expect(e.code).to.eql('endpoint_not_supported');",
+                  "  pm.expect(e.message).to.include('本渠道仅提供 Seedance 视频生成与素材库接口');",
+                  "  pm.expect(e.type).to.eql('new_api_error');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"doubao-seedance-2-5-260628\",\n  \"messages\": [{ \"role\": \"user\", \"content\": \"hi\" }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "chat",
+                "completions"
+              ]
+            },
+            "description": "透传渠道只放开 16 个入口，其余一律在发出上游请求之前挡掉。注意这是 /api/v3 下的聊天接口，不是本站站点自身的 /v1/chat/completions。"
+          }
+        },
+        {
+          "name": "6.2 非白名单控制面 Action → 404 endpoint_not_supported",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });",
+                  "pm.test('错误码 endpoint_not_supported', function () {",
+                  "  pm.expect(pm.response.json().error.code).to.eql('endpoint_not_supported');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/?Action=ListEndpoints&Version={{version}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "Action",
+                  "value": "ListEndpoints"
+                },
+                {
+                  "key": "Version",
+                  "value": "{{version}}"
+                }
+              ]
+            },
+            "description": "Endpoint / Model / Usage / RateLimit 等约 100 个官方 Action 能读写站点自己的火山账号配置，必须拒绝。测试作用域：确认客户拿不到运营方的账号信息。"
+          }
+        },
+        {
+          "name": "6.3 跨账号 asset:// 引用 → 404 resource_not_found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });",
+                  "pm.test('错误码 resource_not_found 且提示不属于当前账号', function () {",
+                  "  var e = pm.response.json().error;",
+                  "  pm.expect(e.code).to.eql('resource_not_found');",
+                  "  pm.expect(e.message).to.include('素材不存在或不属于当前账号');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{model}}\",\n  \"content\": [\n    { \"type\": \"text\", \"text\": \"测试跨账号引用\" },\n    { \"type\": \"image_url\", \"image_url\": { \"url\": \"asset://asset-20260101000000-other\" } }\n  ],\n  \"resolution\": \"720p\",\n  \"duration\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/contents/generations/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "contents",
+                "generations",
+                "tasks"
+              ]
+            },
+            "description": "换一个属于别人的素材 id（或用另一个用站点令牌创建的资产）。整个请求被拒，不做静默过滤；且不会告诉你那个 id 是否真的存在。注意本用例是计费接口，请在测试渠道上跑。"
+          }
+        },
+        {
+          "name": "6.4 占位/失效令牌 → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer sk-invalid-placeholder"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/contents/generations/tasks?page_num=1&page_size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "contents",
+                "generations",
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "page_num",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "令牌无效 / 已禁用 / 已过期 → 401；令牌所属分组买不起或额度不足 → 403。"
+          }
+        },
+        {
+          "name": "6.5 缺 Action 的 /volc 请求 → 400 invalid_path",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+                  "pm.test('错误码 invalid_path', function () {",
+                  "  pm.expect(pm.response.json().error.code).to.eql('invalid_path');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/volc/foo/bar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "volc",
+                "foo",
+                "bar"
+              ]
+            },
+            "description": "控制面判定要求路径剥掉 /volc 后为空、且 query 里必须有 Action。两者都不满足时既不是控制面也不是白名单数据面路径，落 invalid_path。"
+          }
+        },
+        {
+          "name": "6.6 1080p 用于 2.0 Fast → 官方拒绝",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('非 200（官方拒绝 1080p）', function () {",
+                  "  pm.expect(pm.response.code).to.not.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"doubao-seedance-2-0-fast-260128\",\n  \"content\": [{ \"type\": \"text\", \"text\": \"测试不支持的分辨率\" }],\n  \"resolution\": \"1080p\",\n  \"duration\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v3/contents/generations/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v3",
+                "contents",
+                "generations",
+                "tasks"
+              ]
+            },
+            "description": "1080p 在 2.0 Fast / 2.0 Mini 不支持，站点不做额外限制，由官方结构化字段强校验报错。这是计费接口，测试渠道上跑。"
+          }
+        }
+      ]
+    }
+  ]
+}

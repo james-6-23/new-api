@@ -178,8 +178,8 @@ type RelayInfo struct {
 	Request dto.Request
 
 	// 同步生图响应解析结果：handler 解析响应后填充，供 ImageHelper 写入 tasks 表
-	ImageResultURLs      []string
-	ImageResultB64Count  int
+	ImageResultURLs     []string
+	ImageResultB64Count int
 
 	// RequestConversionChain records request format conversions in order, e.g.
 	// ["openai", "openai_responses"] or ["openai", "claude"].
@@ -347,6 +347,8 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeMoonshot:    true,
 	constant.ChannelTypeMiniMax:     true,
 	constant.ChannelTypeSiliconFlow: true,
+	// 火山方舟 /api/v3 与 OpenAI 协议兼容，stream_options 官方支持。
+	constant.ChannelTypeVolcPassthrough: true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {

@@ -29,6 +29,7 @@ import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLim
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import SettingsCloudPaste from '../../pages/Setting/Operation/SettingsCloudPaste';
 import SettingsAutoCreateUser from '../../pages/Setting/Operation/SettingsAutoCreateUser';
+import SettingsVolcAsset from '../../pages/Setting/Operation/SettingsVolcAsset';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -105,6 +106,11 @@ const OperationSetting = () => {
     'auto_create_user_setting.site_url': '',
     'auto_create_user_setting.copy_templates':
       '[{"label":"站点","template":"{{site}}"},{"label":"用户名","template":"{{username}}"},{"label":"密码","template":"{{password}}"}]',
+
+    /* 素材库额度 */
+    'volc_asset_setting.enabled': false,
+    'volc_asset_setting.default_asset_limit': 100,
+    'volc_asset_setting.count_asset_groups': false,
   });
 
   let [loading, setLoading] = useState(false);
@@ -185,6 +191,10 @@ const OperationSetting = () => {
         {/* 自动创建用户 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsAutoCreateUser options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 素材库额度 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsVolcAsset options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>

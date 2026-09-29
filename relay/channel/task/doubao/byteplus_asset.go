@@ -75,10 +75,16 @@ func (cl *bytePlusAssetClient) baseEndpoint() string {
 	}
 	// cn-* regions use the domestic Volcengine OpenAPI gateway; all other
 	// regions (ap-*, eu-*, us-*) use the BytePlus overseas gateway.
-	if strings.HasPrefix(cl.region, "cn-") {
+	if cl.isCNRegion() {
 		return "https://open.volcengineapi.com"
 	}
 	return fmt.Sprintf("https://ark.%s.byteplusapi.com", cl.region)
+}
+
+// isCNRegion reports whether this client talks to 国内方舟. The domestic and
+// overseas sites差的不只是 host：国内方舟不接受 Moderation 参数，见 createAsset。
+func (cl *bytePlusAssetClient) isCNRegion() bool {
+	return strings.HasPrefix(cl.region, "cn-")
 }
 
 // createAssetRequest is the request body for CreateAsset.
@@ -223,7 +229,10 @@ func (cl *bytePlusAssetClient) createAsset(ctx context.Context, groupID, mediaUR
 		AssetType:   assetType,
 		ProjectName: cl.projectName,
 	}
-	if cl.skipModeration {
+	// 国内方舟不支持 Moderation 参数，带上会被直接拒绝：
+	// "InvalidParameter.Moderation: Moderation parameter is not supported for CN region"。
+	// 这是区域能力差异而非用户偏好，故无视 skipModeration 配置强制省略。
+	if cl.skipModeration && !cl.isCNRegion() {
 		reqBody.Moderation = &createAssetModeration{Strategy: "Skip"}
 	}
 

@@ -24,6 +24,7 @@ import type {
   SearchUsersParams,
   UserFormData,
   ManageUserAction,
+  ManageUserAssetLimitPayload,
   ManageUserQuotaPayload,
   ApiResponse,
   AutoCreateUserPreview,
@@ -134,6 +135,16 @@ export async function manageUser(
  */
 export async function adjustUserQuota(
   payload: ManageUserQuotaPayload
+): Promise<ApiResponse<Partial<User>>> {
+  const res = await api.post('/api/user/manage', payload)
+  return res.data
+}
+
+/**
+ * Set the user's personal asset-library limit override (提额)
+ */
+export async function setUserAssetLimit(
+  payload: ManageUserAssetLimitPayload
 ): Promise<ApiResponse<Partial<User>>> {
   const res = await api.post('/api/user/manage', payload)
   return res.data

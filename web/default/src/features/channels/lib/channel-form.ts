@@ -223,6 +223,11 @@ export const channelFormSchema = z
     byteplus_region: z.string().optional(),
     byteplus_moderation_skip: z.boolean().optional(),
     asset_provider: z.enum(['byteplus', 'cloudwise']).optional(),
+    // 字节火山透传 (type 60): control-plane signing region / endpoint override
+    volc_sign_region: z.string().optional(),
+    volc_openapi_endpoint: z.string().optional(),
+    // 素材库条数上限，仅用于管理页对账展示；0 表示未知/不限
+    volc_asset_quota_limit: z.number().optional(),
     // Seedance(第三方) asset pre-upload (stored in settings JSON; channel type 59)
     seedance3rd_asset_enabled: z.boolean().optional(),
     expose_upstream_task_id: z.boolean().optional(),
@@ -390,6 +395,10 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   // Seedance(第三方) asset pre-upload
   seedance3rd_asset_enabled: false,
   expose_upstream_task_id: false,
+  // 字节火山透传：留空则按渠道 BaseURL 推导，不预填具体 region
+  volc_sign_region: '',
+  volc_openapi_endpoint: '',
+  volc_asset_quota_limit: 0,
 }
 
 // ============================================================================
@@ -478,11 +487,14 @@ export function transformChannelToFormDefaults(
   let bytePlusSecretKey = ''
   let bytePlusAssetGroupId = ''
   let bytePlusProjectName = 'default'
-  let bytePlusRegion = 'ap-southeast-1'
+  let bytePlusRegion = 'cn-beijing'
   let bytePlusModerationSkip = true
   let assetProvider: 'byteplus' | 'cloudwise' = 'byteplus'
   let seedance3rdAssetEnabled = false
   let exposeUpstreamTaskId = false
+  let volcSignRegion = ''
+  let volcOpenAPIEndpoint = ''
+  let volcAssetQuotaLimit = 0
 
   if (channel.settings) {
     try {
@@ -517,6 +529,9 @@ export function transformChannelToFormDefaults(
       assetProvider = parsed.asset_provider || 'byteplus'
       seedance3rdAssetEnabled = parsed.seedance3rd_asset_enabled === true
       exposeUpstreamTaskId = parsed.expose_upstream_task_id === true
+      volcSignRegion = parsed.volc_sign_region || ''
+      volcOpenAPIEndpoint = parsed.volc_openapi_endpoint || ''
+      volcAssetQuotaLimit = Number(parsed.volc_asset_quota_limit) || 0
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
@@ -578,6 +593,10 @@ export function transformChannelToFormDefaults(
     // Seedance(第三方) asset pre-upload
     seedance3rd_asset_enabled: seedance3rdAssetEnabled,
     expose_upstream_task_id: exposeUpstreamTaskId,
+    // 字节火山透传控制面签名
+    volc_sign_region: volcSignRegion,
+    volc_openapi_endpoint: volcOpenAPIEndpoint,
+    volc_asset_quota_limit: volcAssetQuotaLimit,
   }
 }
 
@@ -685,10 +704,18 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     'byteplus_moderation_skip',
     'asset_provider',
   ]
-  if ([45, 54].includes(formData.type)) {
-    settingsObj.byteplus_asset_enabled = formData.byteplus_asset_enabled === true
-    settingsObj.byteplus_access_key = (formData.byteplus_access_key || '').trim()
-    settingsObj.byteplus_secret_key = (formData.byteplus_secret_key || '').trim()
+  if (formData.type === 60) {
+    // type 60 的 AK/SK/项目名在上面的透传分支里已写入，这里不再重复处理，
+    // 也不能走 else 分支把它们删掉。
+  } else if ([45, 54].includes(formData.type)) {
+    settingsObj.byteplus_asset_enabled =
+      formData.byteplus_asset_enabled === true
+    settingsObj.byteplus_access_key = (
+      formData.byteplus_access_key || ''
+    ).trim()
+    settingsObj.byteplus_secret_key = (
+      formData.byteplus_secret_key || ''
+    ).trim()
     settingsObj.byteplus_asset_group_id = (
       formData.byteplus_asset_group_id || ''
     ).trim()
@@ -701,6 +728,40 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.asset_provider = formData.asset_provider || 'byteplus'
   } else {
     for (const k of bytePlusKeys) {
+      if (k in settingsObj) delete settingsObj[k]
+    }
+  }
+
+  // 字节火山透传 (type 60)：控制面签名 region 与 endpoint 覆盖。
+  // 两者均可留空 —— 后端按渠道 BaseURL 推导（见 dto.ResolveVolcSignRegion）。
+  // 控制面（?Action=）走 AK/SK 签名，与数据面的 Bearer 密钥独立，
+  // 复用 byteplus_access_key / byteplus_secret_key / byteplus_project_name 三个键，
+  // 后端 buildPassthroughCredentials 从同一处读取。
+  const volcPassthroughKeys = [
+    'volc_sign_region',
+    'volc_openapi_endpoint',
+    'volc_asset_quota_limit',
+  ]
+  if (formData.type === 60) {
+    // 素材库上限官方查不到，只能手填；0/空一律存 0，管理页据此显示「未知/不限」。
+    settingsObj.volc_asset_quota_limit = Math.max(
+      0,
+      Math.floor(Number(formData.volc_asset_quota_limit) || 0),
+    )
+    settingsObj.volc_sign_region = (formData.volc_sign_region || '').trim()
+    settingsObj.volc_openapi_endpoint = (
+      formData.volc_openapi_endpoint || ''
+    ).trim()
+    settingsObj.byteplus_access_key = (
+      formData.byteplus_access_key || ''
+    ).trim()
+    settingsObj.byteplus_secret_key = (
+      formData.byteplus_secret_key || ''
+    ).trim()
+    settingsObj.byteplus_project_name =
+      (formData.byteplus_project_name || '').trim() || 'default'
+  } else {
+    for (const k of volcPassthroughKeys) {
       if (k in settingsObj) delete settingsObj[k]
     }
   }

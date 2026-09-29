@@ -229,6 +229,11 @@ const EditChannelModal = (props) => {
     asset_provider: 'byteplus',
     // 第三方 Seedance 渠道（渠道类型 59）素材库预上传总开关
     seedance3rd_asset_enabled: false,
+    // 字节火山透传（渠道类型 60）：控制面签名 region / endpoint 覆盖，
+    // 以及素材库条数上限（官方无查询接口，仅管理员手填，0 表示未知/不限）
+    volc_sign_region: '',
+    volc_openapi_endpoint: '',
+    volc_asset_quota_limit: 0,
     // 上游任务 ID 透传（仅火山方舟 45 / 豆包视频 54 / 第三方 Seedance 59）
     expose_upstream_task_id: false,
     // 供应商设置（仅 root 可见/编辑，非 root 通过 originalChannelSettingRef 保留原值）
@@ -711,6 +716,16 @@ const EditChannelModal = (props) => {
             base_url: 'https://ark.cn-beijing.volces.com',
           }));
           break;
+        // 字节火山透传：模型名由客户自填，模型列表保持为空；
+        // 但 BaseURL 决定数据面 host 与签名区域推导，必须给国内默认值。
+        case 60:
+          localModels = getChannelModels(value);
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url:
+              prevInputs.base_url || 'https://ark.cn-beijing.volces.com',
+          }));
+          break;
         default:
           localModels = getChannelModels(value);
           break;
@@ -1010,6 +1025,11 @@ const EditChannelModal = (props) => {
           data.byteplus_moderation_skip =
             parsedSettings.byteplus_moderation_skip !== false;
           data.asset_provider = parsedSettings.asset_provider || 'byteplus';
+          // 读取字节火山透传控制面签名设置
+          data.volc_sign_region = parsedSettings.volc_sign_region || '';
+          data.volc_openapi_endpoint = parsedSettings.volc_openapi_endpoint || '';
+          data.volc_asset_quota_limit =
+            Number(parsedSettings.volc_asset_quota_limit) || 0;
           // 读取第三方 Seedance 素材库预上传设置
           data.seedance3rd_asset_enabled =
             parsedSettings.seedance3rd_asset_enabled === true;
@@ -1043,6 +1063,9 @@ const EditChannelModal = (props) => {
           data.byteplus_region = 'ap-southeast-1';
           data.byteplus_moderation_skip = true;
           data.asset_provider = 'byteplus';
+          data.volc_sign_region = '';
+          data.volc_openapi_endpoint = '';
+          data.volc_asset_quota_limit = 0;
           data.seedance3rd_asset_enabled = false;
           data.expose_upstream_task_id = false;
         }
@@ -1071,6 +1094,9 @@ const EditChannelModal = (props) => {
         data.byteplus_region = 'ap-southeast-1';
         data.byteplus_moderation_skip = true;
         data.asset_provider = 'byteplus';
+        data.volc_sign_region = '';
+        data.volc_openapi_endpoint = '';
+        data.volc_asset_quota_limit = 0;
         data.seedance3rd_asset_enabled = false;
         data.expose_upstream_task_id = false;
       }
@@ -1936,6 +1962,33 @@ const EditChannelModal = (props) => {
       settings.asset_provider = localInputs.asset_provider || 'byteplus';
     } else {
       bytePlusKeys.forEach((k) => {
+        if (k in settings) delete settings[k];
+      });
+    }
+
+    // type === 60 (字节火山透传): 控制面 AK/SK 与数据面 Bearer 密钥独立，
+    // 复用 byteplus_access_key / byteplus_secret_key / byteplus_project_name 三个键，
+    // 后端 buildPassthroughCredentials 从同一处读取。
+    const volcPassthroughKeys = [
+      'volc_sign_region',
+      'volc_openapi_endpoint',
+      'volc_asset_quota_limit',
+    ];
+    if (localInputs.type === 60) {
+      settings.byteplus_access_key = (localInputs.byteplus_access_key || '').trim();
+      settings.byteplus_secret_key = (localInputs.byteplus_secret_key || '').trim();
+      settings.byteplus_project_name =
+        (localInputs.byteplus_project_name || '').trim() || 'default';
+      settings.volc_sign_region = (localInputs.volc_sign_region || '').trim();
+      settings.volc_openapi_endpoint = (localInputs.volc_openapi_endpoint || '').trim();
+      // 官方没有查素材库上限的接口，只能手填；0/空/非法输入一律存 0，
+      // 管理页据此显示「未知/不限」。
+      settings.volc_asset_quota_limit = Math.max(
+        0,
+        Math.floor(Number(localInputs.volc_asset_quota_limit) || 0),
+      );
+    } else {
+      volcPassthroughKeys.forEach((k) => {
         if (k in settings) delete settings[k];
       });
     }
@@ -3064,6 +3117,82 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
+                    {/* 字节火山透传（渠道类型 60）：控制面签名配置。
+                        数据面 host 取渠道 BaseURL；控制面（?Action=）host 与签名
+                        CredentialScope 必须独立配置——海外数据面用 ap-southeast，
+                        控制面用 ap-southeast-1，二者不可互推。 */}
+                    {inputs.type === 60 && (
+                      <>
+                        <Form.Input
+                          field='byteplus_access_key'
+                          label={t('Access Key (AK)')}
+                          mode='password'
+                          placeholder={t('火山引擎 / BytePlus AccessKey')}
+                          value={inputs.byteplus_access_key || ''}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange('byteplus_access_key', value)
+                          }
+                          extraText={t('仅用于控制面（?Action=）签名。数据面 /api/v3 调用使用上方的渠道密钥。')}
+                        />
+                        <Form.Input
+                          field='byteplus_secret_key'
+                          label={t('Secret Key (SK)')}
+                          mode='password'
+                          placeholder={t('火山引擎 / BytePlus SecretKey')}
+                          value={inputs.byteplus_secret_key || ''}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange('byteplus_secret_key', value)
+                          }
+                        />
+                        <Form.Input
+                          field='byteplus_project_name'
+                          label={t('项目名称')}
+                          placeholder='default'
+                          value={inputs.byteplus_project_name || ''}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange('byteplus_project_name', value)
+                          }
+                        />
+                        <Form.Input
+                          field='volc_sign_region'
+                          label={t('签名区域')}
+                          placeholder='cn-beijing / ap-southeast-1'
+                          value={inputs.volc_sign_region || ''}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange('volc_sign_region', value)
+                          }
+                          extraText={t('留空则按渠道 BaseURL 推导：含 volces.com 取 cn-beijing，其余取 ap-southeast-1。')}
+                        />
+                        <Form.Input
+                          field='volc_openapi_endpoint'
+                          label={t('控制面地址')}
+                          placeholder='https://ark.cn-beijing.volcengineapi.com'
+                          value={inputs.volc_openapi_endpoint || ''}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange('volc_openapi_endpoint', value)
+                          }
+                          extraText={t('留空则按签名区域推导。仅私有化网关需要覆盖。')}
+                        />
+                        <Form.InputNumber
+                          field='volc_asset_quota_limit'
+                          label={t('素材库条数上限')}
+                          placeholder={t('例如 1000')}
+                          min={0}
+                          value={inputs.volc_asset_quota_limit || 0}
+                          onNumberChange={(value) =>
+                            handleChannelOtherSettingsChange(
+                              'volc_asset_quota_limit',
+                              value,
+                            )
+                          }
+                          style={{ width: '100%' }}
+                          extraText={t(
+                            '该 IAM 账号可持有的素材条数上限。官方无查询接口，需手动填写；留空或 0 表示未知/不限。仅用于资产管理的额度对账展示。',
+                          )}
+                        />
+                      </>
+                    )}
+
                     {inputs.type === 41 && (
                       <Form.Select
                         field='vertex_key_type'
@@ -3712,7 +3841,8 @@ const EditChannelModal = (props) => {
                         inputs.type !== 8 &&
                         inputs.type !== 22 &&
                         inputs.type !== 36 &&
-                        inputs.type !== 45 && (
+                        inputs.type !== 45 &&
+                        inputs.type !== 60 && (
                           <div>
                             <Form.Input
                               field='base_url'
@@ -3799,6 +3929,42 @@ const EditChannelModal = (props) => {
                                   ]
                                 : []),
                             ]}
+                            disabled={isIonetLocked}
+                          />
+                        </div>
+                      )}
+
+                      {/* 字节火山透传（60）：BaseURL 既是数据面 host，
+                          也是后端推导控制面签名区域的依据（dto.ResolveVolcSignRegion：
+                          含 volces.com → cn-beijing，否则 ap-southeast-1），
+                          不能落到通用「此项可选」输入框。 */}
+                      {inputs.type === 60 && (
+                        <div>
+                          <Form.Select
+                            field='base_url'
+                            label={t('API地址')}
+                            placeholder={t('请选择或输入API地址')}
+                            onChange={(value) =>
+                              handleInputChange('base_url', value)
+                            }
+                            filter={selectFilter}
+                            allowCreate
+                            optionList={[
+                              {
+                                value: 'https://ark.cn-beijing.volces.com',
+                                label:
+                                  'https://ark.cn-beijing.volces.com（国内 火山方舟）',
+                              },
+                              {
+                                value:
+                                  'https://ark.ap-southeast.bytepluses.com',
+                                label:
+                                  'https://ark.ap-southeast.bytepluses.com（海外 BytePlus）',
+                              },
+                            ]}
+                            extraText={t(
+                              '透传数据面地址。下方「签名区域」留空时，控制面签名区域由此地址推导。',
+                            )}
                             disabled={isIonetLocked}
                           />
                         </div>

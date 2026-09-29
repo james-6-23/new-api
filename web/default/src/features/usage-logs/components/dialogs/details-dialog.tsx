@@ -34,6 +34,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
+import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
@@ -400,6 +401,15 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   )
 }
 
+// 计价档位标签,账单与任务详情两处共用。
+const buildTierLabelMap = (
+  t: (key: string) => string
+): Record<string, string> => ({
+  base: t('480p / 720p'),
+  '1080p': '1080p',
+  '4k': '4K',
+})
+
 function VideoPricingBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   const { t } = useTranslation()
   const { log, other } = props
@@ -420,11 +430,7 @@ function VideoPricingBreakdown(props: { log: UsageLog; other: LogOtherData }) {
       abbreviate: false,
     })
 
-  const tierLabelMap: Record<string, string> = {
-    base: t('480p / 720p'),
-    '1080p': '1080p',
-    '4k': '4K',
-  }
+  const tierLabelMap = buildTierLabelMap(t)
 
   const rows: Array<{ label: string; value: string }> = []
   if (other.video_resolution_tier) {
@@ -437,7 +443,28 @@ function VideoPricingBreakdown(props: { log: UsageLog; other: LogOtherData }) {
     label: t('Video Input'),
     value: other.video_has_input ? t('Yes') : t('No'),
   })
-  rows.push({ label: t('Unit Price'), value: `${fmtPrice(unit)}/M` })
+  rows.push({ label: t('List Unit Price'), value: `${fmtPrice(unit)}/M` })
+
+  // 未打折时不渲染折扣行,避免给全价请求增加噪音。
+  const promo = other.video_promo_factor
+  const hasPromo =
+    promo != null && Number.isFinite(promo) && promo > 0 && promo < 1
+  const net = hasPromo ? (other.video_net_unit_price ?? unit * promo) : unit
+  if (hasPromo) {
+    const percent = Math.round((1 - promo) * 1000) / 10
+    rows.push({
+      label: t('Promo Discount'),
+      value: `${promo.toFixed(4)}x (${t('{{percent}}% off', { percent })})`,
+    })
+    rows.push({ label: t('Net Unit Price'), value: `${fmtPrice(net)}/M` })
+    if (other.video_promo_start_at && other.video_promo_end_at) {
+      rows.push({
+        label: t('Promo Window'),
+        value: `${formatDateTimeObject(new Date(other.video_promo_start_at * 1000))} ~ ${formatDateTimeObject(new Date(other.video_promo_end_at * 1000))}`,
+      })
+    }
+  }
+
   if (tokens > 0) {
     rows.push({ label: t('Billed Tokens'), value: tokens.toLocaleString() })
   }
@@ -457,7 +484,7 @@ function VideoPricingBreakdown(props: { log: UsageLog; other: LogOtherData }) {
       {showFormula && (
         <DetailRow
           label={t('Billing Formula')}
-          value={`${fmtPrice(unit)}/M × ${tokens.toLocaleString()} ÷ 1,000,000 × ${gr.toFixed(4)} = ${formatLogQuota(fullQuota)}`}
+          value={`${fmtPrice(net)}/M × ${tokens.toLocaleString()} ÷ 1,000,000 × ${gr.toFixed(4)} = ${formatLogQuota(fullQuota)}`}
           mono
         />
       )}
@@ -480,11 +507,7 @@ function SeedanceTaskSection(props: { log: UsageLog }) {
   const ti = props.log.task_info
   if (!ti) return null
 
-  const tierLabelMap: Record<string, string> = {
-    base: t('480p / 720p'),
-    '1080p': '1080p',
-    '4k': '4K',
-  }
+  const tierLabelMap = buildTierLabelMap(t)
   const rows: Array<{ label: string; value: string }> = []
   // 请求参数真实值（来自用户原始请求）优先；缺失时回退计费档位。
   if (ti.resolution) {

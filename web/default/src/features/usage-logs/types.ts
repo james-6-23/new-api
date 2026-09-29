@@ -201,6 +201,10 @@ export interface LogOtherData {
   video_resolution_tier?: string
   video_has_input?: boolean
   video_unit_price?: number
+  video_promo_factor?: number
+  video_promo_start_at?: number
+  video_promo_end_at?: number
+  video_net_unit_price?: number
   video_tokens?: number
   actual_quota?: number
   task_id?: string

@@ -72,7 +72,8 @@ type responseTask struct {
 	Model   string `json:"model"`
 	Status  string `json:"status"`
 	Content struct {
-		VideoURL string `json:"video_url"`
+		VideoURL     string `json:"video_url"`
+		LastFrameURL string `json:"last_frame_url"` // 仅 return_last_frame=true 时上游填充
 	} `json:"content"`
 	Seed            int    `json:"seed"`
 	Resolution      string `json:"resolution"`
@@ -425,6 +426,10 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	// 在 metadata 中输出 "url":"" 这种容易让客户端误判已完成的脏字段。
 	if dResp.Content.VideoURL != "" {
 		openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	}
+	// last_frame_url 同理，只在 return_last_frame=true 且上游已生成时写入。
+	if dResp.Content.LastFrameURL != "" {
+		openAIVideo.SetMetadata("last_frame_url", dResp.Content.LastFrameURL)
 	}
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	// CompletedAt 只在终态写入；未完成任务的 UpdatedAt 接近 CreatedAt，

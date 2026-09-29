@@ -55,6 +55,7 @@ const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Cost = lazy(() => import('./pages/Cost'));
 const Availability = lazy(() => import('./pages/Availability'));
+const VolcAssets = lazy(() => import('./pages/VolcAssets'));
 const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
@@ -192,6 +193,16 @@ function App() {
                 <Availability />
               </Suspense>
             </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/volc-assets'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <VolcAssets />
+              </Suspense>
+            </PrivateRoute>
           }
         />
         <Route

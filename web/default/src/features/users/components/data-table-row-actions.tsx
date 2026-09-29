@@ -30,6 +30,7 @@ import {
   ShieldAlert,
   Link2,
   CreditCard,
+  Images,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -54,6 +55,7 @@ import {
 import { getUserActionMessage } from '../lib'
 import { type User, type ManageUserAction } from '../types'
 import { UserBindingDialog } from './dialogs/user-binding-dialog'
+import { UserAssetLimitDialog } from './user-asset-limit-dialog'
 import { useUsers } from './users-provider'
 
 interface DataTableRowActionsProps {
@@ -68,6 +70,19 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [resetTwoFAOpen, setResetTwoFAOpen] = useState(false)
   const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [subscriptionsDialogOpen, setSubscriptionsDialogOpen] = useState(false)
+  const [assetLimitOpen, setAssetLimitOpen] = useState(false)
+
+  // 提额值存在 setting 的 JSON 原文里（稀疏覆盖值，绝大多数账号没有这一项），
+  // 解析失败按「没有覆盖」处理 —— 这只是个对话框的初始值，不值得报错。
+  const currentAssetLimit = (() => {
+    if (!user.setting) return 0
+    try {
+      const parsed = JSON.parse(user.setting) as { volc_asset_limit?: number }
+      return Number(parsed.volc_asset_limit ?? 0)
+    } catch {
+      return 0
+    }
+  })()
 
   const handleEdit = () => {
     setCurrentRow(user)
@@ -225,6 +240,20 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault()
+              setAssetLimitOpen(true)
+            }}
+          >
+            {t('Asset Library Limit')}
+            <DropdownMenuShortcut>
+              <Images size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
               setResetPasskeyOpen(true)
             }}
             disabled={isRoot}
@@ -292,6 +321,14 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         open={subscriptionsDialogOpen}
         onOpenChange={setSubscriptionsDialogOpen}
         user={{ id: user.id, username: user.username }}
+        onSuccess={triggerRefresh}
+      />
+
+      <UserAssetLimitDialog
+        open={assetLimitOpen}
+        onOpenChange={setAssetLimitOpen}
+        userId={user.id}
+        currentLimit={currentAssetLimit}
         onSuccess={triggerRefresh}
       />
     </div>

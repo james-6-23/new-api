@@ -3,15 +3,21 @@ package seedance
 import (
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
 
-// EstimateBilling 是两个适配器共用的 Seedance 2.0 计费入口:检测含视频输入 + 分辨率档位,
-// 查矩阵得到单一 video_pricing 倍率,写入展示快照 info.PriceData.VideoBilling,
-// 并返回 OtherRatios。ratio==1.0(base 档不含视频)时只写快照、返回 nil(不追加冗余倍率)。
-// 非 Seedance 2.0 模型返回 nil。
+// EstimateBilling 是三个渠道类型共用的 Seedance 2.0 计费入口:检测含视频输入 + 分辨率档位,
+// 查原价矩阵得到 video_pricing 倍率,解析后台限时折扣得到 video_promo 倍率,
+// 写入展示快照 info.PriceData.VideoBilling,并返回 OtherRatios。
+//
+// 两个倍率**并列为独立键**,折扣绝不乘进矩阵单价:PricingRatio 是相对倍率,
+// 分母就是 base 格,折扣乘进矩阵会让 base 档折扣被分子分母同时缩放而静默约掉。
+// 预扣与结算对 OtherRatios 无差别连乘且无键白名单,故新键自动贯穿全链路。
+//
+// 非 Seedance 2.0 模型返回 nil;两个倍率都不生效时也返回 nil(不追加冗余倍率)。
 func EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	ratio, disp, ok := ResolveVideoBilling(c, info.OriginModelName)
 	if !ok {
@@ -19,14 +25,24 @@ func EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]flo
 	}
 	d := disp
 	info.PriceData.VideoBilling = &d
+
+	ratios := make(map[string]float64, 2)
 	if ratio != 1.0 {
-		return map[string]float64{"video_pricing": ratio}
+		ratios["video_pricing"] = ratio
 	}
-	return nil
+	if d.PromoFactor > 0 && d.PromoFactor < 1.0 {
+		ratios["video_promo"] = d.PromoFactor
+	}
+	if len(ratios) == 0 {
+		return nil
+	}
+	return ratios
 }
 
-// ResolveVideoBilling 检测请求并计算 (video_pricing 倍率, 展示快照)。
-// 供 EstimateBilling 使用,也便于单测。
+// ResolveVideoBilling 检测请求并计算 (video_pricing 原价倍率, 展示快照)。
+// 快照的 ResolutionTier 记录**实际计价档位**(tierHit)而非请求档位:模型不支持请求档位时
+// 单价回退 base,账单必须如实显示 base,否则「原价 × 折扣 = 实收」在账单上算不平。
+// 折扣按 tierHit 匹配,避免把 1080p 的折扣施加到回退后的 base 单价上。
 func ResolveVideoBilling(c *gin.Context, model string) (float64, types.VideoBillingDisplay, bool) {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
@@ -34,15 +50,19 @@ func ResolveVideoBilling(c *gin.Context, model string) (float64, types.VideoBill
 	}
 	hasVideo := HasVideoInput(c, &req)
 	tier := ClassifyResTier(DetectResolution(c, &req))
-	ratio, base, ok := PricingRatio(model, tier, hasVideo)
+	ratio, base, tierHit, ok := PricingRatio(model, tier, hasVideo)
 	if !ok {
 		return 0, types.VideoBillingDisplay{}, false
 	}
+	factor, startAt, endAt := billing_setting.ResolveVideoPromo(model, tierHit)
 	return ratio, types.VideoBillingDisplay{
-		ResolutionTier:  tier,
+		ResolutionTier:  tierHit,
 		HasVideoInput:   hasVideo,
 		BaseUnitUSDPerM: base,
 		PricingRatio:    ratio,
+		PromoFactor:     factor,
+		PromoStartAt:    startAt,
+		PromoEndAt:      endAt,
 	}, true
 }
 

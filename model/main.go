@@ -290,6 +290,7 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&ChannelCostVersion{},
+		&VolcAsset{},
 	)
 	if err != nil {
 		return err
