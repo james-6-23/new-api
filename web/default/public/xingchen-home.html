@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>君の星辰·AI — 跨越星辰的统一 AI API 网关</title>
 <meta name="description" content="君の星辰·AI 由 XINGCHEN NETWORK LIMITED（英国）运营，提供统一、OpenAI 兼容的 API 接口，单一端点访问数百个 AI 模型。" />
+<meta name="color-scheme" content="dark light" />
 <!-- 社交分享卡片 -->
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="君の星辰·AI" />
@@ -17,54 +18,84 @@
 <meta name="twitter:description" content="统一、OpenAI 兼容的 API 接口，单一端点访问数百个 AI 模型。一比一充值，三网优化加速。" />
 <meta name="twitter:image" content="https://ai.centos.hk/logo.png" />
 <style>
+  /* ============ 设计令牌 ============ */
   :root {
-    --bg-main: #FFFFFF;
-    --bg-secondary: #F4F4F5;
-    --text-primary: #090A0B;
-    --text-secondary: #52525B;
-    --text-muted: #A1A1AA;
-    --border-subtle: #E4E4E7;
-    --border-hover: #D4D4D8;
-    --accent-blue: #3B82F6;
-    --accent-glow: rgba(59, 130, 246, 0.05);
-    
-    --card-bg: rgba(255, 255, 255, 0.6);
-    --card-border: rgba(0, 0, 0, 0.08);
-    
-    --grid-color: rgba(0,0,0,0.04);
-    --grad-start: #090A0B;
-    --grad-end: #71717A;
-    --btn-primary-bg: #000000;
-    --btn-primary-text: #FFFFFF;
-    --btn-primary-hover: #27272A;
-    
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 24px;
-    --max-w: 1120px;
-  }
-  
-  html.dark {
-    --bg-main: #000000;
-    --bg-secondary: #0A0A0A;
-    --text-primary: #EDEDED;
-    --text-secondary: #A1A1AA;
-    --text-muted: #71717A;
-    --border-subtle: #27272A;
-    --border-hover: #3F3F46;
-    --accent-glow: rgba(59, 130, 246, 0.15);
-    
-    --card-bg: rgba(10, 10, 10, 0.6);
-    --card-border: rgba(255, 255, 255, 0.08);
+    --bg-main: #FBFBFD;
+    --bg-elev: #FFFFFF;
+    --surface: rgba(255, 255, 255, 0.72);
+    --surface-2: #F3F4F8;
+    --text-primary: #0B0D12;
+    --text-secondary: #4B5160;
+    --text-muted: #7A8090;
+    --border-subtle: #E6E8EE;
+    --border-hover: #CDD1DB;
 
-    --grid-color: rgba(255,255,255,0.03);
-    --grad-start: #FFFFFF;
-    --grad-end: #A1A1AA;
-    --btn-primary-bg: #FFFFFF;
-    --btn-primary-text: #000000;
-    --btn-primary-hover: #E4E4E7;
+    --accent: #2563EB;
+    --accent-2: #0891B2;
+    --accent-3: #6D28D9;
+    --aurora: linear-gradient(105deg, #2563eb 0%, #0891b2 38%, #0d9488 58%, #6d28d9 100%);
+    --aurora-soft: linear-gradient(135deg, rgba(37,99,235,.10), rgba(8,145,178,.08) 50%, rgba(109,40,217,.10));
+    --accent-glow: rgba(37, 99, 235, 0.08);
+    --spot: rgba(37, 99, 235, 0.07);
+
+    /* 语义色：亮色下加深以满足对比度 */
+    --c-hot: #DC2626;
+    --c-hot-bg: rgba(220, 38, 38, 0.07);
+    --c-deal: #A16207;
+    --c-deal-bg: rgba(202, 138, 4, 0.10);
+    --c-good: #0F766E;
+    --c-good-bg: rgba(13, 148, 136, 0.10);
+    --c-price: #B45309;
+
+    --grid-color: rgba(15, 23, 42, 0.045);
+    --grad-start: #0B0D12;
+    --grad-end: #4B5563;
+    --btn-text-on-aurora: #FFFFFF;
+    --shadow-card: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px -12px rgba(15,23,42,.10);
+    --shadow-pop: 0 18px 48px -18px rgba(37,99,235,.35);
+
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 22px;
+    --max-w: 1160px;
+    --ease: cubic-bezier(.2,.7,.2,1);
   }
-  
+
+  html.dark {
+    --bg-main: #05060A;
+    --bg-elev: #0B0D13;
+    --surface: rgba(11, 13, 19, 0.92);
+    --surface-2: rgba(255, 255, 255, 0.05);
+    --text-primary: #EDEEF2;
+    --text-secondary: #A3A7B3;
+    --text-muted: #6E7382;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-hover: rgba(255, 255, 255, 0.18);
+
+    --accent: #7CC4FF;
+    --accent-2: #5EEAD4;
+    --accent-3: #818CF8;
+    --aurora: linear-gradient(105deg, #e8f0ff 0%, #7cc4ff 28%, #5eead4 52%, #818cf8 78%, #c4b5fd 100%);
+    --aurora-soft: linear-gradient(135deg, rgba(124,196,255,.10), rgba(94,234,212,.06) 50%, rgba(129,140,248,.10));
+    --accent-glow: rgba(96, 165, 250, 0.16);
+    --spot: rgba(124, 196, 255, 0.08);
+
+    --c-hot: #FCA5A5;
+    --c-hot-bg: rgba(248, 113, 113, 0.10);
+    --c-deal: #FDE047;
+    --c-deal-bg: rgba(250, 204, 21, 0.10);
+    --c-good: #5EEAD4;
+    --c-good-bg: rgba(94, 234, 212, 0.10);
+    --c-price: #FCD34D;
+
+    --grid-color: rgba(255, 255, 255, 0.03);
+    --grad-start: #FFFFFF;
+    --grad-end: #9CA3AF;
+    --btn-text-on-aurora: #05060A;
+    --shadow-card: 0 1px 0 rgba(255,255,255,.03) inset, 0 12px 32px -18px rgba(0,0,0,.8);
+    --shadow-pop: 0 18px 48px -18px rgba(94,234,212,.35);
+  }
+
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
@@ -75,44 +106,39 @@
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition: background-color .3s ease, color .3s ease;
   }
-  
   a { color: inherit; text-decoration: none; }
-  h1, h2, h3, h4, h5 { margin: 0; font-weight: 600; letter-spacing: -0.02em; }
-  ::selection { background: var(--border-hover); color: var(--text-primary); }
+  button { font: inherit; color: inherit; }
+  h1, h2, h3, h4, h5 { margin: 0; font-weight: 650; letter-spacing: -0.02em; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace; }
+  ::selection { background: var(--accent-glow); color: var(--text-primary); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
 
-  /* Background Grid & Glow */
+  /* ============ 背景：网格 + 光晕 + 星空 ============ */
   .bg-grid {
-    position: fixed; inset: 0; z-index: -2; pointer-events: none;
+    position: fixed; inset: 0; z-index: -3; pointer-events: none;
     background-image: linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
                       linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
-    background-size: 60px 60px;
-    mask-image: radial-gradient(circle at 50% 0%, black, transparent 70%);
-    -webkit-mask-image: radial-gradient(circle at 50% 0%, black, transparent 70%);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 70% 55% at 50% 0%, black, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 0%, black, transparent 75%);
   }
   .bg-glow {
-    position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
-    width: 800px; height: 500px; z-index: -1; pointer-events: none;
-    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 60%);
-    border-radius: 50%;
+    position: fixed; top: -260px; left: 50%; transform: translateX(-50%);
+    width: 1100px; height: 640px; z-index: -2; pointer-events: none;
+    background:
+      radial-gradient(closest-side at 35% 55%, var(--accent-glow), transparent),
+      radial-gradient(closest-side at 65% 45%, rgba(129,140,248,.10), transparent);
+    filter: blur(8px);
   }
 
-  /* Meteors (dark mode only) */
-  html:not(.dark) #meteors { display: none; }
-  #meteors { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
+  html:not(.dark) #meteors, html:not(.dark) #stars { display: none; }
+  #meteors, #stars { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
   .meteor {
-    position: absolute;
-    width: 220px; height: 2px;
-    border-radius: 2px;
-    /* 冷色调渐变拖尾：透明 → 青蓝 → 亮白头部 */
-    background: linear-gradient(to right,
-      rgba(59,130,246,0) 0%,
-      rgba(99,179,255,0.25) 40%,
-      rgba(160,210,255,0.7) 80%,
-      rgba(255,255,255,0.95) 100%);
-    transform: rotate(45deg);
-    opacity: 0;
+    position: absolute; width: 220px; height: 2px; border-radius: 2px;
+    background: linear-gradient(to right, rgba(59,130,246,0) 0%, rgba(99,179,255,0.25) 40%, rgba(160,210,255,0.7) 80%, rgba(255,255,255,0.95) 100%);
+    transform: rotate(45deg); opacity: 0;
     filter: drop-shadow(0 0 6px rgba(96,165,250,0.45));
     animation: fall linear infinite;
   }
@@ -120,10 +146,7 @@
     content: ''; position: absolute; right: -1px; top: -1.5px;
     width: 5px; height: 5px; border-radius: 50%;
     background: radial-gradient(circle, #fff 0%, #cfe6ff 45%, rgba(96,165,250,0) 75%);
-    box-shadow:
-      0 0 8px 2px rgba(255,255,255,0.9),
-      0 0 16px 4px rgba(96,165,250,0.8),
-      0 0 28px 8px rgba(59,130,246,0.45);
+    box-shadow: 0 0 8px 2px rgba(255,255,255,0.9), 0 0 16px 4px rgba(96,165,250,0.8), 0 0 28px 8px rgba(59,130,246,0.45);
   }
   @keyframes fall {
     0%   { transform: rotate(45deg) translateX(-220px); opacity: 0; }
@@ -131,21 +154,12 @@
     55%  { opacity: 1; }
     100% { transform: rotate(45deg) translateX(1200px); opacity: 0; }
   }
-
-  /* 轻量闪烁星点（仅深色模式） */
-  html:not(.dark) #stars { display: none; }
-  #stars { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
-  .star {
-    position: absolute; border-radius: 50%;
-    background: #fff;
-    animation: twinkle ease-in-out infinite alternate;
-  }
+  .star { position: absolute; border-radius: 50%; background: #fff; animation: twinkle ease-in-out infinite alternate; }
   @keyframes twinkle {
     0%   { opacity: 0.15; transform: scale(0.8); }
     100% { opacity: 0.9;  transform: scale(1.15); }
   }
 
-  /* 无障碍：尊重系统「减少动态效果」偏好，关闭流星/星空与过渡 */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.001ms !important;
@@ -153,154 +167,263 @@
       transition-duration: 0.001ms !important;
       scroll-behavior: auto !important;
     }
-    #meteors, #stars, #starfield { display: none !important; }
+    #meteors, #stars { display: none !important; }
   }
 
-  /* Layout */
+  /* ============ 布局与通用组件 ============ */
   .wrap { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
-  .section { padding: 96px 0; }
+  .section { padding: 104px 0; position: relative; }
 
-  /* Typography */
   .badge {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 12px; border-radius: 9999px;
+    padding: 6px 14px; border-radius: 9999px;
     border: 1px solid var(--border-subtle);
-    background: var(--card-border);
+    background: var(--surface);
     font-size: 13px; font-weight: 500; color: var(--text-secondary);
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   }
-  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-blue); box-shadow: 0 0 8px var(--accent-blue); }
-  
+  .badge .dot { position: relative; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-2); }
+  .badge .dot::after {
+    content: ''; position: absolute; inset: -4px; border-radius: 50%;
+    border: 1px solid var(--accent-2); opacity: .6; animation: ping 2.4s var(--ease) infinite;
+  }
+  @keyframes ping { 0% { transform: scale(.6); opacity: .7; } 80%,100% { transform: scale(1.8); opacity: 0; } }
+
   .text-gradient {
     background: linear-gradient(180deg, var(--grad-start) 0%, var(--grad-end) 100%);
-    -webkit-background-clip: text;
+    -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
   }
+  .text-aurora {
+    background: var(--aurora); background-size: 200% auto;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
 
-  /* Buttons */
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  .eyebrow::before { content: ''; width: 18px; height: 1px; background: currentColor; opacity: .6; }
+
   .btn {
     display: inline-flex; align-items: center; justify-content: center;
-    gap: 8px; border-radius: var(--radius-sm); padding: 12px 24px;
-    font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s ease;
+    gap: 8px; min-height: 44px; border-radius: var(--radius-sm); padding: 0 22px;
+    font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid transparent;
+    transition: transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s, border-color .2s, color .2s;
+    touch-action: manipulation;
   }
+  .btn svg { flex-shrink: 0; }
   .btn-primary {
-    background: var(--btn-primary-bg); color: var(--btn-primary-text); border: 1px solid transparent;
+    color: var(--btn-text-on-aurora);
+    background: var(--aurora); background-size: 180% auto; background-position: 0% center;
+    box-shadow: 0 8px 24px -10px var(--accent-glow);
   }
-  .btn-primary:hover {
-    background: var(--btn-primary-hover); transform: translateY(-1px);
-  }
+  .btn-primary:hover { transform: translateY(-1px); background-position: 100% center; box-shadow: var(--shadow-pop); }
   .btn-secondary {
-    background: transparent; color: var(--text-primary);
-    border: 1px solid var(--border-subtle);
+    background: var(--surface); color: var(--text-primary);
+    border-color: var(--border-subtle);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   }
-  .btn-secondary:hover {
-    background: var(--card-border); border-color: var(--border-hover);
-  }
+  .btn-secondary:hover { border-color: var(--border-hover); background: var(--surface-2); transform: translateY(-1px); }
+  .btn-icon { min-height: 38px; min-width: 38px; padding: 0 12px; border-radius: 9999px; font-size: 13px; }
 
-  /* Navigation */
+  /* 卡片：鼠标聚光灯效果（--mx/--my 由脚本写入） */
+  .spot { position: relative; isolation: isolate; }
+  .spot::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: -1; pointer-events: none;
+    background: radial-gradient(420px circle at var(--mx, 50%) var(--my, -20%), var(--spot), transparent 40%);
+    opacity: 0; transition: opacity .3s;
+  }
+  .spot:hover::before { opacity: 1; }
+
+  /* ============ 顶部品牌 ============ */
   nav.wrap { padding: 150px 24px 24px; display: flex; align-items: center; justify-content: center; position: relative; }
   .logo-text {
-    font-weight: 800; font-size: 58px; letter-spacing: 0.02em;
-    /* 极光冷色系，去金色；明暗各自适配（见下方变量） */
-    background: var(--logo-grad);
-    background-size: 220% auto;
+    font-weight: 800; font-size: 58px; letter-spacing: 0.02em; line-height: 1.1;
+    background: var(--logo-grad); background-size: 220% auto;
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent; color: transparent;
     filter: var(--logo-glow);
     animation: logoShimmer 7s linear infinite;
   }
-  /* 深色模式：通透的极光蓝→青→紫，柔和外发光 */
   html.dark .logo-text {
     --logo-grad: linear-gradient(105deg, #e8f0ff 0%, #7cc4ff 26%, #5eead4 50%, #818cf8 74%, #c4b5fd 100%);
     --logo-glow: drop-shadow(0 0 18px rgba(94,234,212,0.30)) drop-shadow(0 0 28px rgba(129,140,248,0.22));
   }
-  /* 亮色模式：更深、对比充足的靛蓝→青→紫，几乎无光晕保持干净 */
   html:not(.dark) .logo-text {
     --logo-grad: linear-gradient(105deg, #2563eb 0%, #0891b2 30%, #0d9488 52%, #6d28d9 78%, #4f46e5 100%);
     --logo-glow: drop-shadow(0 1px 1px rgba(15,23,42,0.12));
   }
-  @keyframes logoShimmer {
-    0% { background-position: 0% center; }
-    100% { background-position: 220% center; }
+  @keyframes logoShimmer { 0% { background-position: 0% center; } 100% { background-position: 220% center; } }
+  .nav-right { display: flex; gap: 10px; align-items: center; position: absolute; right: 24px; top: 28px; }
+
+  /* ============ Hero ============ */
+  .hero { text-align: center; padding: 36px 0 72px; }
+  .hero h1 { font-size: clamp(42px, 6vw, 74px); line-height: 1.08; margin: 26px 0 22px; letter-spacing: -0.035em; }
+  .hero h1 .text-aurora { animation: logoShimmer 9s linear infinite; background-size: 220% auto; }
+  .hero p.lead { max-width: 660px; margin: 0 auto 36px; font-size: 18px; color: var(--text-secondary); }
+  .hero-actions { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+
+  .endpoints { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 44px; }
+  .ep-title { width: 100%; font-size: 12px; color: var(--text-muted); letter-spacing: .08em; margin-bottom: 2px; }
+  .ep {
+    display: inline-flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px 0 14px;
+    border-radius: 9999px; border: 1px solid var(--border-subtle);
+    background: var(--surface); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    font-size: 13px; cursor: pointer; transition: border-color .2s, transform .2s var(--ease), background-color .2s;
   }
-  .nav-right { display: flex; gap: 12px; align-items: center; position: absolute; right: 24px; top: 28px; }
+  .ep:hover { border-color: var(--border-hover); transform: translateY(-1px); }
+  .ep .ep-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c-good); box-shadow: 0 0 8px var(--c-good); }
+  .ep code { color: var(--text-primary); font-size: 12.5px; }
+  .ep .ep-label { color: var(--text-muted); font-size: 11.5px; padding-left: 10px; border-left: 1px solid var(--border-subtle); }
+  .ep .ep-copy { display: inline-flex; color: var(--text-muted); transition: color .2s; }
+  .ep:hover .ep-copy { color: var(--text-primary); }
+  .ep.copied { border-color: var(--c-good); }
+  .ep.copied .ep-copy { color: var(--c-good); }
 
-  /* Hero */
-  .hero { text-align: center; padding: 40px 0 80px; }
-  .hero h1 { font-size: clamp(44px, 6vw, 72px); line-height: 1.1; margin: 24px 0; }
-  .hero p { max-width: 640px; margin: 0 auto 36px; font-size: 18px; color: var(--text-secondary); }
-  .hero-actions { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
-
-  /* Endpoints */
-  .endpoints { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 48px; }
-  .ep { 
-    display: flex; align-items: center; gap: 8px; padding: 8px 12px; 
-    border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);
-    background: var(--card-bg); font-family: ui-monospace, monospace; font-size: 12px;
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    margin-top: 72px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+    background: var(--surface); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-card); overflow: hidden;
   }
-  .ep .ep-label { color: var(--text-muted); font-size: 11px; margin-left: 4px; }
+  .stat-card { padding: 30px 24px; text-align: center; position: relative; }
+  .stat-card + .stat-card::before { content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 1px; background: var(--border-subtle); }
+  .stat-card h3 { font-size: 36px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.03em; }
+  .stat-card p { font-size: 13.5px; color: var(--text-secondary); margin: 0; }
 
-  /* Stats */
-  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; margin-top: 80px; }
-  .stat-card { background: var(--bg-main); padding: 32px 24px; text-align: center; }
-  .stat-card h3 { font-size: 32px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
-  .stat-card p { font-size: 14px; color: var(--text-secondary); margin: 0; }
+  /* ============ 分节标题 ============ */
+  .sec-header { text-align: center; margin-bottom: 56px; }
+  .sec-header h2 { font-size: clamp(30px, 4vw, 42px); margin: 14px 0 14px; }
+  .sec-header p { color: var(--text-secondary); max-width: 620px; margin: 0 auto; font-size: 16px; }
+  .sec-header h2, .sec-header p, .hero p.lead, .cta h2, .cta p { text-wrap: balance; }
 
-  /* Section Headers */
-  .sec-header { text-align: center; margin-bottom: 64px; }
-  .sec-header h2 { font-size: clamp(32px, 4vw, 40px); margin: 16px 0; }
-  .sec-header p { color: var(--text-secondary); max-width: 600px; margin: 0 auto; font-size: 16px; }
+  /* ============ 快速开始 ============ */
+  .qs-grid { display: grid; grid-template-columns: 5fr 7fr; gap: 28px; align-items: stretch; }
+  .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .step {
+    display: flex; gap: 16px; padding: 20px 22px; border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle); background: var(--surface); box-shadow: var(--shadow-card);
+  }
+  .step-num {
+    flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: var(--btn-text-on-aurora); background: var(--aurora);
+  }
+  .step h3 { font-size: 15.5px; margin: 4px 0 6px; }
+  .step p { margin: 0; font-size: 13.5px; color: var(--text-secondary); }
+  .step p code { font-size: 12.5px; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--text-primary); }
 
-  /* Features */
-  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .code-card {
+    display: flex; flex-direction: column; min-width: 0;
+    border-radius: var(--radius-md); overflow: hidden;
+    border: 1px solid var(--border-subtle); background: #0A0C12;
+    box-shadow: var(--shadow-card);
+  }
+  html:not(.dark) .code-card { border-color: #1F2330; }
+  .code-head {
+    display: flex; align-items: center; gap: 6px; padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.02);
+  }
+  .code-dots { display: flex; gap: 6px; margin-right: 8px; }
+  .code-dots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.12); }
+  .code-tab {
+    background: transparent; border: 0; cursor: pointer; padding: 6px 12px; border-radius: 8px;
+    color: #8B92A3; font-size: 12.5px; font-weight: 600; transition: color .2s, background-color .2s;
+  }
+  .code-tab:hover { color: #E5E7EB; }
+  .code-tab[aria-selected="true"] { color: #F3F4F6; background: rgba(255,255,255,.08); }
+  .code-copy {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+    background: transparent; border: 1px solid rgba(255,255,255,.12); border-radius: 8px;
+    color: #C7CBD6; font-size: 12px; padding: 5px 10px; cursor: pointer; transition: border-color .2s, color .2s;
+  }
+  .code-copy:hover { border-color: rgba(255,255,255,.28); color: #fff; }
+  .code-copy.copied { color: #5EEAD4; border-color: rgba(94,234,212,.5); }
+  pre.code {
+    margin: 0; padding: 20px 22px; overflow-x: auto; flex: 1;
+    font-size: 13px; line-height: 1.75; color: #D4D8E2; white-space: pre;
+  }
+  pre.code .k { color: #7CC4FF; }
+  pre.code .s { color: #5EEAD4; }
+  pre.code .c { color: #6B7280; }
+  pre.code .v { color: #C4B5FD; }
+
+  /* ============ 架构优势 ============ */
+  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
   .card {
-    background: var(--card-bg); border: 1px solid var(--card-border);
-    border-radius: var(--radius-md); padding: 32px; transition: all 0.3s ease;
+    background: var(--surface); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); padding: 30px 28px; box-shadow: var(--shadow-card);
+    transition: border-color .3s, transform .3s var(--ease);
   }
-  .card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
-  .card-icon { 
-    width: 48px; height: 48px; border-radius: var(--radius-sm);
-    background: var(--card-border); border: 1px solid var(--border-subtle);
-    display: flex; align-items: center; justify-content: center; font-size: 20px;
-    margin-bottom: 24px; color: var(--text-primary);
+  .card:hover { border-color: var(--border-hover); transform: translateY(-3px); }
+  .card-icon {
+    width: 46px; height: 46px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 22px;
+    color: var(--accent); background: var(--aurora-soft); border: 1px solid var(--border-subtle);
   }
-  .card h3 { font-size: 18px; margin-bottom: 12px; color: var(--text-primary); }
-  .card p { color: var(--text-secondary); font-size: 14px; line-height: 1.5; margin: 0; }
+  .card h3 { font-size: 17px; margin-bottom: 10px; }
+  .card p { color: var(--text-secondary); font-size: 14px; line-height: 1.65; margin: 0; }
 
-  /* Filter & Groups */
-  .filter-bar { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 40px; }
+  /* ============ 分组与计费 ============ */
+  .filter-bar {
+    display: flex; justify-content: center; gap: 4px; flex-wrap: wrap;
+    width: fit-content; max-width: 100%; margin: 0 auto 36px; padding: 5px;
+    border: 1px solid var(--border-subtle); border-radius: 9999px; background: var(--surface);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
   .filter-btn {
+    display: inline-flex; align-items: center; gap: 6px;
     background: transparent; border: 1px solid transparent; color: var(--text-secondary);
-    padding: 8px 16px; border-radius: 9999px; font-size: 14px; cursor: pointer; transition: 0.2s;
+    min-height: 36px; padding: 0 14px; border-radius: 9999px; font-size: 13.5px; font-weight: 500;
+    cursor: pointer; transition: color .2s, background-color .2s;
   }
   .filter-btn:hover { color: var(--text-primary); }
-  .filter-btn.active { background: var(--card-border); color: var(--text-primary); border-color: var(--border-subtle); }
-  
-  .groups-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .filter-btn .cnt { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .filter-btn.active { background: var(--bg-elev); color: var(--text-primary); border-color: var(--border-subtle); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .filter-btn.active .cnt { color: var(--accent); }
+
+  .groups-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
   .group-card {
     display: flex; flex-direction: column;
-    background: var(--bg-main); border: 1px solid var(--card-border);
-    border-radius: var(--radius-md); padding: 24px; transition: 0.2s;
+    background: var(--surface); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); padding: 22px 22px 18px; box-shadow: var(--shadow-card);
+    transition: border-color .25s, transform .25s var(--ease);
   }
   .group-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
-  .group-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-  .group-title { font-weight: 600; font-size: 16px; color: var(--text-primary); }
-  .group-cat { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-  .group-ratio { text-align: right; }
-  .group-ratio strong { font-size: 18px; color: var(--text-primary); }
-  .group-ratio span { display: block; font-size: 11px; color: #EAB308; }
-  .group-desc { color: var(--text-secondary); font-size: 13px; flex-grow: 1; margin-bottom: 16px; line-height: 1.5; }
+  .group-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+  .group-cat { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+  .group-title { font-weight: 650; font-size: 16px; color: var(--text-primary); overflow-wrap: anywhere; }
+  .group-ratio { text-align: right; flex-shrink: 0; }
+  .ratio-pill {
+    display: inline-flex; align-items: baseline; gap: 2px;
+    padding: 4px 10px; border-radius: 9999px; font-weight: 700; font-size: 15px;
+    font-variant-numeric: tabular-nums; border: 1px solid var(--border-subtle); background: var(--surface-2);
+  }
+  .ratio-pill small { font-size: 11px; font-weight: 600; opacity: .7; }
+  .ratio-pill.tier-best { color: var(--c-good); background: var(--c-good-bg); border-color: transparent; }
+  .ratio-pill.tier-good { color: var(--accent); }
+  .ratio-pill.tier-auto { color: var(--accent-3); }
+  .group-ratio .ratio-sub { display: block; margin-top: 4px; font-size: 11px; color: var(--text-muted); }
+  .group-desc { color: var(--text-secondary); font-size: 13.5px; flex-grow: 1; margin-bottom: 14px; line-height: 1.6; }
+  .group-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
   .group-tags { display: flex; gap: 6px; flex-wrap: wrap; }
-  .g-tag { padding: 4px 8px; background: var(--card-border); border: 1px solid var(--border-subtle); border-radius: 6px; font-size: 11px; color: var(--text-secondary); }
-  .g-tag.hot { color: #F87171; border-color: rgba(248, 113, 113, 0.2); }
-  .g-tag.deal { color: #EAB308; border-color: rgba(234, 179, 8, 0.2); }
+  .g-tag { padding: 3px 9px; background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: 9999px; font-size: 11.5px; color: var(--text-secondary); }
+  .g-tag.hot { color: var(--c-hot); background: var(--c-hot-bg); border-color: transparent; }
+  .g-tag.deal { color: var(--c-deal); background: var(--c-deal-bg); border-color: transparent; }
+  .flip-hint {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11.5px; color: var(--text-muted); transition: color .2s;
+  }
+  .flip.flippable:hover .flip-hint, .flip.flippable:focus-visible .flip-hint { color: var(--accent); }
 
   /* 翻转卡片：正面=分组信息，背面=模型列表 */
   .flip { perspective: 1200px; }
   .flip-inner {
-    position: relative; width: 100%; min-height: 178px;
-    transition: transform 0.6s cubic-bezier(.2,.7,.2,1);
-    transform-style: preserve-3d;
+    position: relative; width: 100%; min-height: 210px;
+    transition: transform .6s var(--ease); transform-style: preserve-3d;
   }
   .flip.flipped .flip-inner { transform: rotateY(180deg); }
   .flip-face {
@@ -310,182 +433,252 @@
   }
   .flip-back { transform: rotateY(180deg); }
   .flip.flippable { cursor: pointer; }
-  .flip.flippable .flip-front::after {
-    content: '🔄'; position: absolute; right: 0; bottom: 0;
-    font-size: 12px; opacity: .35; transition: .2s;
-  }
-  .flip.flippable:hover .flip-front::after { opacity: .7; }
   .back-head {
     display: flex; align-items: center; justify-content: space-between;
-    font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;
+    font-size: 13px; font-weight: 650; color: var(--text-primary); margin-bottom: 12px;
   }
-  .back-head .back-btn { font-size: 12px; font-weight: 500; color: var(--text-muted); cursor: pointer; }
-  .back-head .back-btn:hover { color: var(--text-primary); }
+  .back-head .back-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--text-muted); }
+  .flip.flippable:hover .back-btn { color: var(--text-primary); }
   .model-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 7px; flex-grow: 1; }
   .model-list li {
     font-size: 12.5px; color: var(--text-secondary);
-    font-family: ui-monospace, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     padding-left: 14px; position: relative;
   }
-  .model-list li::before { content: '•'; position: absolute; left: 2px; color: var(--accent-blue); }
-  .more-models {
-    margin-top: 10px; font-size: 12.5px; font-weight: 600; color: var(--accent-blue);
-    display: inline-flex; align-items: center; gap: 4px;
-  }
+  .model-list li::before { content: ''; position: absolute; left: 2px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: var(--accent); }
+  .model-list li.empty { padding-left: 0; }
+  .model-list li.empty::before { display: none; }
+  .more-models { margin-top: 10px; font-size: 12.5px; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
   .more-models:hover { text-decoration: underline; }
 
-  /* 待上线分组（无可用模型）：整卡降饱和 + 角标 */
-  .group-card.coming { opacity: .62; position: relative; }
-  .group-card.coming:hover { transform: none; border-color: var(--card-border); }
-  .group-ratio .soon {
-    display: inline-block; font-size: 13px; font-weight: 600;
-    padding: 3px 10px; border-radius: 9999px;
-    color: var(--text-secondary);
-    background: var(--card-border); border: 1px solid var(--border-subtle);
+  .group-card.coming { opacity: .6; }
+  .group-card.coming:hover { transform: none; border-color: var(--border-subtle); }
+  .soon {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;
+    padding: 4px 10px; border-radius: 9999px; color: var(--text-secondary);
+    background: var(--surface-2); border: 1px dashed var(--border-hover);
   }
-  .group-ratio .soon::before { content: '🛠 '; font-size: 11px; }
 
-  .notice { text-align: center; margin-top: 32px; font-size: 13px; color: var(--text-muted); }
+  .notice {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 32px; font-size: 13px; color: var(--text-muted); text-align: center;
+  }
 
-  /* Pricing Tables */
-  .tables-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
-  .table-box { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-main); }
-  .table-box h4 { padding: 16px 24px; font-size: 14px; background: var(--card-border); border-bottom: 1px solid var(--border-subtle); color: var(--text-primary); }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
-  th, td { padding: 12px 24px; border-bottom: 1px solid var(--border-subtle); }
-  th { font-weight: 500; color: var(--text-muted); }
-  td:last-child { text-align: right; font-family: ui-monospace, monospace; color: #EAB308; }
+  /* ============ 特色模型价格 ============ */
+  .tables-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .table-box { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); box-shadow: var(--shadow-card); }
+  .table-box h4 {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 22px; font-size: 14.5px; border-bottom: 1px solid var(--border-subtle); color: var(--text-primary);
+  }
+  .table-box h4 .t-ico { display: inline-flex; width: 28px; height: 28px; border-radius: 8px; align-items: center; justify-content: center; color: var(--accent); background: var(--aurora-soft); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; text-align: left; }
+  th, td { padding: 13px 22px; border-bottom: 1px solid var(--border-subtle); }
+  th { font-weight: 500; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+  td { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--text-primary); }
+  td:last-child, th:last-child { text-align: right; }
+  td:last-child { color: var(--c-price); font-weight: 600; }
+  tbody tr { transition: background-color .15s; }
+  tbody tr:hover { background: var(--surface-2); }
   tr:last-child td { border-bottom: none; }
 
-  /* FAQ */
-  .faq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  details.faq { 
-    border: 1px solid var(--border-subtle); border-radius: var(--radius-md); 
-    background: var(--bg-main); transition: 0.2s;
+  /* ============ FAQ ============ */
+  .faq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+  details.faq {
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+    background: var(--surface); transition: border-color .2s, background-color .2s;
   }
-  details.faq[open] { border-color: var(--border-hover); background: var(--card-border); }
+  details.faq:hover { border-color: var(--border-hover); }
+  details.faq[open] { border-color: var(--border-hover); background: var(--surface-2); }
   details.faq summary {
-    padding: 20px 24px; cursor: pointer; font-size: 14px; font-weight: 500;
-    list-style: none; display: flex; justify-content: space-between; align-items: center;
-    color: var(--text-primary);
+    padding: 18px 22px; min-height: 56px; cursor: pointer; font-size: 14.5px; font-weight: 550;
+    list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    color: var(--text-primary); border-radius: var(--radius-md);
   }
   details.faq summary::-webkit-details-marker { display: none; }
   details.faq summary::after {
-    content: '+'; font-size: 18px; color: var(--text-muted); transition: 0.3s;
+    content: ''; flex-shrink: 0; width: 18px; height: 18px;
+    background: currentColor; opacity: .5;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center / contain no-repeat;
+    transition: transform .3s var(--ease), opacity .2s;
   }
-  details.faq[open] summary::after { transform: rotate(45deg); color: var(--text-primary); }
-  details.faq .a { padding: 0 24px 20px; font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
-  details.faq .a code { background: var(--card-border); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  details.faq[open] summary::after { transform: rotate(45deg); opacity: .9; }
+  details.faq .a { padding: 0 22px 20px; font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+  details.faq .a code { background: var(--surface-2); border: 1px solid var(--border-subtle); padding: 1px 6px; border-radius: 6px; font-size: 12.5px; color: var(--text-primary); }
 
-  /* Footer */
-  footer { border-top: 1px solid var(--border-subtle); padding: 64px 0 32px; margin-top: 80px; }
+  /* ============ 行动号召 ============ */
+  .cta {
+    position: relative; isolation: isolate; overflow: hidden; text-align: center;
+    padding: 64px 32px; border-radius: var(--radius-lg);
+    border: 1px solid var(--border-subtle); background: var(--surface); box-shadow: var(--shadow-card);
+  }
+  .cta::before {
+    content: ''; position: absolute; inset: -40% -10% auto; height: 120%; z-index: -1; pointer-events: none;
+    background: radial-gradient(closest-side, var(--accent-glow), transparent 70%);
+  }
+  .cta::after {
+    content: ''; position: absolute; left: 10%; right: 10%; top: 0; height: 1px;
+    background: var(--aurora); opacity: .7;
+  }
+  .cta h2 { font-size: clamp(28px, 3.6vw, 38px); margin-bottom: 12px; }
+  .cta p { max-width: 560px; margin: 0 auto 30px; color: var(--text-secondary); }
+
+  /* ============ 页脚 ============ */
+  footer.wrap { border-top: 1px solid var(--border-subtle); padding-top: 64px; padding-bottom: 36px; margin-top: 96px; }
   .foot-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; margin-bottom: 48px; }
-  .foot-brand { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: block; color: var(--text-primary); }
-  .foot-desc { color: var(--text-secondary); font-size: 14px; max-width: 400px; line-height: 1.6; }
-  .foot-col h5 { font-size: 13px; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 20px; }
+  .foot-brand { font-size: 20px; font-weight: 750; margin-bottom: 14px; display: inline-block; }
+  .foot-desc { color: var(--text-secondary); font-size: 14px; max-width: 420px; line-height: 1.7; margin: 0; }
+  .foot-col h5 { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 18px; font-weight: 600; }
   .foot-col ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
-  .foot-col ul a { color: var(--text-secondary); font-size: 14px; transition: 0.2s; }
+  .foot-col ul a { color: var(--text-secondary); font-size: 14px; transition: color .2s; }
   .foot-col ul a:hover { color: var(--text-primary); }
   .foot-bot { border-top: 1px solid var(--border-subtle); padding-top: 24px; display: flex; justify-content: space-between; color: var(--text-muted); font-size: 13px; flex-wrap: wrap; gap: 16px; }
 
-  @media(max-width: 900px) {
+  /* ============ 滚动入场 ============ */
+  .reveal { opacity: 0; transform: translateY(14px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* ============ 响应式 ============ */
+  @media (max-width: 960px) {
     .features-grid, .groups-grid { grid-template-columns: repeat(2, 1fr); }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
-    .tables-grid, .faq-grid { grid-template-columns: 1fr; }
-    .foot-grid { grid-template-columns: 1fr; }
+    .stat-card:nth-child(3)::before { display: none; }
+    .stat-card:nth-child(n+3) { border-top: 1px solid var(--border-subtle); }
+    .qs-grid, .tables-grid, .faq-grid { grid-template-columns: 1fr; }
+    .foot-grid { grid-template-columns: 1fr 1fr; }
+    .foot-grid > :first-child { grid-column: 1 / -1; }
   }
-  @media(max-width: 600px) {
+  @media (max-width: 640px) {
+    nav.wrap { padding-top: 96px; }
+    .logo-text { font-size: 44px; }
+    .nav-right { top: 16px; right: 16px; }
+    .section { padding: 72px 0; }
+    .hero p.lead { font-size: 16px; }
     .features-grid, .groups-grid { grid-template-columns: 1fr; }
-    .stats-grid { grid-template-columns: 1fr; gap: 1px; }
-    .hero h1 { font-size: 40px; }
+    .filter-bar { border-radius: var(--radius-md); }
+    .cta { padding: 48px 20px; }
+    .foot-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
 <body>
 
-<div id="stars"></div>
-<div id="meteors"></div>
-<div class="bg-grid"></div>
-<div class="bg-glow"></div>
+<div id="stars" aria-hidden="true"></div>
+<div id="meteors" aria-hidden="true"></div>
+<div class="bg-grid" aria-hidden="true"></div>
+<div class="bg-glow" aria-hidden="true"></div>
 
 <nav class="wrap">
   <div class="logo-text">君の星辰</div>
   <div class="nav-right">
-    <button id="lang-toggle" class="btn btn-secondary" style="padding: 8px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600;" aria-label="Switch Language">中 / EN</button>
-    <button id="theme-toggle" class="btn btn-secondary" style="padding: 8px; border-radius: 50%;" aria-label="Toggle Theme">
-      <svg id="moon-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-      <svg id="sun-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+    <button id="lang-toggle" class="btn btn-secondary btn-icon" type="button" aria-label="Switch Language">中 / EN</button>
+    <button id="theme-toggle" class="btn btn-secondary btn-icon" type="button" style="padding:0;" aria-label="Toggle Theme">
+      <svg id="moon-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      <svg id="sun-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;" aria-hidden="true"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
     </button>
   </div>
 </nav>
 
+<main>
 <section class="hero wrap">
-  <div class="badge"><span class="dot"></span><span data-i18n="badge">英国 · XINGCHEN NETWORK LIMITED</span></div>
-  <h1 class="text-gradient" data-i18n-html="hero_h1">跨越星辰的<br/>统一 AI API 网关</h1>
-  <p data-i18n="hero_p">提供统一、OpenAI 兼容的 API 接口，通过单一端点访问数百个模型。同一套代码，调用 GPT、Claude、Gemini、国产大模型与视频生图。</p>
+  <div class="badge"><span class="dot" aria-hidden="true"></span><span data-i18n="badge">英国 · XINGCHEN NETWORK LIMITED</span></div>
+  <h1 data-i18n-html="hero_h1"><span class="text-gradient">跨越星辰的</span><br/><span class="text-aurora">统一 AI API 网关</span></h1>
+  <p class="lead" data-i18n="hero_p">提供统一、OpenAI 兼容的 API 接口，通过单一端点访问数百个模型。同一套代码，调用 GPT、Claude、Gemini、国产大模型与视频生图。</p>
   <div class="hero-actions">
-    <a href="https://ai.centos.hk" target="_blank" class="btn btn-primary" data-i18n="hero_cta1">立即开始使用</a>
-    <a href="https://t.me/XingChen_AI" target="_blank" class="btn btn-secondary" data-i18n="hero_cta2">官方 Telegram</a>
+    <a href="https://ai.centos.hk" target="_blank" rel="noopener" class="btn btn-primary">
+      <span data-i18n="hero_cta1">立即开始使用</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </a>
+    <a href="https://t.me/XingChen_AI" target="_blank" rel="noopener" class="btn btn-secondary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 4.5 2.5 11.8l6.4 2.1 2.2 6.6 3.4-4.1 5 3.7z"/><path d="m8.9 13.9 8.6-6.4"/></svg>
+      <span data-i18n="hero_cta2">官方 Telegram</span>
+    </a>
   </div>
-  <div class="endpoints">
-    <div class="ep"><code>ai.centos.hk</code><span class="ep-label" data-i18n="ep_main">主线路</span></div>
-    <div class="ep"><code>api.centos.hk</code><span class="ep-label" data-i18n="ep_eo">EO加速</span></div>
-    <div class="ep"><code>frapi.centos.hk</code><span class="ep-label" data-i18n="ep_opt">三网优化</span></div>
+  <div class="endpoints" id="endpoints">
+    <div class="ep-title" data-i18n="ep_title">可用线路 · 点击复制</div>
+    <button type="button" class="ep" data-copy="https://ai.centos.hk"><span class="ep-dot" aria-hidden="true"></span><code>ai.centos.hk</code><span class="ep-label" data-i18n="ep_main">主线路</span><span class="ep-copy" aria-hidden="true"></span></button>
+    <button type="button" class="ep" data-copy="https://api.centos.hk"><span class="ep-dot" aria-hidden="true"></span><code>api.centos.hk</code><span class="ep-label" data-i18n="ep_eo">EO加速</span><span class="ep-copy" aria-hidden="true"></span></button>
+    <button type="button" class="ep" data-copy="https://frapi.centos.hk"><span class="ep-dot" aria-hidden="true"></span><code>frapi.centos.hk</code><span class="ep-label" data-i18n="ep_opt">三网优化</span><span class="ep-copy" aria-hidden="true"></span></button>
   </div>
 
   <div class="stats-grid">
-    <div class="stat-card"><h3>1</h3><p data-i18n="stat1">统一端点</p></div>
-    <div class="stat-card"><h3>200+</h3><p data-i18n="stat2">支持模型</p></div>
-    <div class="stat-card"><h3>1:1</h3><p data-i18n="stat3">透明费率</p></div>
-    <div class="stat-card"><h3>24/7</h3><p data-i18n="stat4">高可用性</p></div>
+    <div class="stat-card"><h3 class="text-aurora">1</h3><p data-i18n="stat1">统一端点</p></div>
+    <div class="stat-card"><h3 class="text-aurora">200+</h3><p data-i18n="stat2">支持模型</p></div>
+    <div class="stat-card"><h3 class="text-aurora">1:1</h3><p data-i18n="stat3">透明费率</p></div>
+    <div class="stat-card"><h3 class="text-aurora">24/7</h3><p data-i18n="stat4">高可用性</p></div>
+  </div>
+</section>
+
+<section id="quickstart" class="section wrap">
+  <div class="sec-header reveal">
+    <span class="eyebrow" data-i18n="qs_eyebrow">Quick Start</span>
+    <h2 data-i18n="qs_title">三步接入，零改造迁移</h2>
+    <p data-i18n="qs_sub">兼容 OpenAI 与 Anthropic 协议。已有项目只需替换 Base URL 与 API Key，即可立即切换。</p>
+  </div>
+  <div class="qs-grid">
+    <ol class="steps reveal">
+      <li class="step">
+        <span class="step-num">1</span>
+        <div><h3 data-i18n="qs_s1_t">注册并创建令牌</h3><p data-i18n="qs_s1_d">登录控制台，在「令牌」页面创建 API Key，并按需选择分组。</p></div>
+      </li>
+      <li class="step">
+        <span class="step-num">2</span>
+        <div><h3 data-i18n="qs_s2_t">替换 Base URL</h3><p data-i18n-html="qs_s2_d">OpenAI 格式使用 <code>https://ai.centos.hk/v1</code>；Claude Code 等 Anthropic 客户端使用 <code>https://ai.centos.hk</code>。</p></div>
+      </li>
+      <li class="step">
+        <span class="step-num">3</span>
+        <div><h3 data-i18n="qs_s3_t">选择模型，开始调用</h3><p data-i18n="qs_s3_d">同一个 Key 调用所有已开通的模型，统一余额扣费，用量实时可查。</p></div>
+      </li>
+    </ol>
+    <div class="code-card reveal">
+      <div class="code-head" role="tablist" aria-label="Code samples">
+        <span class="code-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <button type="button" class="code-tab" role="tab" data-tab="curl" aria-selected="true">cURL</button>
+        <button type="button" class="code-tab" role="tab" data-tab="python" aria-selected="false">Python</button>
+        <button type="button" class="code-tab" role="tab" data-tab="claude" aria-selected="false">Claude Code</button>
+        <button type="button" class="code-copy" id="code-copy"><span data-i18n="copy">复制</span></button>
+      </div>
+      <pre class="code" id="code-block" role="tabpanel"></pre>
+    </div>
   </div>
 </section>
 
 <section id="features" class="section wrap">
-  <div class="sec-header">
+  <div class="sec-header reveal">
+    <span class="eyebrow" data-i18n="feat_eyebrow">Why Xingchen</span>
     <h2 data-i18n="feat_title">架构优势</h2>
     <p data-i18n="feat_sub">为您的应用提供强大的底层基础设施，无缝集成主流 AI 服务。</p>
   </div>
   <div class="features-grid">
-    <div class="card">
-      <div class="card-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-      </div>
+    <div class="card spot reveal">
+      <div class="card-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg></div>
       <h3 data-i18n="feat1_t">单 API，多模型</h3>
       <p data-i18n="feat1_d">无需为每家供应商重复对接。同一套代码即可调用数百个业界顶尖模型。</p>
     </div>
-    <div class="card">
-      <div class="card-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11.5V15"></path><path d="M12 8.5V11"></path><path d="M12 11a4 4 0 0 1 4 4"></path><path d="M12 11a4 4 0 0 0-4 4"></path><path d="M6 11.5V15"></path><circle cx="12" cy="7" r="1.5"></circle><circle cx="6" cy="16.5" r="1.5"></circle><circle cx="18" cy="16.5" r="1.5"></circle></svg>
-      </div>
+    <div class="card spot reveal">
+      <div class="card-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11.5V15"></path><path d="M12 8.5V11"></path><path d="M12 11a4 4 0 0 1 4 4"></path><path d="M12 11a4 4 0 0 0-4 4"></path><path d="M6 11.5V15"></path><circle cx="12" cy="7" r="1.5"></circle><circle cx="6" cy="16.5" r="1.5"></circle><circle cx="18" cy="16.5" r="1.5"></circle></svg></div>
       <h3 data-i18n="feat2_t">智能路由调度</h3>
       <p data-i18n="feat2_d">根据并发可用性、网络延迟和使用成本，自动为您选择最佳的上游提供商。</p>
     </div>
-    <div class="card">
-      <div class="card-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-      </div>
+    <div class="card spot reveal">
+      <div class="card-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg></div>
       <h3 data-i18n="feat3_t">OpenAI 零感兼容</h3>
       <p data-i18n="feat3_d">完美适配 OpenAI 官方 SDK 与开源客户端，仅需修改 Base URL 即可无缝迁移。</p>
     </div>
-    <div class="card">
-      <div class="card-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-      </div>
+    <div class="card spot reveal">
+      <div class="card-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg></div>
       <h3 data-i18n="feat4_t">统一余额管理</h3>
       <p data-i18n="feat4_d">一个账号、一个账单。所有模型共享账户余额，彻底告别繁琐的多平台充值。</p>
     </div>
-    <div class="card">
-      <div class="card-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg>
-      </div>
+    <div class="card spot reveal">
+      <div class="card-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg></div>
       <h3 data-i18n="feat5_t">官方 1:1 费率</h3>
       <p data-i18n="feat5_d">严格按照官方 Token 计费标准，仅收取极少量的网关服务费，杜绝隐形加价。</p>
     </div>
-    <div class="card">
-      <div class="card-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-      </div>
+    <div class="card spot reveal">
+      <div class="card-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
       <h3 data-i18n="feat6_t">多节点边缘加速</h3>
       <p data-i18n="feat6_d">结合 CF / EO 与三网优化端点，大幅降低跨境 API 调用的网络延迟。</p>
     </div>
@@ -493,69 +686,98 @@
 </section>
 
 <section id="groups" class="section wrap">
-  <div class="sec-header">
+  <div class="sec-header reveal">
+    <span class="eyebrow" data-i18n="grp_eyebrow">Groups &amp; Pricing</span>
     <h2 data-i18n="grp_title">分组与计费</h2>
     <p data-i18n="grp_sub">灵活的模型分组体系。按需选择不同级别的稳定性和价格，倍率越低价格越优。</p>
   </div>
-  <div class="filter-bar" id="filters"></div>
+  <div class="filter-bar" id="filters" role="toolbar" aria-label="Filter groups"></div>
   <div class="groups-grid" id="groups-container"></div>
-  <p class="notice" data-i18n="grp_notice">注意：特惠与逆向分组无技术售后及退款保证。实际倍率以控制台为准。</p>
+  <p class="notice">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+    <span data-i18n="grp_notice">注意：特惠与逆向分组无技术售后及退款保证。实际倍率以控制台为准。</span>
+  </p>
 </section>
 
 <section id="pricing" class="section wrap">
-  <div class="sec-header">
+  <div class="sec-header reveal">
+    <span class="eyebrow" data-i18n="price_eyebrow">Featured</span>
     <h2 data-i18n="price_title">特色模型参考</h2>
     <p data-i18n="price_sub">部分生图与视频模型单次调用价格参考。完整清单请查阅控制台定价页面。</p>
   </div>
   <div class="tables-grid">
-    <div class="table-box">
-      <h4 data-i18n="price_t1">生图模型 (单次)</h4>
+    <div class="table-box reveal">
+      <h4>
+        <span class="t-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg></span>
+        <span data-i18n="price_t1">生图模型 (单次)</span>
+      </h4>
       <table>
-        <tr><th data-i18n="price_col_model">模型名称</th><th data-i18n="price_col_price">价格 (￥)</th></tr>
-        <tr><td>gemini-3-pro-image-preview</td><td>0.50</td></tr>
-        <tr><td>gemini-3.1-flash-image-preview</td><td>0.20</td></tr>
-        <tr><td>gpt-image-2</td><td>0.08</td></tr>
+        <thead><tr><th data-i18n="price_col_model">模型名称</th><th data-i18n="price_col_price">价格 (￥)</th></tr></thead>
+        <tbody>
+          <tr><td>gemini-3-pro-image-preview</td><td>0.50</td></tr>
+          <tr><td>gemini-3.1-flash-image-preview</td><td>0.20</td></tr>
+          <tr><td>gpt-image-2</td><td>0.08</td></tr>
+        </tbody>
       </table>
     </div>
-    <div class="table-box">
-      <h4 data-i18n="price_t2">Seedance 视频 (1M Tokens)</h4>
+    <div class="table-box reveal">
+      <h4>
+        <span class="t-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></span>
+        <span data-i18n="price_t2">Seedance 视频 (1M Tokens)</span>
+      </h4>
       <table>
-        <tr><th data-i18n="price_col_model">模型名称</th><th data-i18n="price_col_tier">梯度 (￥)</th></tr>
-        <tr><td>doubao-seedance-2-0</td><td>46 - 51</td></tr>
-        <tr><td>doubao-seedance-2-0-fast</td><td>22 - 37</td></tr>
+        <thead><tr><th data-i18n="price_col_model">模型名称</th><th data-i18n="price_col_tier">梯度 (￥)</th></tr></thead>
+        <tbody>
+          <tr><td>doubao-seedance-2-0</td><td>46 - 51</td></tr>
+          <tr><td>doubao-seedance-2-0-fast</td><td>22 - 37</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
 </section>
 
 <section id="faq" class="section wrap">
-  <div class="sec-header">
+  <div class="sec-header reveal">
+    <span class="eyebrow" data-i18n="faq_eyebrow">Support</span>
     <h2 data-i18n="faq_title">常见问题</h2>
     <p data-i18n="faq_sub">技术支持与常见错误排查指南。</p>
   </div>
   <div class="faq-grid" id="faq-container"></div>
 </section>
 
+<section class="wrap">
+  <div class="cta reveal">
+    <h2 data-i18n-html="cta_title">准备好<span class="text-aurora">跨越星辰</span>了吗？</h2>
+    <p data-i18n="cta_sub">注册即可获取 API Key，一个账号畅用 GPT、Claude、Gemini 与国产大模型。</p>
+    <div class="hero-actions">
+      <a href="https://ai.centos.hk" target="_blank" rel="noopener" class="btn btn-primary"><span data-i18n="cta_btn1">进入控制台</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      <a href="https://t.me/XingChen_AI" target="_blank" rel="noopener" class="btn btn-secondary"><span data-i18n="cta_btn2">加入交流群</span></a>
+    </div>
+  </div>
+</section>
+</main>
+
 <footer class="wrap">
   <div class="foot-grid">
     <div>
-      <span class="foot-brand">君の星辰</span>
+      <span class="foot-brand text-aurora">君の星辰</span>
       <p class="foot-desc" data-i18n="foot_desc">由英国 XINGCHEN NETWORK LIMITED 运营的 AI API 网关。提供统一、OpenAI 兼容的接口，面向专业开发者及技术团队。</p>
     </div>
     <div class="foot-col">
       <h5 data-i18n="foot_platform">平台</h5>
       <ul>
+        <li><a href="#quickstart" data-i18n="foot_quickstart">快速开始</a></li>
         <li><a href="#features" data-i18n="feat_title">架构优势</a></li>
         <li><a href="#groups" data-i18n="grp_title">分组与计费</a></li>
         <li><a href="#pricing" data-i18n="foot_pricing">特色模型</a></li>
-        <li><a href="https://ai.centos.hk" target="_blank" data-i18n="foot_console">控制台入口</a></li>
+        <li><a href="https://ai.centos.hk" target="_blank" rel="noopener" data-i18n="foot_console">控制台入口</a></li>
       </ul>
     </div>
     <div class="foot-col">
       <h5 data-i18n="foot_resource">资源</h5>
       <ul>
-        <li><a href="https://t.me/XingChen_AI" target="_blank" data-i18n="foot_tg_group">Telegram 交流群</a></li>
-        <li><a href="https://t.me/XingChenaiTG" target="_blank" data-i18n="foot_tg_channel">Telegram 频道</a></li>
+        <li><a href="https://t.me/XingChen_AI" target="_blank" rel="noopener" data-i18n="foot_tg_group">Telegram 交流群</a></li>
+        <li><a href="https://t.me/XingChenaiTG" target="_blank" rel="noopener" data-i18n="foot_tg_channel">Telegram 频道</a></li>
         <li><a href="#faq" data-i18n="foot_docs">帮助文档</a></li>
       </ul>
     </div>
@@ -567,15 +789,31 @@
 </footer>
 
 <script>
+/* ============ 图标 ============ */
+const ICON_COPY = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const ICON_CHECK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const ICON_FLIP = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>';
+const ICON_BACK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>';
+const ICON_CLOCK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
+
 /* ============ 国际化（中 / 英）============ */
 const I18N = {
   zh: {
     badge: '英国 · XINGCHEN NETWORK LIMITED',
-    hero_h1: '跨越星辰的<br/>统一 AI API 网关',
+    hero_h1: '<span class="text-gradient">跨越星辰的</span><br/><span class="text-aurora">统一 AI API 网关</span>',
     hero_p: '提供统一、OpenAI 兼容的 API 接口，通过单一端点访问数百个模型。同一套代码，调用 GPT、Claude、Gemini、国产大模型与视频生图。',
     hero_cta1: '立即开始使用', hero_cta2: '官方 Telegram',
+    ep_title: '可用线路 · 点击复制',
     ep_main: '主线路', ep_eo: 'EO加速', ep_opt: '三网优化',
     stat1: '统一端点', stat2: '支持模型', stat3: '透明费率', stat4: '高可用性',
+    qs_eyebrow: 'Quick Start', qs_title: '三步接入，零改造迁移',
+    qs_sub: '兼容 OpenAI 与 Anthropic 协议。已有项目只需替换 Base URL 与 API Key，即可立即切换。',
+    qs_s1_t: '注册并创建令牌', qs_s1_d: '登录控制台，在「令牌」页面创建 API Key，并按需选择分组。',
+    qs_s2_t: '替换 Base URL', qs_s2_d: 'OpenAI 格式使用 <code>https://ai.centos.hk/v1</code>；Claude Code 等 Anthropic 客户端使用 <code>https://ai.centos.hk</code>。',
+    qs_s3_t: '选择模型，开始调用', qs_s3_d: '同一个 Key 调用所有已开通的模型，统一余额扣费，用量实时可查。',
+    copy: '复制', copied: '已复制',
+    code_hello: '你好，介绍一下你自己',
+    feat_eyebrow: 'Why Xingchen',
     feat_title: '架构优势', feat_sub: '为您的应用提供强大的底层基础设施，无缝集成主流 AI 服务。',
     feat1_t: '单 API，多模型', feat1_d: '无需为每家供应商重复对接。同一套代码即可调用数百个业界顶尖模型。',
     feat2_t: '智能路由调度', feat2_d: '根据并发可用性、网络延迟和使用成本，自动为您选择最佳的上游提供商。',
@@ -583,30 +821,45 @@ const I18N = {
     feat4_t: '统一余额管理', feat4_d: '一个账号、一个账单。所有模型共享账户余额，彻底告别繁琐的多平台充值。',
     feat5_t: '官方 1:1 费率', feat5_d: '严格按照官方 Token 计费标准，仅收取极少量的网关服务费，杜绝隐形加价。',
     feat6_t: '多节点边缘加速', feat6_d: '结合 CF / EO 与三网优化端点，大幅降低跨境 API 调用的网络延迟。',
+    grp_eyebrow: 'Groups & Pricing',
     grp_title: '分组与计费', grp_sub: '灵活的模型分组体系。按需选择不同级别的稳定性和价格，倍率越低价格越优。',
     grp_notice: '注意：特惠与逆向分组无技术售后及退款保证。实际倍率以控制台为准。',
+    price_eyebrow: 'Featured',
     price_title: '特色模型参考', price_sub: '部分生图与视频模型单次调用价格参考。完整清单请查阅控制台定价页面。',
     price_t1: '生图模型 (单次)', price_t2: 'Seedance 视频 (1M Tokens)',
     price_col_model: '模型名称', price_col_price: '价格 (￥)', price_col_tier: '梯度 (￥)',
+    faq_eyebrow: 'Support',
     faq_title: '常见问题', faq_sub: '技术支持与常见错误排查指南。',
+    cta_title: '准备好<span class="text-aurora">跨越星辰</span>了吗？',
+    cta_sub: '注册即可获取 API Key，一个账号畅用 GPT、Claude、Gemini 与国产大模型。',
+    cta_btn1: '进入控制台', cta_btn2: '加入交流群',
     foot_desc: '由英国 XINGCHEN NETWORK LIMITED 运营的 AI API 网关。提供统一、OpenAI 兼容的接口，面向专业开发者及技术团队。',
-    foot_platform: '平台', foot_pricing: '特色模型', foot_console: '控制台入口',
+    foot_platform: '平台', foot_quickstart: '快速开始', foot_pricing: '特色模型', foot_console: '控制台入口',
     foot_resource: '资源', foot_tg_group: 'Telegram 交流群', foot_tg_channel: 'Telegram 频道', foot_docs: '帮助文档',
     foot_terms: '使用即代表同意服务条款。',
     cat_all: '全部', cat_other: '其他',
-    ratio_auto: '自动', off_dynamic: '动态', coming_soon: '待上线',
-    models_title: '可用模型', back: '返回',
+    ratio_auto: '自动', off_dynamic: '动态倍率', ratio_label: '倍率', coming_soon: '待上线',
+    models_title: '可用模型', back: '返回', view_models: '查看模型',
     more_models: (n) => '查看全部 ' + n + ' 个模型 →',
     no_models: '暂无可展示模型',
     off_fmt: (r) => (r < 1 ? (Math.round(r * 1000) / 10) + ' 折' : ''),
   },
   en: {
     badge: 'UK · XINGCHEN NETWORK LIMITED',
-    hero_h1: 'A Unified AI API Gateway<br/>Across the Stars',
+    hero_h1: '<span class="text-gradient">A Unified AI API Gateway</span><br/><span class="text-aurora">Across the Stars</span>',
     hero_p: 'A unified, OpenAI-compatible API — reach hundreds of models through a single endpoint. One codebase to call GPT, Claude, Gemini, Chinese LLMs, and image/video generation.',
     hero_cta1: 'Get Started', hero_cta2: 'Official Telegram',
+    ep_title: 'Endpoints · click to copy',
     ep_main: 'Primary', ep_eo: 'EO CDN', ep_opt: 'Multi-ISP',
     stat1: 'Unified Endpoint', stat2: 'Models', stat3: '1:1 Pricing', stat4: 'Availability',
+    qs_eyebrow: 'Quick Start', qs_title: 'Three steps. Zero rewrites.',
+    qs_sub: 'Compatible with both OpenAI and Anthropic protocols. Swap the Base URL and API key in your existing project and you are done.',
+    qs_s1_t: 'Sign up & create a key', qs_s1_d: 'Open the console, create an API key on the Tokens page, and pick a group.',
+    qs_s2_t: 'Swap the Base URL', qs_s2_d: 'Use <code>https://ai.centos.hk/v1</code> for the OpenAI format, and <code>https://ai.centos.hk</code> for Anthropic clients such as Claude Code.',
+    qs_s3_t: 'Pick a model and call', qs_s3_d: 'One key reaches every model you have access to, with a single balance and real-time usage.',
+    copy: 'Copy', copied: 'Copied',
+    code_hello: 'Hello, introduce yourself',
+    feat_eyebrow: 'Why Xingchen',
     feat_title: 'Architecture', feat_sub: 'Powerful infrastructure for your apps, seamlessly integrating mainstream AI services.',
     feat1_t: 'One API, Many Models', feat1_d: 'No per-vendor integration. One codebase calls hundreds of top-tier models.',
     feat2_t: 'Smart Routing', feat2_d: 'Automatically picks the best upstream by availability, latency and cost.',
@@ -614,19 +867,25 @@ const I18N = {
     feat4_t: 'Unified Balance', feat4_d: 'One account, one bill. All models share a single balance — no more juggling top-ups.',
     feat5_t: 'Official 1:1 Pricing', feat5_d: 'Billed strictly at official token rates plus a tiny gateway fee. No hidden markup.',
     feat6_t: 'Edge Acceleration', feat6_d: 'CF / EO and multi-ISP endpoints greatly reduce cross-border API latency.',
+    grp_eyebrow: 'Groups & Pricing',
     grp_title: 'Groups & Pricing', grp_sub: 'A flexible model-group system. Pick the stability and price you need — lower ratio, lower cost.',
     grp_notice: 'Note: Saver and reverse groups carry no support or refund guarantee. Actual ratios follow the console.',
+    price_eyebrow: 'Featured',
     price_title: 'Featured Models', price_sub: 'Reference per-call prices for selected image/video models. See the console pricing page for the full list.',
     price_t1: 'Image Models (per call)', price_t2: 'Seedance Video (1M tokens)',
     price_col_model: 'Model', price_col_price: 'Price (￥)', price_col_tier: 'Tiers (￥)',
+    faq_eyebrow: 'Support',
     faq_title: 'FAQ', faq_sub: 'Support and common error troubleshooting.',
+    cta_title: 'Ready to go <span class="text-aurora">across the stars</span>?',
+    cta_sub: 'Sign up to get an API key — one account for GPT, Claude, Gemini and Chinese LLMs.',
+    cta_btn1: 'Open Console', cta_btn2: 'Join the Community',
     foot_desc: 'An AI API gateway operated by XINGCHEN NETWORK LIMITED (UK). A unified, OpenAI-compatible interface for professional developers and teams.',
-    foot_platform: 'Platform', foot_pricing: 'Featured Models', foot_console: 'Console',
+    foot_platform: 'Platform', foot_quickstart: 'Quick Start', foot_pricing: 'Featured Models', foot_console: 'Console',
     foot_resource: 'Resources', foot_tg_group: 'Telegram Group', foot_tg_channel: 'Telegram Channel', foot_docs: 'Docs',
     foot_terms: 'By using the service you agree to the Terms of Service.',
     cat_all: 'All', cat_other: 'Other',
-    ratio_auto: 'Auto', off_dynamic: 'Dynamic', coming_soon: 'Coming soon',
-    models_title: 'Models', back: 'Back',
+    ratio_auto: 'Auto', off_dynamic: 'Dynamic', ratio_label: 'Ratio', coming_soon: 'Coming soon',
+    models_title: 'Models', back: 'Back', view_models: 'Models',
     more_models: (n) => 'View all ' + n + ' models →',
     no_models: 'No models to show',
     off_fmt: (r) => (r < 1 ? (Math.round(r * 1000) / 10) + '% of list' : ''),
@@ -658,7 +917,7 @@ function t(key){ const d = I18N[LANG] || I18N.zh; return (key in d) ? d[key] : (
 function catLabel(cat){ const m = CAT_I18N[cat]; return m ? (m[LANG] || m.zh) : cat; }
 function tagLabel(tag){ return LANG === 'en' ? (TAG_I18N[tag] || tag) : tag; }
 
-// 应用语言：更新静态文案 + 重渲染分组/FAQ；初始化阶段 render 函数可能尚未定义，做存在性判断
+// 应用语言：更新静态文案 + 重渲染分组/FAQ/代码示例；初始化阶段 render 函数可能尚未定义，做存在性判断
 function applyLang(lang){
   LANG = (lang === 'en') ? 'en' : 'zh';
   document.documentElement.setAttribute('lang', LANG === 'en' ? 'en' : 'zh-CN');
@@ -671,14 +930,117 @@ function applyLang(lang){
   });
   document.querySelectorAll('[data-i18n-html]').forEach(el=>{
     const k = el.getAttribute('data-i18n-html'); const v = t(k);
-    if (typeof v === 'string') el.innerHTML = v; // 仅用于内置可信文案（如带 <br/> 的标题）
+    if (typeof v === 'string') el.innerHTML = v; // 仅用于内置可信文案
   });
   const lt = document.getElementById('lang-toggle');
   if (lt) lt.textContent = LANG === 'en' ? 'EN / 中' : '中 / EN';
   if (typeof renderFilters === 'function') renderFilters();
   if (typeof renderGroups === 'function') renderGroups();
   if (typeof renderFAQ === 'function') renderFAQ();
+  if (typeof renderCode === 'function') renderCode();
 }
+
+/* ============ 复制到剪贴板 ============ */
+function copyText(text){
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text).then(()=>true, ()=>fallbackCopy(text));
+  }
+  return Promise.resolve(fallbackCopy(text));
+}
+function fallbackCopy(text){
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (_) { return false; }
+}
+
+// 线路胶囊：点击复制完整地址
+document.querySelectorAll('.ep').forEach(ep=>{
+  const slot = ep.querySelector('.ep-copy');
+  slot.innerHTML = ICON_COPY;
+  ep.addEventListener('click', ()=>{
+    copyText(ep.dataset.copy).then(ok=>{
+      if (!ok) return;
+      ep.classList.add('copied'); slot.innerHTML = ICON_CHECK;
+      clearTimeout(ep._t);
+      ep._t = setTimeout(()=>{ ep.classList.remove('copied'); slot.innerHTML = ICON_COPY; }, 1600);
+    });
+  });
+});
+
+/* ============ 快速开始代码示例 ============ */
+const BASE = 'https://ai.centos.hk';
+let activeTab = 'curl';
+function codeSource(tab){
+  const hello = t('code_hello');
+  if (tab === 'python') {
+    return [
+      'from openai import OpenAI',
+      '',
+      'client = OpenAI(',
+      '    base_url="' + BASE + '/v1",',
+      '    api_key="sk-xxxxxxxx",',
+      ')',
+      '',
+      'resp = client.chat.completions.create(',
+      '    model="claude-sonnet-4-5",',
+      '    messages=[{"role": "user", "content": "' + hello + '"}],',
+      ')',
+      'print(resp.choices[0].message.content)',
+    ].join('\n');
+  }
+  if (tab === 'claude') {
+    const en = LANG === 'en';
+    return [
+      en ? '# ~/.zshrc or ~/.bashrc' : '# ~/.zshrc 或 ~/.bashrc',
+      'export ANTHROPIC_BASE_URL="' + BASE + '"',
+      'export ANTHROPIC_AUTH_TOKEN="sk-xxxxxxxx"',
+      '',
+      en ? '# Launch Claude Code' : '# 启动 Claude Code',
+      'claude',
+    ].join('\n');
+  }
+  return [
+    'curl ' + BASE + '/v1/chat/completions \\',
+    '  -H "Authorization: Bearer sk-xxxxxxxx" \\',
+    '  -H "Content-Type: application/json" \\',
+    '  -d \'{',
+    '    "model": "claude-sonnet-4-5",',
+    '    "messages": [{"role": "user", "content": "' + hello + '"}]',
+    '  }\'',
+  ].join('\n');
+}
+// 轻量高亮：先转义，再给注释/字符串/关键字上色
+function highlight(src, tab){
+  return esc(src).split('\n').map(line=>{
+    if (/^\s*#/.test(line)) return '<span class="c">' + line + '</span>';
+    let out = line.replace(/(&quot;[^&]*?&quot;)/g, '<span class="s">$1</span>');
+    if (tab === 'curl') out = out.replace(/^(curl)\b/, '<span class="k">$1</span>').replace(/(\s)(-[Hd])\b/g, '$1<span class="v">$2</span>');
+    if (tab === 'python') out = out.replace(/^(from|import)\b/, '<span class="k">$1</span>').replace(/\b(import|print)\b/g, '<span class="k">$1</span>');
+    if (tab === 'claude') out = out.replace(/^(export)\b/, '<span class="k">$1</span>').replace(/^(claude)$/, '<span class="v">$1</span>');
+    return out;
+  }).join('\n');
+}
+function renderCode(){
+  const block = document.getElementById('code-block');
+  if (!block) return;
+  block.innerHTML = highlight(codeSource(activeTab), activeTab);
+  document.querySelectorAll('.code-tab').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab === activeTab ? 'true' : 'false'));
+}
+document.querySelectorAll('.code-tab').forEach(b=>b.addEventListener('click', ()=>{ activeTab = b.dataset.tab; renderCode(); }));
+document.getElementById('code-copy').addEventListener('click', (e)=>{
+  const btn = e.currentTarget;
+  copyText(codeSource(activeTab)).then(ok=>{
+    if (!ok) return;
+    btn.classList.add('copied'); btn.innerHTML = ICON_CHECK + '<span>' + esc(t('copied')) + '</span>';
+    clearTimeout(btn._t);
+    btn._t = setTimeout(()=>{ btn.classList.remove('copied'); btn.innerHTML = '<span data-i18n="copy">' + esc(t('copy')) + '</span>'; }, 1600);
+  });
+});
 
 /* ============ 分组数据 ============ */
 const GROUPS=[
@@ -715,24 +1077,27 @@ let activeCat='全部';
 // HTML 转义：实时接口返回的分组名/描述均经此处理后再插入，纵深防御 XSS
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
-// 分组显示：名称/描述按语言切换；倍率与折扣实时计算
+// 分组显示：名称/描述按语言切换；倍率实时计算
 function grpName(item){ return LANG==='en' ? (item.ne||item.n) : item.n; }
 function grpDesc(item){ return LANG==='en' ? (item.de||item.d) : item.d; }
-function grpRatioText(item){
-  if(item.r==='自动'||item.r==='Auto') return t('ratio_auto');
-  return '×'+item.r;
+function isAutoRatio(item){ return item.r==='自动'||item.r==='Auto'; }
+function grpRatioHTML(item){
+  if (isAutoRatio(item)) return '<span class="ratio-pill tier-auto">' + esc(t('ratio_auto')) + '</span>';
+  const n = parseFloat(item.r);
+  let tier = '';
+  if (isFinite(n)) tier = n <= 0.3 ? ' tier-best' : (n < 1 ? ' tier-good' : '');
+  return '<span class="ratio-pill' + tier + '"><small>×</small>' + esc(item.r) + '</span>';
 }
-function grpOffText(item){
-  // 仅 auto 分组显示「动态」，其余只展示倍率，不再显示折扣（避免歧义）
-  if(item.r==='自动'||item.r==='Auto') return t('off_dynamic');
-  return '';
-}
+function grpRatioSub(item){ return isAutoRatio(item) ? t('off_dynamic') : t('ratio_label'); }
 
 function renderFilters(){
   const f = document.getElementById('filters');
+  const counts = GROUPS.reduce((m,g)=>{ m[g.cat]=(m[g.cat]||0)+1; return m; }, {});
   f.innerHTML = CATS.map(c=>{
     const label = c==='全部' ? t('cat_all') : catLabel(c);
-    return `<button class="filter-btn ${c===activeCat?'active':''}" data-cat="${esc(c)}">${esc(label)}</button>`;
+    const cnt = c==='全部' ? GROUPS.length : (counts[c]||0);
+    const on = c===activeCat;
+    return `<button type="button" class="filter-btn ${on?'active':''}" data-cat="${esc(c)}" aria-pressed="${on}">${esc(label)}<span class="cnt">${cnt}</span></button>`;
   }).join('');
   f.querySelectorAll('.filter-btn').forEach(b=>b.onclick=()=>setCat(b.dataset.cat));
 }
@@ -749,14 +1114,15 @@ function renderGroups(){
     const models = Array.isArray(item.models) ? item.models : [];
     const hasModels = models.length > 0;
     const shown = models.slice(0, MODEL_LIMIT);
+    const backHead = `<div class="back-head"><span>${esc(t('models_title'))} · ${models.length}</span><span class="back-btn">${ICON_BACK}${esc(t('back'))}</span></div>`;
     const backInner = hasModels
-      ? `<div class="back-head"><span>${esc(t('models_title'))}</span><span class="back-btn">↩ ${esc(t('back'))}</span></div>
-         <ul class="model-list">${shown.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>
+      ? `${backHead}
+         <ul class="model-list">${shown.map(m=>`<li title="${esc(m)}">${esc(m)}</li>`).join('')}</ul>
          ${models.length>MODEL_LIMIT ? `<a class="more-models" href="/pricing">${esc(t('more_models')(models.length))}</a>` : ''}`
-      : `<div class="back-head"><span>${esc(t('models_title'))}</span><span class="back-btn">↩ ${esc(t('back'))}</span></div>
-         <ul class="model-list"><li style="padding-left:0">${esc(t('no_models'))}</li></ul>`;
+      : `${backHead}<ul class="model-list"><li class="empty">${esc(t('no_models'))}</li></ul>`;
+    const a11y = hasModels ? ` tabindex="0" role="button" aria-pressed="false" aria-label="${esc(grpName(item))} · ${esc(t('view_models'))}"` : '';
     return `
-    <div class="group-card flip${item.coming?' coming':''}${hasModels?' flippable':''}" data-group="${esc(item.n)}">
+    <div class="group-card spot flip${item.coming?' coming':''}${hasModels?' flippable':''}" data-group="${esc(item.n)}"${a11y}>
       <div class="flip-inner">
         <div class="flip-face flip-front">
           <div class="group-header">
@@ -766,13 +1132,16 @@ function renderGroups(){
             </div>
             <div class="group-ratio">
               ${item.coming
-                ? `<span class="soon">${esc(t('coming_soon'))}</span>`
-                : `<strong>${esc(grpRatioText(item))}</strong><span>${esc(grpOffText(item))}</span>`}
+                ? `<span class="soon">${ICON_CLOCK}${esc(t('coming_soon'))}</span>`
+                : `${grpRatioHTML(item)}<span class="ratio-sub">${esc(grpRatioSub(item))}</span>`}
             </div>
           </div>
           <div class="group-desc">${esc(grpDesc(item))}</div>
-          <div class="group-tags">
-            ${item.b.map(([text, type])=>`<span class="g-tag ${type}">${esc(tagLabel(text))}</span>`).join('')}
+          <div class="group-foot">
+            <div class="group-tags">
+              ${item.b.map(([text, type])=>`<span class="g-tag ${type}">${esc(tagLabel(text))}</span>`).join('')}
+            </div>
+            ${hasModels ? `<span class="flip-hint">${ICON_FLIP}${esc(t('view_models'))}</span>` : ''}
           </div>
         </div>
         <div class="flip-face flip-back">${backInner}</div>
@@ -780,11 +1149,19 @@ function renderGroups(){
     </div>`;
   }).join('');
 
-  // 点击可翻转卡片：正反互翻；点击「查看全部」链接不触发翻转
+  // 点击/回车/空格翻转可翻卡片；点击「查看全部」链接不触发翻转
   g.querySelectorAll('.group-card.flippable').forEach(card=>{
+    const toggle = ()=>{
+      const on = card.classList.toggle('flipped');
+      card.setAttribute('aria-pressed', on ? 'true' : 'false');
+    };
     card.addEventListener('click', (e)=>{
-      if (e.target.closest('a.more-models')) return; // 让链接正常跳转
-      card.classList.toggle('flipped');
+      if (e.target.closest('a.more-models')) return;
+      toggle();
+    });
+    card.addEventListener('keydown', (e)=>{
+      if (e.target !== card) return;
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
     });
   });
 }
@@ -827,8 +1204,7 @@ async function loadLiveGroups(){
       if(IGNORE_GROUPS.includes(name)) return;
       const info=live[name]||{};
       const r=info.ratio;
-      // 1) 精确名命中 -> 覆盖倍率；2) 归一化名命中 -> 覆盖倍率（名字不完全一致也覆盖）；3) 都不中 -> 追加新分组
-      // 折扣由 grpOffText 按倍率实时计算，无需存储
+      // 1) 精确名命中 -> 覆盖倍率；2) 归一化名命中 -> 覆盖倍率；3) 都不中 -> 追加新分组
       const ex=byName[name]||byNorm[normName(name)];
       if(ex){
         ex.r=fmtRatio(r);
@@ -841,7 +1217,6 @@ async function loadLiveGroups(){
     if(changed){ rebuildCats(); renderFilters(); renderGroups(); }
   }catch(e){ /* 离线兜底：保留精选分组 */ }
 }
-// 初次加载在轮询驱动里统一触发（见 loadLivePricing 之后）
 
 /* ---------- 实时模型数量 → 标记「待上线」 + 同步倍率 ----------
    GET /api/pricing（公开只读）返回模型列表与 group_ratio。
@@ -869,7 +1244,6 @@ async function loadLivePricing(){
 
     // 系统「已知分组」= group_ratio 的键 ∪ 出现在模型 enable_groups 里的分组
     const knownGroups=new Set([...Object.keys(groupRatio),...Object.keys(modelCount)]);
-    // 归一化索引：归一名 -> 是否已知 / 模型数 / 模型名 / 倍率
     const normKnown=new Set(), normCount={}, normNames={}, normRatio={};
     knownGroups.forEach(g=>{ const k=normName(g); if(k) normKnown.add(k); });
     Object.keys(modelCount).forEach(g=>{ const k=normName(g); if(k) normCount[k]=(normCount[k]||0)+modelCount[g]; });
@@ -879,12 +1253,10 @@ async function loadLivePricing(){
     let changed=false;
     GROUPS.forEach(item=>{
       const k=normName(item.n);
-      // 模型名：精确名优先，其次归一化（auto 也收集，便于翻面展示）
       const names = (item.n in modelNames) ? modelNames[item.n] : (normNames[k] || undefined);
       if(names){ const arr=[...new Set(names)].sort(); if(JSON.stringify(arr)!==JSON.stringify(item.models||[])){ item.models=arr; changed=true; } }
       if(item.n==='auto') return; // auto 动态，不判待上线
       const isKnown = knownGroups.has(item.n) || normKnown.has(k);
-      // 倍率校准（若 pricing 提供了该分组倍率）
       const gr = (item.n in groupRatio) ? groupRatio[item.n] : (k in normRatio ? normRatio[k] : undefined);
       if(typeof gr==='number' && isFinite(gr)){ const nr=fmtRatio(gr); if(nr!==item.r){ item.r=nr; changed=true; } }
       // 只有当该分组确实是系统已知分组时才判定上线状态，避免误标精选里的占位分组
@@ -901,8 +1273,7 @@ async function loadLivePricing(){
 }
 
 /* ---------- 实时刷新驱动 ----------
-   1) 立即拉一次；2) 每 60s 轮询，让停留在首页的访客也能看到后台倍率/上线状态变化；
-   3) 页面切回前台（visibilitychange）时立即补拉一次，避免长时间后台后数据陈旧。
+   1) 立即拉一次；2) 每 60s 轮询；3) 页面切回前台时立即补拉一次。
    接口均带时间戳防缓存（绕开 CDN），且只读、不带 cookie。 */
 function refreshLiveData(){ loadLiveGroups(); loadLivePricing(); }
 refreshLiveData();
@@ -937,28 +1308,20 @@ function renderFAQ(){
 }
 renderFAQ();
 
-// Theme Toggle
+/* ============ 主题切换 ============ */
 const themeToggleBtn = document.getElementById('theme-toggle');
 const sunIcon = document.getElementById('sun-icon');
 const moonIcon = document.getElementById('moon-icon');
 const htmlEl = document.documentElement;
 
 function updateThemeIcons() {
-  if (htmlEl.classList.contains('dark')) {
-    sunIcon.style.display = 'block';
-    moonIcon.style.display = 'none';
-  } else {
-    sunIcon.style.display = 'none';
-    moonIcon.style.display = 'block';
-  }
+  const dark = htmlEl.classList.contains('dark');
+  sunIcon.style.display = dark ? 'block' : 'none';
+  moonIcon.style.display = dark ? 'none' : 'block';
 }
-
 function setTheme(mode, persist) {
-  if (mode === 'light') {
-    htmlEl.classList.remove('dark');
-  } else {
-    htmlEl.classList.add('dark');
-  }
+  if (mode === 'light') htmlEl.classList.remove('dark');
+  else htmlEl.classList.add('dark');
   if (persist) localStorage.setItem('theme', mode);
   updateThemeIcons();
 }
@@ -1032,30 +1395,50 @@ window.addEventListener('message', (e) => {
   }
 })();
 
-// Meteors —— 每颗略有差异（长度/速度/色相），更自然
+/* ============ 卡片聚光灯（单一委托监听） ============ */
+document.addEventListener('pointermove', (e) => {
+  const el = e.target.closest && e.target.closest('.spot');
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+  el.style.setProperty('--my', (e.clientY - r.top) + 'px');
+}, { passive: true });
+
+/* ============ 滚动入场 ============
+   嵌入 iframe 时 iframe 自身不滚动（由宿主滚动），IntersectionObserver 无法感知，直接显示。 */
+(function(){
+  const els = document.querySelectorAll('.reveal');
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (embedded || reduce || !('IntersectionObserver' in window)) {
+    els.forEach(el => el.classList.add('in'));
+    return;
+  }
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+  els.forEach(el => io.observe(el));
+})();
+
+/* ============ 流星（仅深色） ============ */
 (function(){
   const box = document.getElementById('meteors');
   if (!box) return;
   const N = 9;
-  const hues = ['rgba(96,165,250,', 'rgba(129,140,248,', 'rgba(56,189,248,']; // 蓝/靛/青
+  const hues = ['rgba(96,165,250,', 'rgba(129,140,248,', 'rgba(56,189,248,'];
   for(let i=0; i<N; i++){
     const m = document.createElement('div');
     m.className = 'meteor';
     m.style.left = (Math.random() * 100) + '%';
     m.style.top = (Math.random() * 80 - 25) + '%';
-    const dur = (Math.random() * 5 + 3.5).toFixed(2);
-    m.style.animationDuration = dur + 's';
+    m.style.animationDuration = (Math.random() * 5 + 3.5).toFixed(2) + 's';
     m.style.animationDelay = (Math.random() * 6).toFixed(2) + 's';
-    // 长度与粗细微差
-    const len = (Math.random() * 120 + 160).toFixed(0);
-    m.style.width = len + 'px';
-    const glow = hues[i % hues.length];
-    m.style.filter = 'drop-shadow(0 0 6px ' + glow + '0.5))';
+    m.style.width = (Math.random() * 120 + 160).toFixed(0) + 'px';
+    m.style.filter = 'drop-shadow(0 0 6px ' + hues[i % hues.length] + '0.5))';
     box.appendChild(m);
   }
 })();
 
-// 闪烁星点
+/* ============ 闪烁星点（仅深色） ============ */
 (function(){
   const box = document.getElementById('stars');
   if (!box) return;
@@ -1070,10 +1453,7 @@ window.addEventListener('message', (e) => {
     s.style.top = (Math.random() * 100) + '%';
     s.style.animationDuration = (Math.random() * 3 + 1.8).toFixed(2) + 's';
     s.style.animationDelay = (Math.random() * 4).toFixed(2) + 's';
-    // 偶尔给星点一点冷色
-    if (Math.random() < 0.25) {
-      s.style.background = Math.random() < 0.5 ? '#bcd4ff' : '#a5b4fc';
-    }
+    if (Math.random() < 0.25) s.style.background = Math.random() < 0.5 ? '#bcd4ff' : '#a5b4fc';
     box.appendChild(s);
   }
 })();
