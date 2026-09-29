@@ -36,6 +36,8 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
 	case constant.ChannelTypeMinimaxImage:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeImageGeneration}
+	case constant.ChannelTypeTypeSafe:
+		return []constant.EndpointType{constant.EndpointTypeTypeSafeSystemOne}
 	default:
 		if IsOpenAIResponseOnlyModel(modelName) {
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIResponse}

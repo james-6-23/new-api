@@ -4269,6 +4269,7 @@
     "Type a command or search...": "コマンドまたは検索を入力...",
     "Type the confirmation text here": "確認テキストをここに入力",
     "Type-Specific Settings": "タイプ固有の設定",
+    "TypeSafe defaults to https://api.typesafe.ai and supports native /v1/systemone evaluations and model discovery. Chat and streaming requests are not supported.": "TypeSafe の既定アドレスは https://api.typesafe.ai です。/v1/systemone のネイティブ評価とモデル一覧の取得に対応しています。チャットやストリーミングには対応していません。",
     "Type:": "タイプ:",
     "UI granularity only &mdash; data is still aggregated hourly": "UIの粒度のみ &mdash; データは引き続き時間単位で集計されます",
     "Unable to estimate price for this deployment.": "このデプロイメントの価格を推定できません。",

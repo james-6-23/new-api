@@ -80,6 +80,7 @@ export const CHANNEL_TYPES = {
   59: 'seedance(第三方)',
   60: '字节火山透传',
   61: 'MiniMax Image',
+  62: 'TypeSafe',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
@@ -380,7 +381,7 @@ export const FIELD_DESCRIPTIONS = {
 // ============================================================================
 
 export const MODEL_FETCHABLE_TYPES = new Set([
-  1, 4, 14, 17, 20, 23, 24, 25, 26, 27, 31, 34, 35, 40, 42, 43, 47, 48,
+  1, 4, 14, 17, 20, 23, 24, 25, 26, 27, 31, 34, 35, 40, 42, 43, 47, 48, 62,
 ])
 
 export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
@@ -398,4 +399,5 @@ export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {
   3: 'For channels added after May 10, 2025, no need to remove "." from model names during deployment',
   8: 'If connecting to upstream One API or New API relay projects, use OpenAI type instead unless you know what you are doing',
   37: 'Dify channels only support chatflow and agent, and agent does not support images',
+  62: 'TypeSafe defaults to https://api.typesafe.ai and supports native /v1/systemone evaluations and model discovery. Chat and streaming requests are not supported.',
 }

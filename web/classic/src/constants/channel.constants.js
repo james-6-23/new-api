@@ -197,11 +197,12 @@ export const CHANNEL_OPTIONS = [
   { value: 59, color: 'purple', label: 'seedance(第三方)' },
   { value: 60, color: 'orange', label: '字节火山透传' },
   { value: 61, color: 'teal', label: 'MiniMax Image' },
+  { value: 62, color: 'blue', label: 'TypeSafe' },
 ];
 
 // Channel types that support upstream model list fetching in UI.
 export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
-  1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
+  1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43, 62,
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;

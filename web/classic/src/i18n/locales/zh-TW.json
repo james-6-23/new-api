@@ -125,6 +125,7 @@
     "default为默认设置，可单独设置每个分类的安全等级": "default為預設設定，可單獨設定每個分類的安全等級",
     "default为默认设置，可单独设置每个模型的版本": "default為預設設定，可單獨設定每個模型的版本",
     "Dify渠道只适配chatflow和agent，并且agent不支持图片！": "Dify管道只相容chatflow和agent，並且agent不支援圖片！",
+    "TypeSafe 默认地址为 https://api.typesafe.ai，支持 /v1/systemone 原生评估和模型列表获取，不支持聊天或流式请求。": "TypeSafe 預設位址為 https://api.typesafe.ai，支援 /v1/systemone 原生評估和模型清單取得，不支援聊天或串流請求。",
     "Discord": "Discord",
     "Discord Client ID": "Discord Client ID",
     "Discord Client Secret": "Discord Client Secret",

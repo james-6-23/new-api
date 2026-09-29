@@ -4269,6 +4269,7 @@
     "Type a command or search...": "输入命令或搜索...",
     "Type the confirmation text here": "在此输入确认文本",
     "Type-Specific Settings": "特定类型设置",
+    "TypeSafe defaults to https://api.typesafe.ai and supports native /v1/systemone evaluations and model discovery. Chat and streaming requests are not supported.": "TypeSafe 默认地址为 https://api.typesafe.ai，支持 /v1/systemone 原生评估和模型列表获取，不支持聊天或流式请求。",
     "Type:": "类型：",
     "UI granularity only &mdash; data is still aggregated hourly": "仅 UI 粒度 &mdash; 数据仍按小时汇总",
     "Unable to estimate price for this deployment.": "无法为该部署估算价格。",

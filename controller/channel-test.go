@@ -51,6 +51,9 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if normalized != "" {
 		return normalized
 	}
+	if channel != nil && channel.Type == constant.ChannelTypeTypeSafe {
+		return string(constant.EndpointTypeTypeSafeSystemOne)
+	}
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}
@@ -112,11 +115,23 @@ func testChannel(channel *model.Channel, testUserID int, testModel string, endpo
 			}
 			if testModel == "" {
 				testModel = "gpt-4o-mini"
+				if channel.Type == constant.ChannelTypeTypeSafe {
+					testModel = "jev-latest"
+				}
 			}
 		}
 	}
 
 	endpointType = normalizeChannelTestEndpoint(channel, testModel, endpointType)
+	isTypeSafeEndpoint := endpointType == string(constant.EndpointTypeTypeSafeSystemOne)
+	if channel.Type == constant.ChannelTypeTypeSafe {
+		if !isTypeSafeEndpoint {
+			return testResult{localErr: errors.New("TypeSafe only supports /v1/systemone")}
+		}
+		isStream = false
+	} else if isTypeSafeEndpoint {
+		return testResult{localErr: errors.New("/v1/systemone requires a TypeSafe channel")}
+	}
 
 	requestPath := "/v1/chat/completions"
 
@@ -214,6 +229,8 @@ func testChannel(channel *model.Channel, testUserID int, testModel string, endpo
 			relayFormat = types.RelayFormatOpenAIImage
 		case constant.EndpointTypeEmbeddings:
 			relayFormat = types.RelayFormatEmbedding
+		case constant.EndpointTypeTypeSafeSystemOne:
+			relayFormat = types.RelayFormatTypeSafe
 		default:
 			relayFormat = types.RelayFormatOpenAI
 		}
@@ -318,6 +335,8 @@ func testChannel(channel *model.Channel, testUserID int, testModel string, endpo
 	var convertedRequest any
 	// 根据 RelayMode 选择正确的转换函数
 	switch info.RelayMode {
+	case relayconstant.RelayModeTypeSafeSystemOne:
+		convertedRequest = request
 	case relayconstant.RelayModeEmbeddings:
 		// Embedding 请求 - request 已经是正确的类型
 		if embeddingReq, ok := request.(*dto.EmbeddingRequest); ok {
@@ -433,6 +452,16 @@ func testChannel(channel *model.Channel, testUserID int, testModel string, endpo
 				context:     c,
 				localErr:    err,
 				newAPIError: types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid),
+			}
+		}
+		if info.RelayMode == relayconstant.RelayModeTypeSafeSystemOne {
+			var effective dto.TypeSafeRequest
+			if err := common.Unmarshal(jsonData, &effective); err != nil {
+				return testResult{
+					context:     c,
+					localErr:    err,
+					newAPIError: types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid),
+				}
 			}
 		}
 	}
@@ -823,6 +852,11 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				N:      lo.ToPtr(uint(1)),
 				Size:   "1024x1024",
 			}
+		case constant.EndpointTypeTypeSafeSystemOne:
+			return &dto.TypeSafeRequest{Model: model, Fields: map[string]json.RawMessage{
+				"state":     json.RawMessage(`"Please help urgently."`),
+				"questions": json.RawMessage(`{"urgent":{"type":"noul","instructions":"Does this message express urgency?"}}`),
+			}}
 		case constant.EndpointTypeJinaRerank:
 			// 返回 RerankRequest
 			return &dto.RerankRequest{

@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	"github.com/QuantumNous/new-api/relay/channel/typesafe"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -311,6 +312,8 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		} else {
 			url = fmt.Sprintf("%s/v1/models", baseURL)
 		}
+	case constant.ChannelTypeTypeSafe:
+		url = typesafe.NormalizeBaseURL(baseURL) + typesafe.ModelsPath
 	default:
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}
@@ -329,6 +332,14 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	body, err := GetResponseBody(http.MethodGet, url, channel, headers)
 	if err != nil {
 		return nil, err
+	}
+
+	if channel.Type == constant.ChannelTypeTypeSafe {
+		names, err := typesafe.ParseModelList(body)
+		if err != nil {
+			return nil, err
+		}
+		return normalizeModelNames(names), nil
 	}
 
 	var result OpenAIModelsResponse

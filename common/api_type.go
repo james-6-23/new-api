@@ -77,6 +77,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeCodex
 	case constant.ChannelTypeMinimaxImage:
 		apiType = constant.APITypeMinimaxImage
+	case constant.ChannelTypeTypeSafe:
+		apiType = constant.APITypeTypeSafe
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

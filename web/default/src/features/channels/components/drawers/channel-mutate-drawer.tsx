@@ -682,8 +682,9 @@ export function ChannelMutateDrawer({
     }
   }, [form, isEditing, multiKeyMode, supportsMultiKeyAddMode])
 
-  // Validate base_url - warn if it ends with /v1
+  // Validate base_url - warn if it ends with /v1 (TypeSafe accepts it)
   useEffect(() => {
+    if (currentType === 62) return
     if (!currentBaseUrl || !currentBaseUrl.endsWith('/v1')) return
 
     // Show warning toast
@@ -698,7 +699,7 @@ export function ChannelMutateDrawer({
 
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentBaseUrl])
+  }, [currentBaseUrl, currentType])
 
   // Handle key deduplication
   const handleDeduplicateKeys = () => {

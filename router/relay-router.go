@@ -116,6 +116,11 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIImage)
 		})
 
+		// TypeSafe native evaluation
+		httpRouter.POST("/systemone", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatTypeSafe)
+		})
+
 		// embedding related routes
 		httpRouter.POST("/embeddings", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatEmbedding)

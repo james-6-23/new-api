@@ -109,11 +109,19 @@ const endpointTypeOptions: Array<{ value: string; label: string }> = [
   { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
 ]
 
+const TYPESAFE_CHANNEL_TYPE = 62
+
+const typeSafeEndpointTypeOptions: Array<{ value: string; label: string }> = [
+  { value: 'auto', label: 'Auto detect (default)' },
+  { value: 'typesafe-systemone', label: 'TypeSafe (/v1/systemone)' },
+]
+
 const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
   'embeddings',
   'image-generation',
   'jina-rerank',
   'openai-response-compact',
+  'typesafe-systemone',
 ])
 
 const MODEL_PRICE_ERROR_CODE = 'model_price_error'
@@ -219,13 +227,17 @@ export function ChannelTestDialog({
     pageIndex: 0,
     pageSize: 10,
   })
+  const isTypeSafeChannel = currentRow?.type === TYPESAFE_CHANNEL_TYPE
   const endpointSelectItems = useMemo(
     () =>
-      endpointTypeOptions.map((option) => ({
+      (isTypeSafeChannel
+        ? typeSafeEndpointTypeOptions
+        : endpointTypeOptions
+      ).map((option) => ({
         value: option.value,
         label: t(option.label),
       })),
-    [t]
+    [t, isTypeSafeChannel]
   )
 
   const resetState = useCallback(() => {
@@ -247,7 +259,8 @@ export function ChannelTestDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentRow?.id, resetState])
 
-  const streamDisabled = STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
+  const streamDisabled =
+    isTypeSafeChannel || STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
 
   useEffect(() => {
     if (streamDisabled) {

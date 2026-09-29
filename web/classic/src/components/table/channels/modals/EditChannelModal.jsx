@@ -639,7 +639,8 @@ const EditChannelModal = (props) => {
       value = Array.from(new Set(value.map((m) => (m || '').trim())));
     }
 
-    if (name === 'base_url' && value.endsWith('/v1')) {
+    // TypeSafe (62) accepts base URLs ending with /v1.
+    if (name === 'base_url' && value.endsWith('/v1') && inputs.type !== 62) {
       Modal.confirm({
         title: '警告',
         content:
@@ -3832,6 +3833,16 @@ const EditChannelModal = (props) => {
                           type='warning'
                           description={t(
                             'Dify渠道只适配chatflow和agent，并且agent不支持图片！',
+                          )}
+                          className='!rounded-lg'
+                        />
+                      )}
+
+                      {inputs.type === 62 && (
+                        <Banner
+                          type='info'
+                          description={t(
+                            'TypeSafe 默认地址为 https://api.typesafe.ai，支持 /v1/systemone 原生评估和模型列表获取，不支持聊天或流式请求。',
                           )}
                           className='!rounded-lg'
                         />

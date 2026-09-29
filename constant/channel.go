@@ -59,6 +59,7 @@ const (
 	ChannelTypeSeedance3rd     = 59
 	ChannelTypeVolcPassthrough = 60
 	ChannelTypeMinimaxImage   = 61
+	ChannelTypeTypeSafe        = 62
 	ChannelTypeDummy           // this one is only for count, do not add any channel after this
 
 )
@@ -126,6 +127,7 @@ var ChannelBaseURLs = []string{
 	"https://model.service-inference.ai",        //59 - Seedance (3rd party)
 	"https://ark.cn-beijing.volces.com",         //60 - 字节火山透传
 	"https://api.minimax.io",                   //61
+	"https://api.typesafe.ai",                   //62
 }
 
 var ChannelTypeNames = map[int]string{
@@ -187,6 +189,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSeedance3rd:     "seedance(第三方)",
 	ChannelTypeVolcPassthrough: "字节火山透传",
 	ChannelTypeMinimaxImage:   "MiniMax Image",
+	ChannelTypeTypeSafe:        "TypeSafe",
 }
 
 func GetChannelTypeName(channelType int) string {

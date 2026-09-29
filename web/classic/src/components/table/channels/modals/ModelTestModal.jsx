@@ -58,12 +58,16 @@ const ModelTestModal = ({
   t,
 }) => {
   const hasChannel = Boolean(currentTestChannel);
-  const streamToggleDisabled = [
-    'embeddings',
-    'image-generation',
-    'jina-rerank',
-    'openai-response-compact',
-  ].includes(selectedEndpointType);
+  const isTypeSafeChannel = Number(currentTestChannel?.type) === 62;
+  const streamToggleDisabled =
+    isTypeSafeChannel ||
+    [
+      'embeddings',
+      'image-generation',
+      'jina-rerank',
+      'openai-response-compact',
+      'typesafe-systemone',
+    ].includes(selectedEndpointType);
 
   React.useEffect(() => {
     if (streamToggleDisabled && isStreamTest) {
@@ -79,26 +83,41 @@ const ModelTestModal = ({
         )
     : [];
 
-  const endpointTypeOptions = [
-    { value: '', label: t('自动检测') },
-    { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
-    { value: 'openai-response', label: 'OpenAI Response (/v1/responses)' },
-    {
-      value: 'openai-response-compact',
-      label: 'OpenAI Response Compaction (/v1/responses/compact)',
-    },
-    { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
-    {
-      value: 'gemini',
-      label: 'Gemini (/v1beta/models/{model}:generateContent)',
-    },
-    { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
-    {
-      value: 'image-generation',
-      label: t('图像生成') + ' (/v1/images/generations)',
-    },
-    { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
-  ];
+  const endpointTypeOptions = isTypeSafeChannel
+    ? [
+        { value: '', label: t('自动检测') },
+        { value: 'typesafe-systemone', label: 'TypeSafe (/v1/systemone)' },
+      ]
+    : [
+        { value: '', label: t('自动检测') },
+        { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
+        { value: 'openai-response', label: 'OpenAI Response (/v1/responses)' },
+        {
+          value: 'openai-response-compact',
+          label: 'OpenAI Response Compaction (/v1/responses/compact)',
+        },
+        { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
+        {
+          value: 'gemini',
+          label: 'Gemini (/v1beta/models/{model}:generateContent)',
+        },
+        { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
+        {
+          value: 'image-generation',
+          label: t('图像生成') + ' (/v1/images/generations)',
+        },
+        { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
+      ];
+
+  React.useEffect(() => {
+    if (
+      isTypeSafeChannel &&
+      selectedEndpointType !== '' &&
+      selectedEndpointType !== 'typesafe-systemone'
+    ) {
+      setSelectedEndpointType('typesafe-systemone');
+    }
+  }, [isTypeSafeChannel, selectedEndpointType, setSelectedEndpointType]);
 
   const handleCopySelected = () => {
     if (selectedModelKeys.length === 0) {

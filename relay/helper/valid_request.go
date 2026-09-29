@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -49,6 +50,13 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidAudioRequest(c, relayMode)
 	case types.RelayFormatOpenAIRealtime:
 		request = &dto.BaseRequest{}
+	case types.RelayFormatTypeSafe:
+		typeSafeRequest := &dto.TypeSafeRequest{}
+		err = common.UnmarshalBodyReusable(c, typeSafeRequest)
+		if err != nil && !common.IsRequestBodyTooLargeError(err) {
+			err = types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		request = typeSafeRequest
 	default:
 		return nil, fmt.Errorf("unsupported relay format: %s", format)
 	}

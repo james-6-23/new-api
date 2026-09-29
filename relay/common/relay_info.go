@@ -571,6 +571,10 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoGemini(c, request)
 	case types.RelayFormatEmbedding:
 		info = GenRelayInfoEmbedding(c, request)
+	case types.RelayFormatTypeSafe:
+		info = genBaseRelayInfo(c, request)
+		info.RelayFormat = types.RelayFormatTypeSafe
+		info.DisablePing = true
 	case types.RelayFormatOpenAIResponses:
 		if request, ok := request.(*dto.OpenAIResponsesRequest); ok {
 			info = GenRelayInfoResponses(c, request)

@@ -132,6 +132,7 @@
     "default为默认设置，可单独设置每个分类的安全等级": "\"default\" est le paramètre par défaut, et chaque catégorie peut être définie séparément",
     "default为默认设置，可单独设置每个模型的版本": "\"default\" est le paramètre par défaut, et chaque modèle peut être défini séparément",
     "Dify渠道只适配chatflow和agent，并且agent不支持图片！": "Le canal Dify ne prend en charge que chatflow et agent, et l'agent ne prend pas en charge les images !",
+    "TypeSafe 默认地址为 https://api.typesafe.ai，支持 /v1/systemone 原生评估和模型列表获取，不支持聊天或流式请求。": "TypeSafe utilise https://api.typesafe.ai par défaut et prend en charge les évaluations natives /v1/systemone et la récupération des modèles. Le chat et le streaming ne sont pas pris en charge.",
     "Discord": "Discord",
     "Discord Client ID": "ID client Discord",
     "Discord Client Secret": "Secret client Discord",

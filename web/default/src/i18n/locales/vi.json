@@ -4269,6 +4269,7 @@
     "Type a command or search...": "Nhập lệnh hoặc tìm kiếm...",
     "Type the confirmation text here": "Nhập văn bản xác nhận tại đây",
     "Type-Specific Settings": "Cài đặt theo loại",
+    "TypeSafe defaults to https://api.typesafe.ai and supports native /v1/systemone evaluations and model discovery. Chat and streaming requests are not supported.": "TypeSafe mặc định dùng https://api.typesafe.ai, hỗ trợ đánh giá gốc qua /v1/systemone và lấy danh sách mô hình. Không hỗ trợ trò chuyện hoặc yêu cầu truyền phát.",
     "Type:": "Loại:",
     "UI granularity only &mdash; data is still aggregated hourly": "Chỉ là độ chi tiết UI &mdash; dữ liệu vẫn được tổng hợp theo giờ",
     "Unable to estimate price for this deployment.": "Không thể ước tính giá cho triển khai này.",

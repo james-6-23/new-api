@@ -4269,6 +4269,7 @@
     "Type a command or search...": "Введите команду или поиск...",
     "Type the confirmation text here": "Введите текст подтверждения здесь",
     "Type-Specific Settings": "Настройки для конкретного типа",
+    "TypeSafe defaults to https://api.typesafe.ai and supports native /v1/systemone evaluations and model discovery. Chat and streaming requests are not supported.": "Адрес TypeSafe по умолчанию — https://api.typesafe.ai. Поддерживаются оценки через /v1/systemone и получение списка моделей. Чат и потоковые запросы не поддерживаются.",
     "Type:": "Тип:",
     "UI granularity only &mdash; data is still aggregated hourly": "Только детализация пользовательского интерфейса &mdash; данные по-прежнему агрегируются ежечасно",
     "Unable to estimate price for this deployment.": "Не удается оценить цену для этого развертывания.",

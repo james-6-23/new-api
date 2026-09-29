@@ -214,15 +214,22 @@ function inferCapabilities(
   inputs: Modality[]
 ): ModelCapability[] {
   const set = new Set<ModelCapability>()
+  // TypeSafe evaluations are synchronous structured decisions, not chat.
+  const isTypeSafe = endpoints.includes('typesafe-systemone')
 
-  if (outputs.includes('text') && !endpoints.includes('image-generation')) {
+  if (
+    outputs.includes('text') &&
+    !endpoints.includes('image-generation') &&
+    !isTypeSafe
+  ) {
     set.add('streaming')
     set.add('system_prompt')
   }
   if (
     !endpoints.includes('image-generation') &&
     !endpoints.includes('embeddings') &&
-    !endpoints.includes('jina-rerank')
+    !endpoints.includes('jina-rerank') &&
+    !isTypeSafe
   ) {
     set.add('function_calling')
     set.add('tools')
@@ -256,6 +263,9 @@ function inferContextAndOutputs(
 ): { context: number; maxOutput: number } {
   if (endpoints.includes('embeddings') || endpoints.includes('jina-rerank')) {
     return { context: 8_192, maxOutput: 0 }
+  }
+  if (endpoints.includes('typesafe-systemone')) {
+    return { context: 65_536, maxOutput: 0 }
   }
   if (
     endpoints.includes('image-generation') ||

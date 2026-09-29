@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	"github.com/QuantumNous/new-api/relay/channel/typesafe"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -1134,6 +1136,9 @@ func FetchModels(c *gin.Context) {
 
 	client := &http.Client{}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
+	if req.Type == constant.ChannelTypeTypeSafe {
+		url = typesafe.NormalizeBaseURL(baseURL) + typesafe.ModelsPath
+	}
 
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -1163,6 +1168,25 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 	defer response.Body.Close()
+
+	if req.Type == constant.ChannelTypeTypeSafe {
+		body, err := io.ReadAll(response.Body)
+		if err == nil {
+			var names []string
+			if names, err = typesafe.ParseModelList(body); err == nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": true,
+					"data":    names,
+				})
+				return
+			}
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
 
 	var result struct {
 		Data []struct {

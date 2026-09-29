@@ -425,11 +425,81 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+function buildTypeSafeSample(lang: Lang, ctx: SampleContext): string {
+  const url = `${ctx.baseUrl}${ctx.endpointPath}`
+  const body = {
+    model: ctx.modelName,
+    state: 'My integration has failed for three days. Please help urgently.',
+    questions: {
+      urgent: {
+        type: 'noul',
+        instructions: 'Does this message express urgency?',
+      },
+      team: {
+        type: 'choice',
+        instructions: 'Which team should handle this?',
+        criteria: {
+          technical: 'Integration failures',
+          billing: 'Payment issues',
+        },
+      },
+      frustration: {
+        type: 'score',
+        instructions: 'How frustrated is the customer?',
+        criteria: ['Calm', 'Frustrated', 'Very angry'],
+      },
+    },
+  }
+  const bodyJson = JSON.stringify(body, null, 2)
+
+  if (lang === 'curl') {
+    return [
+      `curl ${url} \\`,
+      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '${bodyJson.replace(/\n/g, '\n     ')}'`,
+    ].join('\n')
+  }
+  if (lang === 'python') {
+    return [
+      'import os',
+      'import requests',
+      '',
+      `payload = ${bodyJson}`,
+      '',
+      'response = requests.post(',
+      `    "${url}",`,
+      `    headers={"Authorization": f"Bearer {os.environ['${ctx.apiKeyEnv}']}"},`,
+      '    json=payload,',
+      ')',
+      '',
+      'print(response.json()["answers"])',
+    ].join('\n')
+  }
+  const indentedBody = bodyJson.replace(/\n/g, '\n  ')
+  const fetchCall = [
+    `const response = await fetch('${url}', {`,
+    `  method: 'POST',`,
+    `  headers: {`,
+    `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
+    `    'Content-Type': 'application/json',`,
+    `  },`,
+    `  body: JSON.stringify(${indentedBody}),`,
+    `})`,
+    '',
+    `const data = await response.json()`,
+    `console.log(data.answers)`,
+  ]
+  return fetchCall.join('\n')
+}
+
 function buildSample(
   lang: Lang,
   endpointType: string,
   ctx: SampleContext
 ): string {
+  if (endpointType === 'typesafe-systemone')
+    return buildTypeSafeSample(lang, ctx)
   if (endpointType === 'anthropic') return buildAnthropicSample(lang, ctx)
   if (endpointType === 'gemini') return buildGeminiSample(lang, ctx)
   if (endpointType === 'embeddings' || endpointType === 'jina-rerank')

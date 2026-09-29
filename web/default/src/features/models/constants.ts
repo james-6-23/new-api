@@ -166,6 +166,7 @@ export const ENDPOINT_TEMPLATES: Record<
   'jina-rerank': { path: '/rerank', method: 'POST' },
   'image-generation': { path: '/v1/images/generations', method: 'POST' },
   embeddings: { path: '/v1/embeddings', method: 'POST' },
+  'typesafe-systemone': { path: '/v1/systemone', method: 'POST' },
 }
 
 // ============================================================================

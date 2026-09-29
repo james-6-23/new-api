@@ -4269,6 +4269,7 @@
     "Type a command or search...": "Tapez une commande ou recherchez...",
     "Type the confirmation text here": "Saisissez ici le texte de confirmation",
     "Type-Specific Settings": "Paramètres spécifiques au type",
+    "TypeSafe defaults to https://api.typesafe.ai and supports native /v1/systemone evaluations and model discovery. Chat and streaming requests are not supported.": "TypeSafe utilise https://api.typesafe.ai par défaut et prend en charge les évaluations natives /v1/systemone et la récupération des modèles. Le chat et le streaming ne sont pas pris en charge.",
     "Type:": "Type :",
     "UI granularity only &mdash; data is still aggregated hourly": "Granularité de l'interface uniquement &mdash; les données sont toujours agrégées par heure",
     "Unable to estimate price for this deployment.": "Impossible d'estimer le prix pour ce déploiement.",
